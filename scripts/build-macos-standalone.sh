@@ -3,6 +3,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 package_root="$repo_root/plugins/codex-usage-sidebar/native"
 runtime="${CUS_RUNTIME_BINARY:-$(command -v codex)}"
+if [[ -n "${CUS_RELEASE_TAG:-}" ]]; then
+  [[ "$CUS_RELEASE_TAG" == "v$(cat "$repo_root/version.txt")" ]]
+  [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$(git -C "$repo_root" rev-parse "$CUS_RELEASE_TAG^{commit}")" ]]
+  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]]
+fi
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 source "$repo_root/plugins/codex-usage-sidebar/scripts/select-signing-identity.sh"
 output="$repo_root/.dist/standalone-macos"
@@ -28,7 +33,9 @@ import hashlib,json,pathlib,plistlib,subprocess,sys
 app=pathlib.Path(sys.argv[1])
 with (app/'Contents/Info.plist').open('wb') as f:
  plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'Codex Quota','CFBundleDisplayName':'Codex Quota','CFBundleExecutable':'CodexUsageSidebar','CFBundlePackageType':'APPL','CFBundleShortVersionString':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True},f)
-provenance={'kind':'local-development-candidate','sourceCommit':subprocess.check_output(['git','-C',sys.argv[4],'rev-parse','HEAD'],text=True).strip(),'workingTreeDirty':True,'version':sys.argv[2],'runtimeVersion':sys.argv[3],'runtimeSource':'https://github.com/openai/codex/releases/tag/rust-v0.144.1','runtimeUnsignedSha256':hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest()}
+import os
+release_tag=os.environ.get('CUS_RELEASE_TAG')
+provenance={'kind':'release' if release_tag else 'local-development-candidate','sourceCommit':subprocess.check_output(['git','-C',sys.argv[4],'rev-parse','HEAD'],text=True).strip(),'workingTreeDirty':bool(subprocess.check_output(['git','-C',sys.argv[4],'status','--porcelain','--untracked-files=no'],text=True).strip()),'version':sys.argv[2],'runtimeVersion':sys.argv[3],'runtimeSource':'https://github.com/openai/codex/releases/tag/rust-v0.144.1','runtimeUnsignedSha256':hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest(),'releaseTag':release_tag}
 repo=pathlib.Path(sys.argv[4])
 paths=[repo/'version.txt',repo/'plugins/codex-usage-sidebar/native/Package.swift',repo/'scripts/build-macos-standalone.sh',repo/'scripts/install-macos-standalone.py']
 for folder in ['Sources','Tests']:

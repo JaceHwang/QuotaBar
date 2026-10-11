@@ -1,5 +1,8 @@
 <h1 align="center">Codex Usage Sidebar</h1>
 
+
+[macOS standalone quota application](docs/MACOS_STANDALONE.zh-CN.md): independent login, bundled runtime, menu bar quota and reset dates.
+
 <p align="center">
   Live Codex quota, reset time, Credits, and Bank details in the Codex titlebar.
 </p>

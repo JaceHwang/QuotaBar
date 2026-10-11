@@ -3,6 +3,10 @@ set -eu
 
 platform=${1:-}
 tag=${2:-}
+if [ "$platform" = macos-arm64 ] && [ "$tag" != v0.4.0 ]; then
+  python3 scripts/verify-macos-standalone-release.py "$tag" .dist/release/macos-arm64
+  exit 0
+fi
 test "$platform" = macos-arm64 && test "$tag" = v0.4.0 || {
   echo 'unsupported platform or release version' >&2; exit 64;
 }

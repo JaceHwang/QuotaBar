@@ -1,5 +1,8 @@
 <h1 align="center">Codex Usage Sidebar</h1>
 
+
+新增 [macOS 独立菜单栏额度应用](docs/MACOS_STANDALONE.zh-CN.md)：独立登录、内嵌运行时，菜单栏显示额度及重置日期。
+
 <p align="center">在 Codex 标题栏实时显示剩余额度、重置时间、Credits 与 Bank 明细。</p>
 
 <p align="center">
