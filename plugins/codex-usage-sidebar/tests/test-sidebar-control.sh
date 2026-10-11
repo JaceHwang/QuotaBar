@@ -223,6 +223,13 @@ after_invalid_hash="$(/usr/bin/shasum -a 256 "$installed_app/Contents/MacOS/Code
 [[ "$before_invalid_hash" == "$after_invalid_hash" ]] ||
   fail "invalidly signed source mutated the installed app"
 
+touch "$installed_root/standalone-mode"
+before_standalone_log="$(wc -l < "$launchctl_log")"
+"$control_script" ensure --plugin-root "$fake_plugin" --plugin-data "$fixture_root/plugin-data"
+after_standalone_log="$(wc -l < "$launchctl_log")"
+[[ "$before_standalone_log" == "$after_standalone_log" ]] || fail "standalone mode restarted legacy companion"
+rm "$installed_root/standalone-mode"
+
 sentinel="$fake_home/Library/Application Support/keep-me.txt"
 printf 'keep\n' >"$sentinel"
 "$control_script" uninstall --plugin-root "$fake_plugin" --plugin-data "$fixture_root/plugin-data"

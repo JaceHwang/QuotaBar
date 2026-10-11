@@ -1,5 +1,8 @@
 <h1 align="center">Codex Usage Sidebar</h1>
 
+
+新增 [macOS 独立菜单栏额度应用](docs/MACOS_STANDALONE.zh-CN.md)：独立登录、内嵌运行时，菜单栏显示额度及重置日期。
+
 <p align="center">在 Codex 标题栏实时显示剩余额度、重置时间、Credits 与 Bank 明细。</p>
 
 <p align="center">
@@ -20,6 +23,11 @@
 | Windows 11 AMD64（`x64`） | [`v0.4.1` 发布版](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1) | 未签名 `x64` 安装包，带签名兼容更新；Windows ARM64 不在支持范围 |
 
 **macOS 0.4.0 与 Windows 0.4.1 均已发布。** 两个平台分别通过对应 Release 中经过校验的资产分发。
+
+> [!NOTE]
+> 上述发布后的开发源码已将 macOS 和 Windows 浅色详情面板改为不透明纯白色，
+> 并取消原有 720 点的产品高度上限；Windows 源码同时补齐了指示器右键位置模式选择。
+> 这些源码变更尚不是新的已发布构建；Windows 仍需独立 CI 与实机验收。
 
 完整范围见[当前功能清单](docs/CURRENT_FEATURES.md)和[当前设计说明](docs/CURRENT_DESIGN.md)。
 

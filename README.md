@@ -1,5 +1,8 @@
 <h1 align="center">Codex Usage Sidebar</h1>
 
+
+[macOS standalone quota application](docs/MACOS_STANDALONE.zh-CN.md): independent login, bundled runtime, menu bar quota and reset dates.
+
 <p align="center">
   Live Codex quota, reset time, Credits, and Bank details in the Codex titlebar.
 </p>
@@ -30,6 +33,12 @@
 | Windows 11 AMD64 (`x64`) | [v0.4.1 release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1) | Unsigned `x64` setup with signed compatibility updates; Windows ARM64 is out of scope |
 
 **macOS 0.4.0 and Windows 0.4.1 are available.** Each platform is distributed from its verified release assets.
+
+> [!NOTE]
+> Development source after these releases uses an opaque pure-white light detail surface and removes
+> the former 720-point product height cap on macOS and Windows. Windows source also adds the
+> indicator right-click placement selector. These source changes are not yet a new published build;
+> Windows behavior still requires its own CI and device acceptance.
 
 See the [current feature inventory](docs/CURRENT_FEATURES.md) and [current design](docs/CURRENT_DESIGN.md).
 

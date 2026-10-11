@@ -10,7 +10,10 @@ printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-
 
 case "$platform" in
   macos-arm64)
-    test "$tag" = v0.4.0 || { echo 'unsupported macOS release version' >&2; exit 64; }
+    if [ "$tag" != v0.4.0 ]; then
+      bash scripts/package-macos-standalone-release.sh "$tag"
+      exit 0
+    fi
     test "$(git rev-parse HEAD)" = "$(git rev-parse "$tag^{commit}")" || {
       echo 'release build must run at the exact release tag' >&2; exit 65;
     }

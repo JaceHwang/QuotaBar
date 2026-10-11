@@ -1,9 +1,28 @@
 import AppKit
 import Foundation
+import ServiceManagement
 import SidebarCore
 
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
+if Bundle.main.object(forInfoDictionaryKey: "CUSStandalone") as? Bool == true {
+    if CommandLine.arguments.contains("--startup-status") {
+        print(SMAppService.mainApp.status.rawValue)
+        exit(0)
+    }
+    if CommandLine.arguments.contains("--register-startup") {
+        try SMAppService.mainApp.register()
+        exit(0)
+    }
+    if CommandLine.arguments.contains("--unregister-startup") {
+        if SMAppService.mainApp.status != .notRegistered { try SMAppService.mainApp.unregister() }
+        exit(0)
+    }
+    let standalone = StandaloneCoordinator()
+    application.delegate = standalone
+    withExtendedLifetime(standalone) { application.run() }
+    exit(0)
+}
 let runtimeConfiguration = CompanionRuntimeConfiguration(
     arguments: CommandLine.arguments,
     userHomeURL: FileManager.default.homeDirectoryForCurrentUser
