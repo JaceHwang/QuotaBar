@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.5.0...v0.5.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* remove legacy plugin dependencies from standalone app ([#26](https://github.com/JaceHwang/codex-usage-sidebar/issues/26)) ([7a40d3d](https://github.com/JaceHwang/codex-usage-sidebar/commit/7a40d3d91097d8eeaec383aa2d6a1a580e323883))
+
 ## [0.5.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.4.1...v0.5.0) (2026-10-11)
 
 
