@@ -3,6 +3,8 @@
 
 [macOS standalone quota application](docs/MACOS_STANDALONE.zh-CN.md): independent login, bundled runtime, menu bar quota and reset dates.
 
+Latest standalone release: [v0.5.0](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.0) · [macOS Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.5.0/codex-quota-v0.5.0-macos-arm64.dmg). Locally signed; not Developer ID notarized.
+
 <p align="center">
   Live Codex quota, reset time, Credits, and Bank details in the Codex titlebar.
 </p>

@@ -57,3 +57,7 @@ git diff --check
 ### 菜单栏垂直居中修复候选
 
 candidate-20261011-173815：按实际文字尺寸绘制模板图像并使用系统按钮居中图像布局。完整 Swift 343 项与治理检查通过，打包校验、安装严格签名及来源快照一致性通过，真实额度 ready。用户此前确认文字完整显示，随后反馈垂直不居中；用户随后实机确认“已居中”，本修复的垂直居中验收通过。
+
+### v0.5.0 release evidence (2026-10-11)
+
+Exact release tag fee843145fa6a5ab2b782a3e987eea66a1b76177: 345 Swift tests passed. `.governance/project/verify-release macos-arm64 v0.5.0` passed for the built DMG. Installed app version 0.5.0, executable digest matched release provenance, strict signature passed, real quota ready. After publication, `gh release download v0.5.0` followed by `python3 scripts/verify-macos-standalone-release.py v0.5.0 .dist/download-v0.5.0` passed all asset digests, mounted DMG signatures, bundled runtime/version and tag source snapshots. GitHub latest is v0.5.0. Developer ID notarization and full device matrix remain unverified.

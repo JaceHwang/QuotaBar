@@ -222,3 +222,11 @@ P1 完成后重新估算，并为各任务填写实际开始/完成时间。关�
 ### 2026-10-11 公开发布授权
 
 用户授权推送当前代码及安装包作为最新版本，现公开发布纳入范围。远端最新为 Windows v0.4.1；同步远端后由 Release Please 生成新版本，不覆盖已有资产、不手动改版本。已使用保留的 macOS 26.5 SDK 同步旧插件受控载荷，并接入独立 app 正式 tag 构建、来源快照、DMG 校验及发布资产验证。当前发布进行中；Windows 独立版未实施。独立版仍为本机签名，未作 Developer ID 公证，发布说明需明确首次打开限制。
+
+### 2026-10-11 v0.5.0 published
+
+Release Please PR #24 generated v0.5.0 and merged after all macOS/Windows and governance checks passed. Code PR #23 merged as 25f0162; release tag resolves to fee843145fa6a5ab2b782a3e987eea66a1b76177. Exact-tag build passed 345 Swift tests; strict signatures, runtime/application digests and every source snapshot entry matched the tag. Installed v0.5.0 reads real quota (ready).
+
+Public release: https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.0. All five assets uploaded without overwriting older versions, GitHub latest reports v0.5.0. Public assets downloaded again and passed the complete standalone release verifier, including mounted DMG signature and source checks. No Developer ID notarization claim; Windows standalone is unimplemented and Windows plugin remains v0.4.1.
+
+Current status: macOS standalone v0.5.0 released and download-verified. Next action: maintenance from user feedback; Windows standalone or notarization/device-matrix work requires new scope.
