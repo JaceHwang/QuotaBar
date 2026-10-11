@@ -6,3 +6,4 @@ plugins/codex-usage-sidebar/native/.build/
 *.xcresult
 **/bin/
 **/obj/
+.repo_memory/

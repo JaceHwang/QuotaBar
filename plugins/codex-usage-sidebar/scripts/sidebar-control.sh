@@ -274,6 +274,10 @@ stop_service_before_payload_upgrade() {
 }
 
 ensure() {
+  if [[ -f "$install_root/standalone-mode" ]]; then
+    printf 'Standalone Codex Quota mode is active; legacy companion remains stopped.\n'
+    return
+  fi
   require_plugin_payload
   stop_service_before_payload_upgrade
   sync_payload
@@ -324,8 +328,12 @@ uninstall() {
 case "$action" in
   ensure) ensure ;;
   status) status ;;
-  repair) repair ;;
-  uninstall) uninstall ;;
+  repair|uninstall)
+    if [[ -f "$install_root/standalone-mode" ]]; then
+      printf 'Standalone mode owns this account directory; use standalone migration controls.\n' >&2
+      exit 65
+    fi
+    "$action" ;;
   *)
     printf 'unknown action: %s\n' "$action" >&2
     exit 64

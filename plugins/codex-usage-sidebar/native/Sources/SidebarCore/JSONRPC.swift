@@ -145,6 +145,11 @@ public final class ProcessLineTransport: LineTransport, @unchecked Sendable {
         }
         if let current, current.isRunning {
             current.terminate()
+            for _ in 0..<40 {
+                if !current.isRunning { break }
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+            if current.isRunning { kill(current.processIdentifier, SIGKILL) }
         }
         finish()
     }

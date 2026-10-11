@@ -3,6 +3,84 @@ import XCTest
 @testable import SidebarCore
 
 final class AppServerClientTests: XCTestCase {
+    func testLogoutRejectsLateQuotaResponsesAndNotifications() async throws {
+        let transport = InMemoryLineTransport()
+        let client = AppServerClient(transportFactory: { transport })
+        try await completeHandshake(client: client, transport: transport)
+        let received = Task<[AllowanceSnapshot], Never> {
+            var values: [AllowanceSnapshot] = []
+            for await value in client.snapshots { values.append(value) }
+            return values
+        }
+        try await client.logout()
+        transport.emit(#"{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":24,"resetsAt":1785628824}}}}"#)
+        transport.emit(#"{"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":24,"resetsAt":1785628824}}}}"#)
+        transport.emit(#"{"id":4,"result":{}}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await client.stop()
+        let values = await received.value
+        XCTAssertTrue(values.isEmpty)
+    }
+
+    func testMalformedPrimaryQuotaResponseReportsProtocolFailure() async throws {
+        let transport = InMemoryLineTransport()
+        let client = AppServerClient(transportFactory: { transport })
+        try await completeHandshake(client: client, transport: transport)
+        let received = Task<AppServerEvent?, Never> {
+            for await value in client.events { return value }
+            return nil
+        }
+        transport.emit(#"{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":"invalid"}}}}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await client.stop()
+        let value = await received.value
+        XCTAssertEqual(value, .failure(method: "account/rateLimits/read", message: "Unsupported quota response"))
+    }
+
+    func testExpiredPendingReadDoesNotSuppressEveryFutureRefresh() async throws {
+        let transport = InMemoryLineTransport()
+        let client = AppServerClient(transportFactory: { transport })
+        try await completeHandshake(client: client, transport: transport)
+        await client.expireRequests(before: .distantFuture)
+        try await client.refresh()
+        XCTAssertEqual(transport.sentLines.count, 6)
+        await client.stop()
+    }
+
+    func testLoginReturnsBrowserURLAndCompletionNotification() async throws {
+        let transport = InMemoryLineTransport()
+        let client = AppServerClient(transportFactory: { transport })
+        try await completeHandshake(client: client, transport: transport)
+        try await client.login()
+        try await eventually { transport.sentLines.count == 5 }
+        let loginRequest = try XCTUnwrap(transport.sentLines.last.flatMap(parse))
+        XCTAssertEqual(loginRequest["method"] as? String, "account/login/start")
+        let result = Task<AppServerEvent?, Never> {
+            for await event in client.events { if case .loginURL = event { return event } }
+            return nil
+        }
+        transport.emit(#"{"id":4,"result":{"type":"chatgpt","loginId":"test-login","authUrl":"https://auth.openai.com/test"}}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await client.stop()
+        let value = await result.value
+        XCTAssertEqual(value, .loginURL(URL(string: "https://auth.openai.com/test")!))
+    }
+
+    func testRateLimitErrorIsDeliveredInsteadOfSilentlyDiscarded() async throws {
+        let transport = InMemoryLineTransport()
+        let client = AppServerClient(transportFactory: { transport })
+        let result = Task<AppServerEvent?, Never> {
+            for await event in client.events { return event }
+            return nil
+        }
+        try await completeHandshake(client: client, transport: transport)
+        transport.emit(#"{"id":2,"error":{"code":-32603,"message":"401 token_expired"}}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await client.stop()
+        let event = await result.value
+        XCTAssertEqual(event, .failure(method: "account/rateLimits/read", message: "401 token_expired"))
+    }
+
     func testInitializesThenReadsRateLimitsAndTokenUsageWithIncreasingIDs() async throws {
         let transport = InMemoryLineTransport()
         let client = AppServerClient(transportFactory: { transport })

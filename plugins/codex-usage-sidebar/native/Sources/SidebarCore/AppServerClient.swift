@@ -6,7 +6,20 @@ public enum AppServerClientError: Error, Equatable, Sendable {
     case remoteError
 }
 
+public enum AppServerEvent: Equatable, Sendable {
+    case failure(method: String, message: String)
+    case loginURL(URL)
+    case loginCompleted(Bool)
+    case loggedOut
+    case accountCleared
+    case quota(AllowanceSnapshot)
+    case tokenUsage(TokenUsageSnapshot)
+    case identity(AccountIdentity)
+}
+
 public actor AppServerClient {
+    public nonisolated let events: AsyncStream<AppServerEvent>
+    private let eventContinuation: AsyncStream<AppServerEvent>.Continuation
     public nonisolated let snapshots: AsyncStream<AllowanceSnapshot>
     public nonisolated let tokenUsages: AsyncStream<TokenUsageSnapshot>
     public nonisolated let accounts: AsyncStream<AccountIdentity>
@@ -17,6 +30,9 @@ public actor AppServerClient {
         case readRateLimits
         case readTokenUsage
         case readAccount
+        case login
+        case logout
+        case cancelLogin
     }
 
     private let snapshotContinuation: AsyncStream<AllowanceSnapshot>.Continuation
@@ -28,6 +44,7 @@ public actor AppServerClient {
     private var readerTask: Task<Void, Never>?
     private var sequencer = JSONRPCSequencer()
     private var pending: [Int: PendingMethod] = [:]
+    private var sentAt: [Int: Date] = [:]
     private var initialized = false
     private var stopping = false
     private var generation = 0
@@ -36,6 +53,8 @@ public actor AppServerClient {
     private var rateLimitReadNeededAfterPending = false
     private var tokenUsageReadNeededAfterPending = false
     private var accountReadNeededAfterInitialization = false
+    private var loginID: String?
+    private var suppressAccountData = false
 
     public init(
         transportFactory: @escaping @Sendable () throws -> any LineTransport,
@@ -46,6 +65,9 @@ public actor AppServerClient {
         ]
     ) {
         self.transportFactory = transportFactory
+        let eventPair = AsyncStream<AppServerEvent>.makeStream(bufferingPolicy: .bufferingNewest(16))
+        events = eventPair.stream
+        eventContinuation = eventPair.continuation
         self.restartDelaysNanoseconds = restartDelaysNanoseconds
         let pair = AsyncStream<AllowanceSnapshot>.makeStream(
             bufferingPolicy: .bufferingNewest(4)
@@ -95,6 +117,7 @@ public actor AppServerClient {
     }
 
     public func refresh() async throws {
+        guard !suppressAccountData else { throw AppServerClientError.remoteError }
         guard initialized else {
             throw AppServerClientError.notInitialized
         }
@@ -119,6 +142,57 @@ public actor AppServerClient {
         _ = try await sendRequest(method: "account/read", params: [:])
     }
 
+    public func login() async throws {
+        guard initialized else { throw AppServerClientError.notInitialized }
+        clearAccountRequests()
+        _ = try await sendRequest(method: "account/login/start", params: ["type": "chatgpt"])
+    }
+
+    public func expireRequests(before date: Date) async {
+        for id in sentAt.filter({ $0.value < date }).map(\.key) {
+            sentAt.removeValue(forKey: id)
+            guard let method = pending.removeValue(forKey: id) else { continue }
+            let name: String
+            switch method {
+            case .initialize: name = "initialize"
+            case .readRateLimits: name = "account/rateLimits/read"
+            case .readTokenUsage: name = "account/usage/read"
+            case .readAccount: name = "account/read"
+            case .login: name = "account/login/start"
+            case .logout: name = "account/logout"
+            case .cancelLogin: name = "account/login/cancel"
+            }
+            eventContinuation.yield(.failure(method: name, message: "Request timeout"))
+            if case .initialize = method { await restartAfterFailure(); return }
+        }
+    }
+
+    public func cancelLogin() async throws {
+        guard let loginID else { return }
+        _ = try await sendRequest(method: "account/login/cancel", params: ["loginId": loginID])
+        self.loginID = nil
+    }
+
+    public func logout() async throws {
+        clearAccountRequests()
+        _ = try await sendRequest(method: "account/logout")
+    }
+
+    private func clearAccountRequests() {
+        suppressAccountData = true
+        lastSnapshot = nil
+        for (id, method) in pending {
+            switch method {
+            case .readRateLimits, .readTokenUsage, .readAccount:
+                pending.removeValue(forKey: id); sentAt.removeValue(forKey: id)
+            default: break
+            }
+        }
+        rateLimitReadNeededAfterPending = false
+        tokenUsageReadNeededAfterPending = false
+        eventContinuation.yield(.accountCleared)
+    }
+
     public func stop() async {
         stopping = true
         readerTask?.cancel()
@@ -133,6 +207,7 @@ public actor AppServerClient {
         accountReadNeededAfterInitialization = false
         await activeTransport?.stop()
         snapshotContinuation.finish()
+        eventContinuation.finish()
         tokenUsageContinuation.finish()
         accountContinuation.finish()
     }
@@ -201,13 +276,19 @@ public actor AppServerClient {
             pending[id] = .readTokenUsage
         case "account/read":
             pending[id] = .readAccount
+        case "account/login/start": pending[id] = .login
+        case "account/logout": pending[id] = .logout
+        case "account/login/cancel": pending[id] = .cancelLogin
         default:
             throw AppServerClientError.remoteError
         }
         do {
+            sentAt[id] = Date()
             try await transport.send(line: line)
         } catch {
+            sentAt.removeValue(forKey: id)
             pending.removeValue(forKey: id)
+            await restartAfterFailure()
             throw error
         }
         return id
@@ -232,10 +313,12 @@ public actor AppServerClient {
         }
 
         if object["method"] as? String == "account/rateLimits/updated" {
+            guard !suppressAccountData else { return }
             if let snapshot = try? RateLimitDecoder.decodeNotification(Data(line.utf8)) {
                 let enriched = snapshot.mergingSupplementary(from: lastSnapshot)
                 lastSnapshot = enriched
                 snapshotContinuation.yield(enriched)
+                eventContinuation.yield(.quota(enriched))
             }
             if initialized {
                 if hasPendingRateLimitRead {
@@ -251,6 +334,15 @@ public actor AppServerClient {
             return
         }
 
+        if object["method"] as? String == "account/login/completed" {
+            let success = (object["params"] as? [String: Any])?["success"] as? Bool ?? false
+            loginID = nil
+            if success { suppressAccountData = false }
+            eventContinuation.yield(.loginCompleted(success))
+            if success { try? await refresh(); try? await readAccount() }
+            return
+        }
+
         guard
             let number = object["id"] as? NSNumber,
             let method = pending.removeValue(forKey: number.intValue)
@@ -258,6 +350,19 @@ public actor AppServerClient {
             return
         }
         guard object["error"] == nil else {
+            sentAt.removeValue(forKey: number.intValue)
+            let methodName: String
+            switch method {
+            case .initialize: methodName = "initialize"
+            case .readRateLimits: methodName = "account/rateLimits/read"
+            case .readTokenUsage: methodName = "account/usage/read"
+            case .readAccount: methodName = "account/read"
+            case .login: methodName = "account/login/start"
+            case .logout: methodName = "account/logout"
+            case .cancelLogin: methodName = "account/login/cancel"
+            }
+            let remote = object["error"] as? [String: Any]
+            eventContinuation.yield(.failure(method: methodName, message: remote?["message"] as? String ?? "Request failed"))
             switch method {
             case .readRateLimits:
                 await sendDeferredRateLimitReadIfNeeded()
@@ -268,10 +373,12 @@ public actor AppServerClient {
                 break
             case .initialize:
                 break
+            case .login, .logout, .cancelLogin: break
             }
             return
         }
 
+        sentAt.removeValue(forKey: number.intValue)
         switch method {
         case .initialize:
             initialized = true
@@ -290,13 +397,16 @@ public actor AppServerClient {
                     : snapshot
                 lastSnapshot = value
                 snapshotContinuation.yield(value)
+                eventContinuation.yield(.quota(value))
+            } else {
+                eventContinuation.yield(.failure(method: "account/rateLimits/read", message: "Unsupported quota response"))
             }
             await sendDeferredRateLimitReadIfNeeded()
         case .readTokenUsage:
             do {
-                tokenUsageContinuation.yield(
-                    try TokenUsageDecoder.decodeResponse(Data(line.utf8))
-                )
+                let usage = try TokenUsageDecoder.decodeResponse(Data(line.utf8))
+                tokenUsageContinuation.yield(usage)
+                eventContinuation.yield(.tokenUsage(usage))
             } catch {
                 yieldUnavailableTokenUsage(from: Data(line.utf8))
             }
@@ -306,7 +416,19 @@ public actor AppServerClient {
                 Data(line.utf8)
             ) {
                 accountContinuation.yield(identity)
+                eventContinuation.yield(.identity(identity))
             }
+        case .login:
+            let result = object["result"] as? [String: Any]
+            loginID = result?["loginId"] as? String
+            if let address = result?["authUrl"] as? String, let url = URL(string: address), url.scheme == "https" {
+                eventContinuation.yield(.loginURL(url))
+            }
+        case .logout:
+            lastSnapshot = nil
+            eventContinuation.yield(.loggedOut)
+        case .cancelLogin:
+            eventContinuation.yield(.loginCompleted(false))
         }
     }
 
@@ -356,14 +478,14 @@ public actor AppServerClient {
         } catch {
             availability = .unavailable
         }
-        tokenUsageContinuation.yield(
-            TokenUsageSnapshot(
+        let unavailable = TokenUsageSnapshot(
                 receivedAt: Date(),
                 dailyBuckets: [],
                 summary: nil,
                 availability: availability
             )
-        )
+        tokenUsageContinuation.yield(unavailable)
+        eventContinuation.yield(.tokenUsage(unavailable))
     }
 
     private var hasPendingRateLimitRead: Bool {
@@ -391,6 +513,7 @@ public actor AppServerClient {
         transport = nil
         readerTask = nil
         initialized = false
+        eventContinuation.yield(.failure(method: "initialize", message: "Runtime exited"))
         pending.removeAll()
         rateLimitReadNeededAfterPending = false
         tokenUsageReadNeededAfterPending = false
@@ -398,6 +521,7 @@ public actor AppServerClient {
     }
 
     private func restartAfterFailure() async {
+        generation += 1
         let activeTransport = transport
         transport = nil
         initialized = false
