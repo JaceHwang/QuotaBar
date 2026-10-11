@@ -2,7 +2,7 @@
 
 Independent macOS menu bar app for Codex account quota. It uses a bundled official runtime and isolated login, so the Codex desktop UI and plugin system are not required.
 
-[Latest release v0.5.0](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.0) · [Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.5.0/codex-quota-v0.5.0-macos-arm64.dmg) · [中文](README.zh-CN.md)
+[Latest release v0.5.1](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.1) · [Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.5.1/codex-quota-v0.5.1-macos-arm64.dmg) · [中文](README.zh-CN.md)
 
 Two menu bar lines show remaining quota and reset dates. Click for details; use settings for official login, refresh, theme, language and login startup. Credentials stay in a local isolated directory. Quota percentages are not cash balances.
 

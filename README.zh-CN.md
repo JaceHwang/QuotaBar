@@ -2,7 +2,7 @@
 
 独立运行的 macOS 菜单栏应用，通过内嵌官方运行时和隔离账户读取额度，无需打开 Codex 桌面版，也不依赖插件界面。
 
-[最新发布 v0.5.0](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.0) · [Apple Silicon 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.5.0/codex-quota-v0.5.0-macos-arm64.dmg)
+[最新发布 v0.5.1](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.1) · [Apple Silicon 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.5.1/codex-quota-v0.5.1-macos-arm64.dmg)
 
 菜单栏分两行显示剩余额度和重置日期，点击打开详情；设置支持登录、刷新、语言、主题和登录启动。账户凭据保存在本机隔离目录。周期额度不是现金余额。
 
