@@ -1,6 +1,8 @@
-# Current development implementation — after macOS 0.4.0
+# Current feature inventory
 
-Reviewed against development source on 2026-09-20. Published platforms remain macOS **0.4.0** and Windows **0.3.3**. The changes below are not a new release or a claim of completed Windows device validation.
+Reviewed against `main` on 2026-09-22. The current public releases are macOS **v0.4.0** and
+Windows **v0.4.1**. Release-specific packaging and validation details are recorded in the
+[macOS](releases/macos-v0.4.0.md) and [Windows](releases/windows-v0.4.1.md) release notes.
 
 ## macOS controls
 
@@ -59,16 +61,16 @@ crowding fallback.
 
 ## Windows scope
 
-The current source includes WPF indicator/detail surfaces, Automatic/Free/Locked modes with
+Windows v0.4.1 includes WPF indicator/detail surfaces, Automatic/Free/Locked modes with
 normalized display preferences, atomic JSON preference writes, detail pin/lock, outside-click
 handling, indicator right-click position selection, settings controls (position/update/reload/quit),
 quota/Token formatting, Bank expiry formatting, host-page policies and portable host tests. Its
 light detail surface is opaque pure white. Windows viewport policy starts at eight rows, permits two
 rows minimum and has no product height cap beyond the current display work area; it remains a
-separate WPF implementation. The published download remains Windows 11 AMD64/x64 **0.3.3**. The
-current source has not been validated as a new Windows installer on this Mac. In particular, the macOS AX collision/free-mode fallback
-must not be advertised as a verified Windows behavior: Windows uses its own UIA/placement path.
-Unknown Windows host structures remain subject to the validated selector/compatibility policy.
+separate WPF implementation. The published download supports Windows 11 AMD64/x64 and carries its
+own Windows build, packaging, provenance, and real-device evidence. Windows ARM64 is unsupported.
+Unknown Windows host structures remain subject to the validated selector/compatibility policy and
+fail hidden instead of using guessed coordinates.
 
 ## Installation, updates and provenance
 

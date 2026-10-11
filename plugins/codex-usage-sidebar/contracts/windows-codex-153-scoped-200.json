@@ -1,0 +1,417 @@
+{
+  "Host": {
+    "Bounds": {
+      "X": -13,
+      "Y": -13,
+      "Width": 3026,
+      "Height": 1930,
+      "Right": 3013,
+      "Bottom": 1917
+    },
+    "IsForeground": true,
+    "DpiScale": 2,
+    "BuildIdentity": "153.0.8010.48"
+  },
+  "Nodes": [
+    {
+      "Depth": 14,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "pointer-events-none fixed z-30 flex h-toolbar min-w-0 items-center draggable bg-[var(--codex-titlebar-tint,transparent)] top-toolbar-sm right-0",
+      "Bounds": {
+        "X": 624,
+        "Y": 70,
+        "Width": 2376,
+        "Height": 92,
+        "Right": 3000,
+        "Bottom": 162
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 15,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "pointer-events-none relative grid h-full min-w-max shrink-0",
+      "Bounds": {
+        "X": 624,
+        "Y": 70,
+        "Width": 12,
+        "Height": 92,
+        "Right": 636,
+        "Bottom": 162
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "pointer-events-none relative col-start-1 row-start-1 h-full w-full min-w-0 [container-type:inline-size] ps-[var(--spacing-token-safe-header-left)]",
+      "Bounds": {
+        "X": 624,
+        "Y": 70,
+        "Width": 12,
+        "Height": 92,
+        "Right": 636,
+        "Bottom": 162
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 15,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "pointer-events-none relative flex h-full min-w-0 flex-1 isolate items-center gap-1.5 overflow-hidden [contain:layout_paint] ps-2 pe-1.5",
+      "Bounds": {
+        "X": 636,
+        "Y": 70,
+        "Width": 2292,
+        "Height": 92,
+        "Right": 2928,
+        "Bottom": 162
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "",
+      "ClassName": "no-drag cursor-interaction items-center select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-default disabled:opacity-40 aria-disabled:cursor-default aria-disabled:opacity-40 gap-1 border whitespace-nowrap flex rounded-lg text-default not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover data-[state=open]:bg-primary-ghost-hover border-transparent button-toolbar py-0 text-sm leading-[18px] focus-visible:ring-inset aspect-square shrink-0 items-center justify-center !px-0 shrink-0",
+      "Bounds": {
+        "X": 652,
+        "Y": 88,
+        "Width": 56,
+        "Height": 56,
+        "Right": 708,
+        "Bottom": 144
+      },
+      "NameLength": 22,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 17,
+      "ControlType": "ControlType.Image",
+      "AutomationId": "",
+      "ClassName": "icon-xs",
+      "Bounds": {
+        "X": 664,
+        "Y": 100,
+        "Width": 32,
+        "Height": 32,
+        "Right": 696,
+        "Bottom": 132
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "max-w-[320px] min-w-0 truncate focus-within:overflow-visible",
+      "Bounds": {
+        "X": 712,
+        "Y": 92,
+        "Width": 349,
+        "Height": 48,
+        "Right": 1061,
+        "Bottom": 140
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 17,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "",
+      "ClassName": "no-drag -ms-0.5 min-w-0 cursor-interaction rounded-md px-1.5 text-default hover:bg-primary-ghost-hover focus-visible:bg-primary-ghost-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 text-base font-medium text-start truncate leading-6 max-w-[320px]",
+      "Bounds": {
+        "X": 708,
+        "Y": 92,
+        "Width": 353,
+        "Height": 48,
+        "Right": 1061,
+        "Bottom": 140
+      },
+      "NameLength": 16,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "",
+      "ClassName": "no-drag cursor-interaction items-center select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-default disabled:opacity-40 aria-disabled:cursor-default aria-disabled:opacity-40 gap-1 border whitespace-nowrap flex rounded-lg text-tertiary not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover data-[state=open]:bg-primary-ghost-hover border-transparent button-toolbar py-0 text-sm leading-[18px] aspect-square shrink-0 items-center justify-center !px-0",
+      "Bounds": {
+        "X": 2652,
+        "Y": 88,
+        "Width": 56,
+        "Height": 56,
+        "Right": 2708,
+        "Bottom": 144
+      },
+      "NameLength": 4,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 17,
+      "ControlType": "ControlType.Image",
+      "AutomationId": "",
+      "ClassName": "icon-sm",
+      "Bounds": {
+        "X": 2662,
+        "Y": 98,
+        "Width": 36,
+        "Height": 36,
+        "Right": 2698,
+        "Bottom": 134
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "contents",
+      "Bounds": {
+        "X": 2720,
+        "Y": 88,
+        "Width": 128,
+        "Height": 56,
+        "Right": 2848,
+        "Bottom": 144
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 17,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "",
+      "ClassName": "no-drag cursor-interaction items-center select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-default disabled:opacity-40 aria-disabled:cursor-default aria-disabled:opacity-40 gap-1 border whitespace-nowrap flex rounded-button-toolbar text-tertiary not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover data-[state=open]:bg-primary-ghost-hover border-transparent button-toolbar py-0 text-sm leading-[18px]",
+      "Bounds": {
+        "X": 2720,
+        "Y": 88,
+        "Width": 128,
+        "Height": 56,
+        "Right": 2848,
+        "Bottom": 144
+      },
+      "NameLength": 2,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "contents",
+      "Bounds": {
+        "X": 2860,
+        "Y": 88,
+        "Width": 56,
+        "Height": 56,
+        "Right": 2916,
+        "Bottom": 144
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 17,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "",
+      "ClassName": "no-drag cursor-interaction items-center select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-default disabled:opacity-40 aria-disabled:cursor-default aria-disabled:opacity-40 gap-1 border whitespace-nowrap flex rounded-lg text-tertiary not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover data-[state=open]:bg-primary-ghost-hover border-transparent button-toolbar py-0 text-sm leading-[18px] aspect-square shrink-0 items-center justify-center !px-0",
+      "Bounds": {
+        "X": 2860,
+        "Y": 88,
+        "Width": 56,
+        "Height": 56,
+        "Right": 2916,
+        "Bottom": 144
+      },
+      "NameLength": 6,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 18,
+      "ControlType": "ControlType.Image",
+      "AutomationId": "",
+      "ClassName": "",
+      "Bounds": {
+        "X": 2872,
+        "Y": 100,
+        "Width": 32,
+        "Height": 32,
+        "Right": 2904,
+        "Bottom": 132
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 15,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "pointer-events-none relative grid h-full min-w-max shrink-0",
+      "Bounds": {
+        "X": 2928,
+        "Y": 70,
+        "Width": 72,
+        "Height": 92,
+        "Right": 3000,
+        "Bottom": 162
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 16,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "pointer-events-none relative col-start-1 row-start-1 h-full w-full min-w-0 [container-type:inline-size] pe-2",
+      "Bounds": {
+        "X": 2928,
+        "Y": 70,
+        "Width": 72,
+        "Height": 92,
+        "Right": 3000,
+        "Bottom": 162
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 17,
+      "ControlType": "ControlType.Group",
+      "AutomationId": "",
+      "ClassName": "contents",
+      "Bounds": {
+        "X": 2928,
+        "Y": 88,
+        "Width": 56,
+        "Height": 56,
+        "Right": 2984,
+        "Bottom": 144
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 18,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "",
+      "ClassName": "no-drag cursor-interaction items-center select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:cursor-default disabled:opacity-40 aria-disabled:cursor-default aria-disabled:opacity-40 gap-1 border whitespace-nowrap flex rounded-lg text-tertiary not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover data-[state=open]:bg-primary-ghost-hover border-transparent button-toolbar py-0 text-sm leading-[18px] aspect-square shrink-0 items-center justify-center !px-0",
+      "Bounds": {
+        "X": 2928,
+        "Y": 88,
+        "Width": 56,
+        "Height": 56,
+        "Right": 2984,
+        "Bottom": 144
+      },
+      "NameLength": 9,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 19,
+      "ControlType": "ControlType.Image",
+      "AutomationId": "",
+      "ClassName": "rotate-180",
+      "Bounds": {
+        "X": 2940,
+        "Y": 100,
+        "Width": 32,
+        "Height": 32,
+        "Right": 2972,
+        "Bottom": 132
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 3,
+      "ControlType": "ControlType.Pane",
+      "AutomationId": "",
+      "ClassName": "ChromeNodeCaptionButtonContainer",
+      "Bounds": {
+        "X": 2726,
+        "Y": -2,
+        "Width": 274,
+        "Height": 72,
+        "Right": 3000,
+        "Bottom": 70
+      },
+      "NameLength": 0,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 4,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "view_1",
+      "ClassName": "ChromeNodeCaptionButton",
+      "Bounds": {
+        "X": 2726,
+        "Y": -2,
+        "Width": 90,
+        "Height": 72,
+        "Right": 2816,
+        "Bottom": 70
+      },
+      "NameLength": 3,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 4,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "view_2",
+      "ClassName": "ChromeNodeCaptionButton",
+      "Bounds": {
+        "X": 2816,
+        "Y": -2,
+        "Width": 92,
+        "Height": 70,
+        "Right": 2908,
+        "Bottom": 68
+      },
+      "NameLength": 3,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 4,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "view_3",
+      "ClassName": "ChromeNodeCaptionButton",
+      "Bounds": {
+        "X": 2816,
+        "Y": -2,
+        "Width": 92,
+        "Height": 72,
+        "Right": 2908,
+        "Bottom": 70
+      },
+      "NameLength": 2,
+      "SemanticRole": ""
+    },
+    {
+      "Depth": 4,
+      "ControlType": "ControlType.Button",
+      "AutomationId": "view_4",
+      "ClassName": "ChromeNodeCaptionButton",
+      "Bounds": {
+        "X": 2908,
+        "Y": -2,
+        "Width": 92,
+        "Height": 72,
+        "Right": 3000,
+        "Bottom": 70
+      },
+      "NameLength": 2,
+      "SemanticRole": ""
+    }
+  ]
+}

@@ -6,6 +6,17 @@ namespace CodexUsageSidebar.Core.Tests;
 public sealed class TokenUsageDecoderTests
 {
     [TestMethod]
+    [DataRow("{\"summary\":42}")]
+    [DataRow("{\"summary\":{\"lifetimeTokens\":-1}}")]
+    [DataRow("{\"summary\":{\"peakDailyTokens\":1.5}}")]
+    [DataRow("{\"summary\":{\"currentStreakDays\":true}}")]
+    public void RejectsInvalidSummaryInsteadOfPresentingTheResponseAsAvailable(string result)
+    {
+        var snapshot = TokenUsageDecoder.DecodeResponse("{\"result\":" + result + "}", DateTimeOffset.UnixEpoch);
+        Assert.AreEqual(TokenUsageAvailability.Unavailable, snapshot.Availability);
+    }
+
+    [TestMethod]
     public void DecodesCurrentCycleDailyBucketsAndSummary()
     {
         var receivedAt = new DateTimeOffset(2026, 8, 22, 12, 0, 0, TimeSpan.Zero);

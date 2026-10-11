@@ -5,14 +5,13 @@ using System.Windows.Forms;
 
 namespace CodexUsageSidebar.Windows;
 
-public enum WindowsTrayAction { ShowStatus, LockSafeDock, UnlockSafeDock, ExportDiagnostics, Exit }
+public enum WindowsTrayAction { ShowStatus, ExportDiagnostics, Exit }
 
 public static class WindowsTrayActions
 {
     public static IReadOnlyList<WindowsTrayAction> For(RuntimeStateOutcome? state) =>
     [
         WindowsTrayAction.ShowStatus,
-        state?.Decision.Profile == ProfileCompatibility.FallbackLocked ? WindowsTrayAction.UnlockSafeDock : WindowsTrayAction.LockSafeDock,
         WindowsTrayAction.ExportDiagnostics,
         WindowsTrayAction.Exit,
     ];
@@ -23,18 +22,15 @@ public sealed class WindowsTrayController : IDisposable
 {
     private readonly NotifyIcon icon;
     private readonly Func<RuntimeStateOutcome?> state;
-    private readonly Action<bool> setFallbackLock;
     private readonly Func<string, Task> exportDiagnostics;
     private readonly Action exit;
 
     public WindowsTrayController(
         Func<RuntimeStateOutcome?> state,
-        Action<bool> setFallbackLock,
         Func<string, Task> exportDiagnostics,
         Action exit)
     {
         this.state = state;
-        this.setFallbackLock = setFallbackLock;
         this.exportDiagnostics = exportDiagnostics;
         this.exit = exit;
         icon = new NotifyIcon { Icon = SystemIcons.Information, Visible = true, Text = "Codex Usage Sidebar" };
@@ -58,8 +54,6 @@ public sealed class WindowsTrayController : IDisposable
             var item = new ToolStripMenuItem(action switch
             {
                 WindowsTrayAction.ShowStatus => "Status",
-                WindowsTrayAction.LockSafeDock => "Lock safe dock",
-                WindowsTrayAction.UnlockSafeDock => "Unlock safe dock",
                 WindowsTrayAction.ExportDiagnostics => "Export diagnostics…",
                 _ => "Exit",
             });
@@ -73,8 +67,6 @@ public sealed class WindowsTrayController : IDisposable
         switch (action)
         {
             case WindowsTrayAction.ShowStatus: ShowStatus(); break;
-            case WindowsTrayAction.LockSafeDock: setFallbackLock(true); break;
-            case WindowsTrayAction.UnlockSafeDock: setFallbackLock(false); break;
             case WindowsTrayAction.ExportDiagnostics: ExportDiagnostics(); break;
             case WindowsTrayAction.Exit: exit(); break;
         }

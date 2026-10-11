@@ -67,6 +67,26 @@ public sealed class Win32CodexWindowLocatorTests
         Assert.AreEqual(new RectD(-1600, 100, 1000, 50), snapshot.CaptionBounds);
     }
 
+    [TestMethod]
+    public async Task FindAsyncReusesVerifiedCaptionForUnchangedWindowGeometry()
+    {
+        var acquisition = new StubWindowLocatorAcquisition(
+            new WindowLocatorCandidate(new IntPtr(42), -1600, 100, -600, 800, 1.25, "0.3.3"),
+            workArea: new RectD(-1920, 0, 1920, 1080),
+            captionCandidates:
+            [new HostWindowGeometry.CaptionBoundsCandidate(
+                new RectD(-1600, 100, 1000, 50), IsVerified: true)]);
+        var locator = new Win32CodexWindowLocator(acquisition);
+
+        var first = await locator.FindAsync(CancellationToken.None);
+        var second = await locator.FindAsync(CancellationToken.None);
+
+        Assert.IsNotNull(first);
+        Assert.IsNotNull(second);
+        Assert.AreEqual(first.CaptionBounds, second.CaptionBounds);
+        Assert.AreEqual(1, acquisition.CaptionCandidateQueries);
+    }
+
     [DataTestMethod]
     [DataRow(CaptionOutcome.Ambiguous)]
     [DataRow(CaptionOutcome.Unavailable)]
@@ -121,12 +141,17 @@ public sealed class Win32CodexWindowLocatorTests
         }
 
         public IntPtr ForegroundWindow => candidate.Handle;
+        public int CaptionCandidateQueries { get; private set; }
 
         public IEnumerable<WindowLocatorCandidate> EnumerateCandidates() => [candidate];
 
         public RectD? WorkAreaFor(IntPtr handle) => workArea;
 
-        public IReadOnlyList<HostWindowGeometry.CaptionBoundsCandidate>? CaptionCandidatesFor(IntPtr handle) => captionCandidates();
+        public IReadOnlyList<HostWindowGeometry.CaptionBoundsCandidate>? CaptionCandidatesFor(IntPtr handle)
+        {
+            CaptionCandidateQueries++;
+            return captionCandidates();
+        }
     }
 
     public enum CaptionOutcome

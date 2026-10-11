@@ -4,8 +4,6 @@ namespace CodexUsageSidebar.Windows;
 
 public sealed class WindowsHostCoordinator
 {
-    private const double MiddleIndicatorGap = 0.5;
-    private const double RightIndicatorGap = 0;
     private readonly IHostWindowLocator locator;
     private readonly ITitlebarScanner scanner;
     private readonly IOverlaySurface overlay;
@@ -71,6 +69,16 @@ public sealed class WindowsHostCoordinator
                     ProfileCompatibility.Invalid,
                     SafeDockPlacement.None,
                     CompatibilityFailureCode.MissingCodexWindow),
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!host.IsForeground && !overlay.HasForegroundWindow)
+        {
+            await overlay.HideAsync(cancellationToken).ConfigureAwait(false);
+            return await CompleteAsync(
+                HostRuntimeState.Hidden,
+                new CompatibilityDecision(SemanticCompatibility.Unknown, ProfileCompatibility.Unknown,
+                    SafeDockPlacement.None, CompatibilityFailureCode.HostNotForeground),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -178,16 +186,19 @@ public sealed class WindowsHostCoordinator
         var indicatorWidth = (overlay is IIndicatorSizeProvider measured
             ? measured.MeasureIndicatorWidth(snapshot, language, indicatorHeight)
             : OverlayVisualMetrics.IndicatorWidthForHeight(indicatorHeight)) * scale;
-        var placement = PlacementResolver.ResolveResponsive(
-            titlebar.ToolbarBounds,
-            titlebar.OpenLocationBounds,
-            titlebar.TitleBounds,
-            indicatorWidth,
-            MiddleIndicatorGap * scale,
-            titlebar.Obstacles,
-            titlebar.RightToolbarBounds,
-            titlebar.RightObstacles,
-            RightIndicatorGap * scale);
+        var automatic = PlacementResolver.ResolveAutomatic(host.Bounds, titlebar.ToolbarBounds,
+            titlebar.OpenLocationBounds, titlebar.TitleBounds, indicatorWidth, scale,
+            titlebar.AllInteractiveObstacles);
+        var placement = automatic?.Placement;
+        var switchToFree = automatic?.SwitchToFree ?? false;
+        if (placement is { } located && titlebar.RightToolbarBounds.Width > 0
+            && located.Frame.X >= titlebar.RightToolbarBounds.X
+            && located.Frame.Right <= titlebar.RightToolbarBounds.Right
+            && located.Frame.Y >= titlebar.RightToolbarBounds.Y
+            && located.Frame.Bottom <= titlebar.RightToolbarBounds.Bottom)
+        {
+            placement = located with { Surface = PlacementSurface.RightToolbar };
+        }
         if (placement is null)
         {
             return await HandleUnresolvedTitlebarAsync(
@@ -223,7 +234,8 @@ public sealed class WindowsHostCoordinator
                     titlebar.ToolbarBounds.Y + (4 * scale)),
                 tokenUsage,
                 account,
-                Version: QuotaDetailFormatter.ProductVersion),
+                Version: QuotaDetailFormatter.ProductVersion,
+                SwitchToFree: switchToFree),
             cancellationToken).ConfigureAwait(false);
         return await CompleteAsync(HostRuntimeState.Visible, titlebarDecision, cancellationToken).ConfigureAwait(false);
     }

@@ -17,9 +17,9 @@
 | 平台 | 状态 | 分发方式 |
 | --- | --- | --- |
 | macOS 14+ Apple Silicon | [`v0.4.0` 发布版](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.0) | 已发布 arm64 DMG，含位置模式、详情锁定、设置菜单和防碰撞改进 |
-| Windows 11 AMD64（`x64`） | [`v0.3.3` 发布版](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3) | 未签名 `x64` 安装包，带签名兼容更新；Windows ARM64 不在支持范围 |
+| Windows 11 AMD64（`x64`） | [`v0.4.1` 发布版](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1) | 未签名 `x64` 安装包，带签名兼容更新；Windows ARM64 不在支持范围 |
 
-**macOS 0.4.0 已发布。** 下方功能说明对应本次发布。Windows 保持单独验收的 0.3.3 发布版，新的 Windows 源码不代表已完成实机验收。
+**macOS 0.4.0 与 Windows 0.4.1 均已发布。** 两个平台分别通过对应 Release 中经过校验的资产分发。
 
 > [!NOTE]
 > 上述发布后的开发源码已将 macOS 和 Windows 浅色详情面板改为不透明纯白色，
@@ -80,7 +80,7 @@
 ## 快速安装
 
 请按平台选择安装路径。Windows 仅支持 Windows 11 AMD64/x64，不支持 Windows ARM64。Windows
-`v0.3.3` 安装程序为未签名本机打包资产，启动前必须先完成 SHA-256 校验。
+`v0.4.1` 安装程序为未签名本机打包资产，启动前必须先完成 SHA-256 校验。
 
 ### Windows 11 AMD64/x64
 
@@ -90,19 +90,19 @@ Codex 文件最低版本；新版本只要提供已验证的安全标题栏语�
 
 #### 人工安装
 
-1. 打开 [v0.3.3 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3)，只下载
-   `codex-usage-sidebar-v0.3.3-windows-x64-setup.exe` 与 `WINDOWS-V033-SHA256SUMS.txt`。
+1. 打开 [v0.4.1 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1)，只下载
+   `codex-usage-sidebar-v0.4.1-windows-x64-setup.exe` 与 `WINDOWS-V041-SHA256SUMS.txt`。
 2. 启动安装程序前，先校验 SHA-256：
 
    ```powershell
-   Get-FileHash .\codex-usage-sidebar-v0.3.3-windows-x64-setup.exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+   Get-FileHash .\codex-usage-sidebar-v0.4.1-windows-x64-setup.exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash
    ```
 
-   将结果与 `WINDOWS-V033-SHA256SUMS.txt` 中对应条目比较；大小写不影响判断。
+   将结果与 `WINDOWS-V041-SHA256SUMS.txt` 中对应条目比较；大小写不影响判断。
 3. 摘要匹配后，为当前用户启动安装：
 
    ```powershell
-   Start-Process .\codex-usage-sidebar-v0.3.3-windows-x64-setup.exe
+   Start-Process .\codex-usage-sidebar-v0.4.1-windows-x64-setup.exe
    ```
 
 4. 该安装程序有意保持未签名（`NotSigned`），Windows 可能显示“未知发布者”。只有在 SHA-256
@@ -118,8 +118,8 @@ Codex 文件最低版本；新版本只要提供已验证的安全标题栏语�
 可以把下面这段任务交给 Windows 电脑上的 Agent：
 
 ```text
-从 GitHub Release 安装 Codex Usage Sidebar v0.3.3。当前电脑必须是 Windows 11 AMD64/x64。
-只下载 codex-usage-sidebar-v0.3.3-windows-x64-setup.exe 和 WINDOWS-V033-SHA256SUMS.txt，先验证
+从 GitHub Release 安装 Codex Usage Sidebar v0.4.1。当前电脑必须是 Windows 11 AMD64/x64。
+只下载 codex-usage-sidebar-v0.4.1-windows-x64-setup.exe 和 WINDOWS-V041-SHA256SUMS.txt，先验证
 安装程序 SHA-256 与发行页对应条目一致，只有摘要匹配时才运行安装程序，并回报安装路径和运行状态。不要关闭或绕过
 Defender、SmartScreen、杀毒软件或系统策略。如果出现安装器、SmartScreen、卸载或 Windows 安全对话框，
 先停下来让我即时确认，再点击任何按钮。
@@ -283,21 +283,14 @@ cd ../..
 
 ## 文档索引
 
-- [当前功能清单](docs/CURRENT_FEATURES.md)
-- [当前设计说明](docs/CURRENT_DESIGN.md)
-- [历史设计索引](docs/superpowers/README.md)
-
+- [完整文档索引](docs/README.md)
+- [当前功能清单](docs/CURRENT_FEATURES.md)与[当前设计说明](docs/CURRENT_DESIGN.md)
 - [安装与运维](docs/INSTALL.md)
 - [Agent 安装流程](docs/INSTALL_FOR_AGENTS.md)
-- [架构](docs/ARCHITECTURE.md)
-- [Windows Beta 开发说明](docs/WINDOWS-BETA.md)
-- [Windows 实机诊断交接手册](docs/WINDOWS-DEVICE-HANDOFF.zh-CN.md)
-- [故障排查](docs/TROUBLESHOOTING.md)
-- [隐私](docs/PRIVACY.md)
+- [架构](docs/ARCHITECTURE.md)、[故障排查](docs/TROUBLESHOOTING.md)与[隐私](docs/PRIVACY.md)
 - [支持](SUPPORT.md)
 - [更新记录](CHANGELOG.md)
-- [v0.4.0 发布说明](docs/releases/macos-v0.4.0.md)
-- [v0.3.3 发布说明](docs/releases/v0.3.3.md)
+- [macOS v0.4.0 发布说明](docs/releases/macos-v0.4.0.md)与 [Windows v0.4.1 发布说明](docs/releases/windows-v0.4.1.md)
 
 ## 许可证
 

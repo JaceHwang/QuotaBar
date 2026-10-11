@@ -4,20 +4,30 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$repo_root"
 
-if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Developer ]; then
-  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-  export DEVELOPER_DIR
-fi
-if [ -z "${SDKROOT:-}" ] && [ -n "${DEVELOPER_DIR:-}" ] && command -v xcrun >/dev/null 2>&1; then
-  SDKROOT=$(DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-path)
-  export SDKROOT
-fi
-
-(
-  cd plugins/codex-usage-sidebar
-  xcrun swift test --build-system native --sdk "$SDKROOT" --package-path native
-  bash tests/test-build-sdk.sh
-  bash tests/test-bundle-version.sh
-  bash tests/test-sidebar-control.sh
-  bash tests/test-signing-identity.sh
-)
+case "$(uname -s)" in
+  Darwin)
+    if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Developer ]; then
+      DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+      export DEVELOPER_DIR
+    fi
+    if [ -z "${SDKROOT:-}" ] && [ -n "${DEVELOPER_DIR:-}" ] && command -v xcrun >/dev/null 2>&1; then
+      SDKROOT=$(DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --sdk macosx --show-sdk-path)
+      export SDKROOT
+    fi
+    (
+      cd plugins/codex-usage-sidebar
+      xcrun swift test --build-system native --sdk "$SDKROOT" --package-path native
+      bash tests/test-build-sdk.sh
+      bash tests/test-bundle-version.sh
+      bash tests/test-sidebar-control.sh
+      bash tests/test-signing-identity.sh
+    )
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    dotnet test plugins/codex-usage-sidebar/windows/CodexUsageSidebar.Windows.sln --configuration Release
+    ;;
+  *)
+    echo "unsupported full-check host: $(uname -s)" >&2
+    exit 64
+    ;;
+esac

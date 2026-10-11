@@ -5,5 +5,5 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$repo_root"
 
 tests/test-repository-governance.sh
-python3 tests/test-macos-v040-provenance.py
+"${PYTHON:-python3}" tests/test-macos-v040-provenance.py
 bash scripts/validate-public-repo.sh

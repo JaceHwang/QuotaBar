@@ -22,6 +22,14 @@ public sealed class IndicatorPlacementPreferences
     public string? ActiveDisplayId { get; set; }
     public Dictionary<string, IndicatorManualPlacement> Placements { get; set; } = new();
 
+    public bool SwitchToFreeFallback(string displayId, RectD frame, RectD workArea)
+    {
+        if (Mode != IndicatorPlacementMode.Automatic) return false;
+        Capture(displayId, frame, workArea);
+        Mode = IndicatorPlacementMode.Free;
+        return true;
+    }
+
     public void Capture(string displayId, RectD frame, RectD workArea)
     {
         Placements[displayId] = IndicatorManualPlacement.Capture(frame, workArea);

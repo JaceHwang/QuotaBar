@@ -2,6 +2,9 @@ namespace CodexUsageSidebar.Windows;
 
 public static class OverlayVisualMetrics
 {
+    public static double ClampMeasuredIndicatorWidth(double measured) =>
+        double.IsFinite(measured) ? Math.Clamp(Math.Ceiling(measured), 164, 280) : 164;
+
     public const double IndicatorTextWidth = 168;
     public const double IndicatorLogoSize = 20;
     public const double IndicatorLogoTextGap = 4;

@@ -1,14 +1,14 @@
 # Troubleshooting
 
-> **Current source vs downloads:** this checkout is the unpublished 0.4.0 candidate. The catalog
-> records macOS 0.3.5 and Windows 0.3.3 as published; release-specific instructions below retain
-> those versions. Candidate controls and behavior are documented in [CURRENT_FEATURES](CURRENT_FEATURES.md).
+> **Current releases:** macOS v0.4.0 and Windows v0.4.1. Use only the assets and checksums attached
+> to the matching GitHub Release. Current controls and platform boundaries are documented in
+> [CURRENT_FEATURES](CURRENT_FEATURES.md).
 
 
 ## Windows setup and runtime
 
-The v0.3.3 installer is published in the
-[v0.3.3 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3).
+The v0.4.1 installer is published in the
+[v0.4.1 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1).
 After installation, run `CodexUsageSidebar.Control.exe status` (or start a new Codex task) to see local runtime state. The
 generic selector and signed compatibility update recover automatically; ordinary users do not edit
 selector files. `placement=Fallback` means the automatic safe dock is intentionally visible while
@@ -29,9 +29,9 @@ be published, and newer runtimes fall back to the built-in safe catalog instead 
 ### SmartScreen shows Unknown publisher
 
 The Windows x64 setup is intentionally unsigned. Verify the SHA-256 against
-`WINDOWS-V033-SHA256SUMS.txt` first. If it matches, **Unknown publisher** is expected: select
+`WINDOWS-V041-SHA256SUMS.txt` first. If it matches, **Unknown publisher** is expected: select
 **More info**, then **Run anyway**. If it does not match, do not run the setup; download it again
-from the v0.3.3 release. Never disable Defender, SmartScreen, antivirus, or system policy.
+from the v0.4.1 release. Never disable Defender, SmartScreen, antivirus, or system policy.
 
 ### The overlay is hidden after a Codex upgrade
 
@@ -90,7 +90,7 @@ and re-signs the payload with the stable local identity; do not re-sign the offi
 
 ## Placement overlaps or Automatic immediately becomes Free
 
-In the current candidate, Automatic first searches safe space. When none fits it uses the default
+Automatic first searches safe space. When none fits it uses the default
 position; an interactive control overlapping that default causes a persistent switch to Free.
 Drag the indicator, or explicitly select Automatic again after freeing titlebar space. This behavior
 is separate from stale-data/background-host hiding.
@@ -98,7 +98,7 @@ is separate from stale-data/background-host hiding.
 An earlier local 0.4.0 build treated any AX action as clickable: a 1920×46 `AXGroup` with only
 `AXShowMenu`/`AXScrollToVisible` then blocked the whole toolbar. Current code excludes those auxiliary
 actions; real button roles and `AXPress`/`AXPick` controls remain obstacles. A shared version badge
-alone cannot identify which local candidate build is installed.
+alone cannot identify which local build is installed.
 
 Check the live process using the installed control script's `status`. Example fields:
 

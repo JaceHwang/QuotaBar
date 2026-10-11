@@ -13,7 +13,13 @@ public static class RuntimeStateReader
         try
         {
             await using var stream = File.OpenRead(path);
-            return await JsonSerializer.DeserializeAsync<RuntimeStateOutcome>(stream, Options, cancellationToken).ConfigureAwait(false);
+            var outcome = await JsonSerializer.DeserializeAsync<RuntimeStateOutcome>(stream, Options, cancellationToken).ConfigureAwait(false);
+            // The host writes every reconciliation. A historical file must not
+            // masquerade as live diagnostics after a crash or a failed write.
+            if (outcome?.Decision is null) return null;
+            var age = DateTimeOffset.UtcNow - outcome.RecordedAt;
+            return age >= TimeSpan.FromSeconds(-2) && age <= TimeSpan.FromSeconds(10)
+                ? outcome : null;
         }
         catch (JsonException) { return null; }
         catch (IOException) { return null; }

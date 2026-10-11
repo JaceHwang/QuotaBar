@@ -27,9 +27,9 @@
 | Platform | Status | Distribution |
 | --- | --- | --- |
 | macOS 14+ Apple Silicon | [v0.4.0 release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.0) | Published arm64 DMG with placement modes, detail lock, settings and improved collision handling |
-| Windows 11 AMD64 (`x64`) | [v0.3.3 release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3) | Unsigned `x64` setup with signed compatibility updates; Windows ARM64 is out of scope |
+| Windows 11 AMD64 (`x64`) | [v0.4.1 release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1) | Unsigned `x64` setup with signed compatibility updates; Windows ARM64 is out of scope |
 
-**macOS 0.4.0 is available.** The features below describe this release. Windows remains at its separately verified 0.3.3 release; new Windows source is not a claim of completed device validation.
+**macOS 0.4.0 and Windows 0.4.1 are available.** Each platform is distributed from its verified release assets.
 
 > [!NOTE]
 > Development source after these releases uses an opaque pure-white light detail surface and removes
@@ -91,7 +91,7 @@ Missing snapshots, stale data or a background Codex window can still hide the ov
 ## Quick install
 
 Choose the platform-specific installation path below. Windows support is Windows 11 AMD64/x64 only;
-Windows ARM64 is not supported. The v0.3.3 setup uses explicit unsigned-install safeguards and must
+Windows ARM64 is not supported. The v0.4.1 setup uses explicit unsigned-install safeguards and must
 be verified by SHA-256 before launch.
 
 ### Windows 11 AMD64/x64
@@ -103,19 +103,19 @@ fail-hidden until it can be validated.
 
 #### Manual setup install
 
-1. Open the [v0.3.3 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3) and download only
-   `codex-usage-sidebar-v0.3.3-windows-x64-setup.exe` plus `WINDOWS-V033-SHA256SUMS.txt`.
+1. Open the [v0.4.1 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1) and download only
+   `codex-usage-sidebar-v0.4.1-windows-x64-setup.exe` plus `WINDOWS-V041-SHA256SUMS.txt`.
 2. Verify the setup SHA-256 before launching it:
 
    ```powershell
-   Get-FileHash .\codex-usage-sidebar-v0.3.3-windows-x64-setup.exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+   Get-FileHash .\codex-usage-sidebar-v0.4.1-windows-x64-setup.exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash
    ```
 
-   Compare it case-insensitively with the matching entry in `WINDOWS-V033-SHA256SUMS.txt`.
+   Compare it case-insensitively with the matching entry in `WINDOWS-V041-SHA256SUMS.txt`.
 3. Run the verified setup for the current user:
 
    ```powershell
-   Start-Process .\codex-usage-sidebar-v0.3.3-windows-x64-setup.exe
+   Start-Process .\codex-usage-sidebar-v0.4.1-windows-x64-setup.exe
    ```
 
 4. The setup is intentionally unsigned (`NotSigned`), so Windows may show **Unknown publisher**.
@@ -133,8 +133,8 @@ of guessing coordinates. See [Installation and operations](docs/INSTALL.md) for 
 Give your Windows coding agent this task:
 
 ```text
-Install Codex Usage Sidebar v0.3.3 from the GitHub Release on this Windows 11 AMD64/x64 machine.
-Download codex-usage-sidebar-v0.3.3-windows-x64-setup.exe and WINDOWS-V033-SHA256SUMS.txt only,
+Install Codex Usage Sidebar v0.4.1 from the GitHub Release on this Windows 11 AMD64/x64 machine.
+Download codex-usage-sidebar-v0.4.1-windows-x64-setup.exe and WINDOWS-V041-SHA256SUMS.txt only,
 verify the setup SHA-256 against the matching release entry, run the setup only if the digest matches, and report the install
 path and runtime status. Do not disable or bypass Defender, SmartScreen, antivirus, or system policy.
 If an installer, SmartScreen, uninstall, or Windows security dialog appears, stop and ask me for
@@ -322,21 +322,14 @@ CI. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## Documentation
 
-- [Current features](docs/CURRENT_FEATURES.md)
-- [Current design](docs/CURRENT_DESIGN.md)
-- [Historical designs](docs/superpowers/README.md)
-
+- [Documentation index](docs/README.md)
+- [Current features](docs/CURRENT_FEATURES.md) and [current design](docs/CURRENT_DESIGN.md)
 - [Human installation and operations](docs/INSTALL.md)
 - [Agent installation playbook](docs/INSTALL_FOR_AGENTS.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Windows beta development](docs/WINDOWS-BETA.md)
-- [Windows real-device diagnostic handoff](docs/WINDOWS-DEVICE-HANDOFF.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Privacy](docs/PRIVACY.md)
+- [Architecture](docs/ARCHITECTURE.md), [troubleshooting](docs/TROUBLESHOOTING.md), and [privacy](docs/PRIVACY.md)
 - [Support](SUPPORT.md)
 - [Changelog](CHANGELOG.md)
-- [v0.4.0 release notes](docs/releases/macos-v0.4.0.md)
-- [v0.3.3 release notes](docs/releases/v0.3.3.md)
+- [macOS v0.4.0 release notes](docs/releases/macos-v0.4.0.md) and [Windows v0.4.1 release notes](docs/releases/windows-v0.4.1.md)
 
 ## License
 

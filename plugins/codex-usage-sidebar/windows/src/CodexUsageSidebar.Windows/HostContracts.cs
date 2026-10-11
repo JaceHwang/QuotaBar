@@ -49,10 +49,14 @@ public sealed record TitlebarSnapshot(
     RectD OpenLocationBounds = default,
     RectD TitleBounds = default,
     RectD RightToolbarBounds = default,
-    IReadOnlyList<RectD>? ValidatedRightObstacles = null)
+    IReadOnlyList<RectD>? ValidatedRightObstacles = null,
+    IReadOnlyList<RectD>? InteractiveToolbarObstacles = null)
 {
     public IReadOnlyList<RectD> RightObstacles =>
         ValidatedRightObstacles ?? Array.Empty<RectD>();
+
+    public IReadOnlyList<RectD> AllInteractiveObstacles =>
+        InteractiveToolbarObstacles ?? Obstacles.Concat(RightObstacles).ToArray();
 }
 
 public sealed record OverlayPresentation(
@@ -68,7 +72,8 @@ public sealed record OverlayPresentation(
     string Version = "",
     PlacementMode Mode = PlacementMode.Titlebar,
     SafeDockSize SafeDockSize = SafeDockSize.Standard,
-    SafeDockPlacementRequest? SafeDockRequest = null);
+    SafeDockPlacementRequest? SafeDockRequest = null,
+    bool SwitchToFree = false);
 
 public enum PlacementMode
 {
@@ -110,6 +115,7 @@ public interface ITitlebarScanner
 
 public interface IOverlaySurface
 {
+    bool HasForegroundWindow => false;
     ValueTask ShowAsync(OverlayPresentation presentation, CancellationToken cancellationToken);
     ValueTask HideAsync(CancellationToken cancellationToken);
 }

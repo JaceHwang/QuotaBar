@@ -1,10 +1,12 @@
 using CodexUsageSidebar.Windows;
 
 var localState = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexUsageSidebar", "runtime-state.json");
+var hostExecutable = Path.Combine(AppContext.BaseDirectory, "CodexUsageSidebar.Windows.exe");
 if (args.Length == 1 && string.Equals(args[0], "status", StringComparison.OrdinalIgnoreCase))
 {
     var state = await RuntimeStateReader.LoadAsync(localState, CancellationToken.None);
-    Console.WriteLine(WindowsControlCommands.Status(state, runtimeRunning: state is not null));
+    var process = RuntimeProcessReader.Find(hostExecutable);
+    Console.WriteLine(WindowsControlCommands.Status(process?.CurrentOutcome(state), runtimeRunning: process is not null));
     return 0;
 }
 
@@ -25,7 +27,9 @@ try
 {
     var probe = new WindowsDiagnosticProbe(new Win32CodexWindowLocator());
     var report = await probe.CaptureAsync(includeText: false, CancellationToken.None);
-    await WindowsDiagnosticExporter.ExportAsync(outputPath, report, await RuntimeStateReader.LoadAsync(localState, CancellationToken.None), CancellationToken.None);
+    var state = await RuntimeStateReader.LoadAsync(localState, CancellationToken.None);
+    var process = RuntimeProcessReader.Find(hostExecutable);
+    await WindowsDiagnosticExporter.ExportAsync(outputPath, report, process?.CurrentOutcome(state), CancellationToken.None);
     Console.WriteLine(outputPath);
     return 0;
 }

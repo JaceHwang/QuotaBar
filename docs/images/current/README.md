@@ -1,6 +1,6 @@
 # Current native UI renders
 
-Generated 2026-09-15 from the current working AppKit views with candidate badge **0.4.0**.
+Generated 2026-09-15 from the AppKit views published for macOS v0.4.0.
 These are deterministic native-control renders, not live Codex screenshots, not AI-generated
 mockups, and not proof of a published release. Quota/Bank/Token data and `demo@example.com` are
 fixtures. Card images show detail-lock enabled. Original data dates are fixed for repeatability.

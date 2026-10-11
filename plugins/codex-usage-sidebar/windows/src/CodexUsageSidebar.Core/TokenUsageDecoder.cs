@@ -34,7 +34,8 @@ public static class TokenUsageDecoder
         {
             return Empty(timestamp, TokenUsageAvailability.Unavailable);
         }
-        var summary = DecodeSummary(container);
+        var summary = DecodeSummary(container, out var summaryValid);
+        if (!summaryValid) return Empty(timestamp, TokenUsageAvailability.Unavailable);
         return new TokenUsageSnapshot(
             timestamp,
             buckets,
@@ -85,12 +86,28 @@ public static class TokenUsageDecoder
             .ToArray();
     }
 
-    private static TokenUsageSummary? DecodeSummary(JsonElement container)
+    private static TokenUsageSummary? DecodeSummary(JsonElement container, out bool valid)
     {
+        valid = true;
         if (!container.TryGetProperty("summary", out var value)
-            || value.ValueKind != JsonValueKind.Object)
+            || value.ValueKind == JsonValueKind.Null)
         {
             return null;
+        }
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            valid = false;
+            return null;
+        }
+        foreach (var field in new[] { "lifetimeTokens", "peakDailyTokens", "longestRunningTurnSec", "currentStreakDays", "longestStreakDays" })
+        {
+            if (!value.TryGetProperty(field, out var property) || property.ValueKind == JsonValueKind.Null) continue;
+            if (property.ValueKind != JsonValueKind.Number || !property.TryGetInt64(out var number)
+                || number < 0 || (field is not ("lifetimeTokens" or "peakDailyTokens") && number > int.MaxValue))
+            {
+                valid = false;
+                return null;
+            }
         }
 
         return new TokenUsageSummary(

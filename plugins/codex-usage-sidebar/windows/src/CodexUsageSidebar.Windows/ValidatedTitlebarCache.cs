@@ -15,8 +15,8 @@ public sealed class ValidatedTitlebarCache
         TimeSpan? retentionLifetime = null)
     {
         this.timestamp = timestamp ?? System.Diagnostics.Stopwatch.GetTimestamp;
-        var resolvedLifetime = lifetime ?? TimeSpan.FromMilliseconds(100);
-        var resolvedRetention = retentionLifetime ?? TimeSpan.FromMilliseconds(750);
+        var resolvedLifetime = lifetime ?? TimeSpan.FromSeconds(30);
+        var resolvedRetention = retentionLifetime ?? TimeSpan.FromMinutes(5);
         var resolvedFrequency = timestampFrequency ?? System.Diagnostics.Stopwatch.Frequency;
         if (resolvedFrequency <= 0) throw new ArgumentOutOfRangeException(nameof(timestampFrequency));
         if (resolvedLifetime <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(lifetime));

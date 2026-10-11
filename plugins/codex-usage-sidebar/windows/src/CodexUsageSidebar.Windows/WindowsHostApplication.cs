@@ -78,7 +78,6 @@ internal sealed class WindowsOverlayRuntime : IDisposable
     private readonly WindowsCodexLanguageProvider languageProvider;
     private readonly RuntimeLanguageState languageState;
     private readonly WindowsTrayController tray;
-    private readonly ISafeDockPreferencesStore? safeDockPreferencesStore;
     private AllowanceSnapshot? latestSnapshot;
     private TokenUsageSnapshot? latestTokenUsage;
     private AccountIdentity? latestAccount;
@@ -97,7 +96,6 @@ internal sealed class WindowsOverlayRuntime : IDisposable
         SafeDockPreferences? safeDockPreferences = null,
         ITitlebarScanner? titlebarScanner = null)
     {
-        this.safeDockPreferencesStore = safeDockPreferencesStore;
         var language = LanguageResolver.Resolve(CultureInfo.CurrentUICulture.Name);
         languageProvider = WindowsCodexLanguageProvider.CreateDefault();
         languageState = new RuntimeLanguageState(language);
@@ -107,6 +105,7 @@ internal sealed class WindowsOverlayRuntime : IDisposable
         var placementPreferences = placementStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         var surface = new WpfOverlaySurface(language, TimeZoneInfo.Local, placementPreferences, placementStore);
         surface.ReloadRequested += () => _ = ReloadAsync();
+        surface.TitlebarRefreshRequested += () => _ = RefreshTitlebarAsync();
         surface.QuitRequested += () => Application.Current?.Shutdown();
         overlay = surface;
         this.titlebarScanner = titlebarScanner ?? new ValidatedUiaTitlebarScanner();
@@ -121,13 +120,12 @@ internal sealed class WindowsOverlayRuntime : IDisposable
             paths.CodexExecutable,
             paths.IsolatedCodexHome);
         reconcileTimer = new DispatcherTimer(
-            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromSeconds(2),
             DispatcherPriority.Background,
             async (_, _) => await ReconcileAsync(),
             Dispatcher.CurrentDispatcher);
         tray = new WindowsTrayController(
             () => lastOutcome,
-            locked => _ = UpdateFallbackLockAsync(locked),
             ExportDiagnosticsAsync,
             () => Application.Current?.Shutdown());
     }
@@ -190,15 +188,6 @@ internal sealed class WindowsOverlayRuntime : IDisposable
         }
     }
 
-    private async Task UpdateFallbackLockAsync(bool locked)
-    {
-        var current = safeDockPreferencesStore is null
-            ? SafeDockPreferences.Default
-            : await safeDockPreferencesStore.LoadAsync(cancellation.Token).ConfigureAwait(false);
-        var preferences = current with { FallbackLocked = locked };
-        await coordinator.UpdateSafeDockPreferencesAsync(preferences, cancellation.Token).ConfigureAwait(false);
-    }
-
     private async Task ReloadAsync()
     {
         nextLanguageRefresh = DateTimeOffset.MinValue;
@@ -206,6 +195,12 @@ internal sealed class WindowsOverlayRuntime : IDisposable
         // Restart only the data session, not the application or its singleton.
         // The initial handshake rereads quota, account, and weekly usage together.
         lock (sessionGate) currentSessionCancellation?.Cancel();
+        await ReconcileAsync();
+    }
+
+    private async Task RefreshTitlebarAsync()
+    {
+        titlebarScanner.Invalidate();
         await ReconcileAsync();
     }
 

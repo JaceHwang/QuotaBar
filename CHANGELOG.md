@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.4.0...v0.4.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **release:** decouple platform versions ([#19](https://github.com/JaceHwang/codex-usage-sidebar/issues/19)) ([6e99396](https://github.com/JaceHwang/codex-usage-sidebar/commit/6e9939633d4120ec74d89e716063cf503c9a9460))
+* **sidebar:** align detail behavior across platforms ([b20ceb6](https://github.com/JaceHwang/codex-usage-sidebar/commit/b20ceb63d1db9c7f3e7591d10cf749429f6517a8))
+* **windows:** refresh automatic overlay placement ([#16](https://github.com/JaceHwang/codex-usage-sidebar/issues/16)) ([1a15da3](https://github.com/JaceHwang/codex-usage-sidebar/commit/1a15da359ac76f35375870b5739473054c73d381))
+
 ## [0.4.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.3.5...v0.4.0) (2026-09-16)
 
 

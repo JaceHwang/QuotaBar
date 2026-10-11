@@ -35,6 +35,7 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
     private Uri? accountAvatarURL;
     private ImageSource? accountAvatarSource;
     private readonly IndicatorDragSession indicatorDrag = new();
+    private bool suppressNextIndicatorRelease;
     private readonly IndicatorPlacementPreferences placementPreferences;
     private readonly IndicatorPreferencesStore? placementStore;
     private OverlayPresentation? automaticPresentation;
@@ -114,9 +115,21 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
             UpdateOutsideClickMonitor();
         };
         indicator.Closed += (_, _) => outsideClickMonitor?.Dispose();
-        indicator.MouseLeftButtonDown += (_, eventArgs) =>
+        indicator.MouseLeftButtonDown += async (_, eventArgs) =>
         {
-            if (eventArgs.ChangedButton != MouseButton.Left || !CanDragIndicator()
+            if (eventArgs is null) return;
+            if (eventArgs.ChangedButton != MouseButton.Left) return;
+            var clickAction = IndicatorClickPolicy.Resolve(eventArgs.ClickCount, dragged: false);
+            if (clickAction == IndicatorClickAction.SwitchToAutomaticPlacement && CanDragIndicator())
+            {
+                suppressNextIndicatorRelease = true;
+                interaction = DetailInteractionState.Initial;
+                detail.Hide();
+                await SetPlacementModeAsync(IndicatorPlacementMode.Automatic);
+                eventArgs.Handled = true;
+                return;
+            }
+            if (!CanDragIndicator()
                 || !GetCursorPos(out var cursor)) return;
             indicatorDrag.Begin(cursor.X, cursor.Y, latestPresentation!.Placement.Frame, latestPresentation.DpiScale);
             indicator.CaptureMouse();
@@ -136,9 +149,16 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
         };
         indicator.MouseLeftButtonUp += async (_, eventArgs) =>
         {
+            if (eventArgs is null) return;
             if (eventArgs.ChangedButton != MouseButton.Left) return;
             var dragged = indicatorDrag.End();
             if (indicator.IsMouseCaptured) indicator.ReleaseMouseCapture();
+            if (suppressNextIndicatorRelease)
+            {
+                suppressNextIndicatorRelease = false;
+                eventArgs.Handled = true;
+                return;
+            }
             if (dragged && latestPresentation is { } presentation)
             {
                 CaptureManualPlacement(presentation.Placement.Frame);
@@ -146,6 +166,8 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
                 eventArgs.Handled = true;
                 return;
             }
+            var clickAction = IndicatorClickPolicy.Resolve(eventArgs.ClickCount, dragged);
+            if (clickAction != IndicatorClickAction.ToggleDetails) return;
             interaction = interaction.TogglePinned(IsPointerInsideOverlay());
             RefreshInteraction();
         };
@@ -163,12 +185,27 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
             indicator.Dispatcher);
     }
 
-    public ValueTask ShowAsync(
+    public bool HasForegroundWindow
+    {
+        get
+        {
+            var foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero) return false;
+            _ = GetWindowThreadProcessId(foreground, out var processId);
+            return processId == Environment.ProcessId;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    public async ValueTask ShowAsync(
         OverlayPresentation presentation,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return OnUiAsync(() =>
+        Task persistence = Task.CompletedTask;
+        await OnUiAsync(() =>
         {
             // Incoming quota/titlebar observations cannot move the control
             // underneath an active captured screen-coordinate drag.
@@ -194,6 +231,13 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
                     SafeDockSize = resolved.Size,
                     SafeDockRequest = request,
                 };
+            }
+            if (presentation.SwitchToFree && placementPreferences.Mode == IndicatorPlacementMode.Automatic)
+            {
+                var fallbackScreen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(
+                    (int)Math.Round(frame.X + frame.Width / 2), (int)Math.Round(frame.Y + frame.Height / 2)));
+                if (placementPreferences.SwitchToFreeFallback(fallbackScreen.DeviceName, frame, ScreenWorkArea(fallbackScreen)))
+                    persistence = SavePlacementAsync();
             }
             if (this.placementPreferences.Mode != IndicatorPlacementMode.Automatic)
             {
@@ -242,6 +286,7 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
             hoverTimer.Start();
             RefreshInteraction();
         });
+        await persistence;
     }
 
     public ValueTask HideAsync(CancellationToken cancellationToken)
@@ -263,7 +308,9 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
     private void PollPointer()
     {
         var inside = IsPointerInsideOverlay();
-        interaction = interaction.PointerChanged(inside);
+        var updated = interaction.PointerChanged(inside);
+        if (updated == interaction) return;
+        interaction = updated;
         RefreshInteraction();
     }
 
@@ -326,6 +373,7 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
         if (indicator.IsMouseCaptured) indicator.ReleaseMouseCapture();
         await SavePlacementAsync();
         if (automaticPresentation is { } automatic) await ShowAsync(automatic, CancellationToken.None);
+        if (mode == IndicatorPlacementMode.Automatic) TitlebarRefreshRequested?.Invoke();
     }
 
     private void CaptureManualPlacement(RectD frame)
@@ -382,17 +430,52 @@ public sealed partial class WpfOverlaySurface : IOverlaySurface, IIndicatorSizeP
             return;
         }
         var detailWidth = detail.Width * presentation.DpiScale;
-        var detailHeight = detail.ActualHeight * presentation.DpiScale;
         var left = OverlayDetailLayout.LeftForIndicator(
             indicatorFrame,
             workArea.Value,
             detailWidth);
         var gap = 6 * presentation.DpiScale;
-        var below = indicatorFrame.Bottom + gap;
-        var above = indicatorFrame.Y - detailHeight - gap;
-        var top = below + detailHeight <= workArea.Value.Bottom
-            ? below
-            : Math.Max(workArea.Value.Y, above);
+        double detailHeight;
+        double top;
+        if (placementPreferences.Mode == IndicatorPlacementMode.Free && detailRows is not null)
+        {
+            detailRows.Height = requestedRowViewportHeight;
+            detail.UpdateLayout();
+            var fixedChromeHeight = Math.Max(0, detail.ActualHeight - detailRows.ActualHeight);
+            var minimumHeight = (fixedChromeHeight + QuotaDetailViewportPolicy.MinimumRowViewportHeight)
+                * presentation.DpiScale;
+            var freePlacement = OverlayDetailLayout.ResolveFreeDetailPlacement(
+                indicatorFrame, workArea.Value, minimumHeight, gap);
+            if (freePlacement is null)
+            {
+                detail.Hide();
+                return;
+            }
+            var rowViewportHeight = QuotaDetailViewportPolicy.ResolveViewportWithinAvailableHeight(
+                requestedRowViewportHeight,
+                freePlacement.Value.AvailableHeight / presentation.DpiScale,
+                fixedChromeHeight);
+            if (rowViewportHeight is null)
+            {
+                detail.Hide();
+                return;
+            }
+            detailRows.Height = rowViewportHeight.Value;
+            detail.UpdateLayout();
+            detailHeight = detail.ActualHeight * presentation.DpiScale;
+            top = freePlacement.Value.IsAbove
+                ? indicatorFrame.Y - detailHeight - gap
+                : indicatorFrame.Bottom + gap;
+        }
+        else
+        {
+            detailHeight = detail.ActualHeight * presentation.DpiScale;
+            var below = indicatorFrame.Bottom + gap;
+            var above = indicatorFrame.Y - detailHeight - gap;
+            top = below + detailHeight <= workArea.Value.Bottom
+                ? below
+                : Math.Max(workArea.Value.Y, above);
+        }
         if (!detail.IsVisible) new WindowInteropHelper(detail).EnsureHandle();
         PositionPhysical(detail, new RectD(left, top, detailWidth, detailHeight));
         if (!detail.IsVisible) detail.Show();

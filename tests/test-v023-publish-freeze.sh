@@ -2,12 +2,13 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python="${PYTHON:-python3}"
 ci="$repo_root/.github/workflows/ci.yml"
 publisher="$repo_root/.github/workflows/publish-installer.yml"
 builder="$repo_root/scripts/build-installer.sh"
 frozen_commit="a72b4636ddf99fa4c1d4660b3e281376be361711"
 
-python3 - "$ci" "$publisher" "$builder" "$frozen_commit" <<'PY'
+"$python" - "$ci" "$publisher" "$builder" "$frozen_commit" <<'PY'
 import sys
 from pathlib import Path
 

@@ -7,9 +7,10 @@ retroactively rewritten to claim new behavior or completed release checks. Curre
 - [Feature inventory and platform scope](../CURRENT_FEATURES.md)
 - [Repository governance](../GOVERNANCE.md)
 
-In particular, earlier fixed/safe-fallback and hover-only descriptions are superseded for the
-current macOS candidate by measured-width placement, persistent Automatic→Free fallback, separate
-detail lock, settings menus and Bank urgency colors.
+In particular, earlier fixed/safe-fallback and hover-only descriptions are superseded by the current
+design contract: measured-width placement, persistent Automatic→Free fallback, separate detail
+lock, settings menus and Bank urgency colors. Published platform baselines are macOS v0.4.0 and
+Windows v0.4.1.
 
 ## Specifications
 

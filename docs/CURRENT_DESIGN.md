@@ -1,7 +1,8 @@
 # Current design contract
 
-Status: development source after released macOS 0.4.0, reviewed 2026-09-20. Published versions remain
-macOS 0.4.0 and Windows 0.3.3; these source changes do not constitute a new release.
+Status: reviewed against `main` on 2026-09-22. Published versions are macOS v0.4.0 and Windows
+v0.4.1. This document describes the shared behavior contract; platform-specific implementation and
+release evidence remain separate.
 [governance](GOVERNANCE.md) still controls release authorization. Historical specifications and
 validation reports retain their original version scope. [Feature inventory](CURRENT_FEATURES.md).
 

@@ -38,6 +38,7 @@ public enum CompatibilityFailureCode
     InvalidGeometry,
     NoCollisionFreeSlot,
     InvalidCatalog,
+    HostNotForeground,
 }
 
 public sealed record CompatibilityDecision(

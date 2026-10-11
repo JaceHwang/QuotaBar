@@ -1,37 +1,41 @@
 # Installation and Operations
 
-> **Published platforms:** macOS 0.4.0 and Windows 0.3.3. See [current features](CURRENT_FEATURES.md) for the macOS release behavior; Windows development source is not a new Windows release.
+> **Published platforms:** macOS v0.4.0 and Windows v0.4.1. See [current features](CURRENT_FEATURES.md) for the supported behavior and platform boundaries.
 
 
 ## Current release
 
 macOS 14+ Apple Silicon users download the v0.4.0 arm64 DMG, checksum, and provenance files from
 the [v0.4.0 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.0).
-Windows 11 AMD64/x64 remains on the separately validated v0.3.3 setup described below. Every
+Windows 11 AMD64/x64 uses the separately validated v0.4.1 setup described below. Every
 installer asset is verified before publication.
 
 ## Windows 11 AMD64/x64
 
-The formal v0.3.3 Windows x64 installer is published in the
-[v0.3.3 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3).
+The formal v0.4.1 Windows x64 installer is published in the
+[v0.4.1 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1).
 It is the single installation entry point. It embeds the schema-v2 selector catalog and signed
 compatibility-update configuration; do not edit `selectors.json` by hand. The generic selector and
 signed compatibility updates recover automatically: an unavailable update keeps the packaged or
 previously validated catalog usable. Setup waits briefly for local runtime health and reports whether
 the indicator is visible, using the automatic safe dock, or needs compatibility validation.
 
-Windows `v0.3.3` supports Windows 11 on AMD64/x64 only; Windows ARM64 is not supported. The current-user setup is unsigned (`NotSigned`)
+Windows `v0.4.1` supports Windows 11 on AMD64/x64 only; Windows ARM64 is not supported. The current-user setup is unsigned (`NotSigned`)
 and does not require administrator privileges.
+
+There is no fixed Codex desktop file-version requirement. The overlay attaches only when the active
+Codex title bar exposes the validated semantic UI Automation structure; unknown structures remain
+hidden until a compatible selector is available.
 
 ### Download and verify
 
-Download only `codex-usage-sidebar-v0.3.3-windows-x64-setup.exe` and
-`WINDOWS-V033-SHA256SUMS.txt` from the
-[v0.3.3 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3). Before launching the setup,
+Download only `codex-usage-sidebar-v0.4.1-windows-x64-setup.exe` and
+`WINDOWS-V041-SHA256SUMS.txt` from the
+[v0.4.1 GitHub Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1). Before launching the setup,
 calculate its SHA-256:
 
 ```powershell
-Get-FileHash .\codex-usage-sidebar-v0.3.3-windows-x64-setup.exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+Get-FileHash .\codex-usage-sidebar-v0.4.1-windows-x64-setup.exe -Algorithm SHA256 | Select-Object -ExpandProperty Hash
 ```
 
 Compare the digest case-insensitively with the matching checksum-file entry. A matching digest is
@@ -44,7 +48,7 @@ system policy.
 Run the verified setup normally to install for the current user:
 
 ```powershell
-Start-Process .\codex-usage-sidebar-v0.3.3-windows-x64-setup.exe
+Start-Process .\codex-usage-sidebar-v0.4.1-windows-x64-setup.exe
 ```
 
 Because this public setup is unsigned, Windows may show **Unknown publisher**. Only after the
@@ -77,7 +81,7 @@ the deterministic prompt and evidence checklist.
 
 ### Validation boundary
 
-The published `v0.3.3` Windows setup is bound to complete 85-case Windows 11 x64 real-device
+The published `v0.4.1` Windows setup is bound to complete 130-case Windows 11 x64 real-device
 evidence. Local install, repair, and uninstall results still describe only the operations actually
 performed on the target machine. Unknown or unsupported UI Automation structures hide the overlay;
 no coordinates are guessed.
@@ -263,10 +267,10 @@ codex plugin marketplace remove codex-usage-sidebar
 Uninstall removes only the companion's exact Application Support directory and user LaunchAgent.
 It does not modify the official Codex app.
 
-## Current release controls and local testing
+## Current controls and local testing
 
-For current source features (not the older published DMG), right-click the indicator for Automatic,
-Free or Locked; the footer gear provides the same modes plus Releases, Reload and Quit. The header
+Right-click the indicator for Automatic,
+Free or Locked; the footer gear provides the same modes plus Check for updates, Reload and Quit. The header
 lock keeps the detail open and is independent from Locked position mode. Manual positions persist
 per display. Crowding can switch Automatic to Free; choose Automatic explicitly to resume.
 
@@ -284,4 +288,4 @@ Run from the repository root. This updates the companion outside Codex and may p
 local signing identity. A local build is not a release or proof of clean-source provenance. Keep the
 working-tree/snapshot distinction in [current features](CURRENT_FEATURES.md); the build script's
 base commit alone does not describe uncommitted changes. Retain a backup before replacing a local
-candidate that may contain different work.
+build that may contain different work.

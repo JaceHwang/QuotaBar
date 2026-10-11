@@ -253,7 +253,7 @@ internal static class AdaptiveTitlebarResolver
         if (titleBounds is null) return null;
 
         var anchors = nodes.Where(node => node.ControlType == "ControlType.Button"
-            && profile.HasMarker(node.ClassName, "composer", "h-token-button-composer")
+            && IsToolbarButton(node, profile)
             && (profile.HasMarker(node.ClassName, "openLocationEnd", "rounded-e-none")
                 || profile.HasMarker(node.ClassName, "composerSquare", "aspect-square"))
             && IsDescendant(content, node, profile)
@@ -262,11 +262,13 @@ internal static class AdaptiveTitlebarResolver
             && IsAligned(node.Bounds, titleBounds.Value, dpiScale)).OrderBy(node => node.Bounds.X).ToArray();
         if (anchors.Length == 0) return null;
         var anchor = anchors[0];
+        var obstacleRegion = anchor.ClassName.Split(' ').Contains("button-toolbar")
+            ? toolbar.Bounds : content.Bounds;
 
         var obstacles = nodes.Where(node => node.ControlType == "ControlType.Button"
-            && profile.HasMarker(node.ClassName, "composer", "h-token-button-composer")
+            && IsToolbarButton(node, profile)
             && node.Bounds.X >= anchor.Bounds.X
-            && Contains(content.Bounds, node.Bounds)).OrderBy(node => node.Bounds.X).Select(node => node.Bounds).ToArray();
+            && Contains(obstacleRegion, node.Bounds)).OrderBy(node => node.Bounds.X).Select(node => node.Bounds).ToArray();
         if (obstacles.Length == 0 || obstacles[0] != anchor.Bounds) return null;
 
         var rightPanes = nodes.Where(node => node.ControlType == "ControlType.Group"
@@ -298,8 +300,13 @@ internal static class AdaptiveTitlebarResolver
             rightObstacles = aligned.Select(node => node.Bounds).ToArray();
         }
 
+        var allInteractive = nodes.Where(node => DiagnosticTitlebarScope.IsInteractiveControlType(node.ControlType)
+            && IsUsable(node.Bounds) && node.Bounds.Width <= 420 * dpiScale && node.Bounds.Height <= 64 * dpiScale
+            && node.Bounds.X >= toolbar.Bounds.X && node.Bounds.Right <= toolbar.Bounds.Right
+            && node.Bounds.Y < anchor.Bounds.Bottom && node.Bounds.Bottom > anchor.Bounds.Y)
+            .Select(node => node.Bounds).Distinct().ToArray();
         return new TitlebarSnapshot(anchor.Bounds.X, obstacles, toolbar.Bounds, anchor.Bounds,
-            titleBounds.Value, rightToolbarBounds, rightObstacles);
+            titleBounds.Value, rightToolbarBounds, rightObstacles, allInteractive);
     }
 
     private static RectD? TryResolveTitleChildren(
@@ -312,10 +319,19 @@ internal static class AdaptiveTitlebarResolver
         if (titleTexts.Length != 1) return null;
         var title = titleTexts[0];
         var leading = nodes.Where(node => node.ControlType == "ControlType.Button"
-            && profile.HasMarker(node.ClassName, "composer", "h-token-button-composer")
+            && IsToolbarButton(node, profile)
             && profile.HasMarker(node.ClassName, "composerSquare", "aspect-square")
             && IsDescendant(parent, node, profile) && Contains(bounds, node.Bounds)
             && node.Bounds.Right <= title.Bounds.X && title.Bounds.X - node.Bounds.Right <= 4 * dpiScale).ToArray();
+        var clickableTitles = nodes.Where(node => node.ControlType == "ControlType.Button"
+            && profile.HasMarker(node.ClassName, "clickableTitle", "text-start truncate leading-6")
+            && IsDescendant(title, node, profile)
+            && Contains(Expand(title.Bounds, 2 * dpiScale), node.Bounds)).ToArray();
+        if (leading.Length == 1 && clickableTitles.Length == 1
+            && leading[0].ClassName.Split(' ').Contains("button-toolbar"))
+        {
+            return Union(leading[0].Bounds, title.Bounds, clickableTitles[0].Bounds);
+        }
         var actions = nodes.Where(node => node.ControlType == "ControlType.Button"
             && profile.HasMarker(node.ClassName, "titleAction", "rounded-full")
             && profile.HasMarker(node.ClassName, "titleActionCursor", "cursor-interaction")
@@ -326,6 +342,10 @@ internal static class AdaptiveTitlebarResolver
             || leading[0].Bounds.Right > title.Bounds.Right || title.Bounds.Right > actions[0].Bounds.Right) return null;
         return Union(leading[0].Bounds, title.Bounds, actions[0].Bounds);
     }
+
+    private static bool IsToolbarButton(UiaStructureNode node, SelectorProfile profile) =>
+        profile.HasMarker(node.ClassName, "composer", "h-token-button-composer")
+        || node.ClassName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("button-toolbar");
 
     private static bool IsDescendant(UiaStructureNode parent, UiaStructureNode child, SelectorProfile profile) =>
         child.Depth > parent.Depth && child.Depth - parent.Depth <= profile.MaximumDepthDelta;

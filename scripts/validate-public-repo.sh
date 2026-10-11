@@ -29,7 +29,7 @@ for relative in "${required[@]}"; do
   [[ -e "$repo_root/$relative" ]] || { printf 'missing required file: %s\n' "$relative" >&2; exit 66; }
 done
 
-/usr/bin/python3 - "$repo_root" <<'PY'
+"${PYTHON:-python3}" - "$repo_root" <<'PY'
 import json
 import hashlib
 import os
@@ -287,7 +287,7 @@ for label, guard in publisher_guards.items():
 print("JSON, privacy, placeholder, and Markdown link checks passed")
 PY
 
-/usr/bin/python3 - "$repo_root" <<'PY'
+"${PYTHON:-python3}" - "$repo_root" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -317,16 +317,39 @@ for relative, (asset_name, gatekeeper_warning) in required_copy.items():
         raise SystemExit(f"{relative}: missing Finder Open warning for the local installer")
 PY
 
-/usr/bin/ruby -ryaml -e '
-  ARGV.each do |path|
-    YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
-  end
-' "$repo_root/.github/workflows/ci.yml" "$repo_root/.github/workflows/publish-installer.yml" \
+workflow_files=(
+  "$repo_root/.github/workflows/ci.yml"
+  "$repo_root/.github/workflows/publish-installer.yml"
   "$repo_root/.github/workflows/windows-beta.yml"
+)
+if [[ -x /usr/bin/ruby ]]; then
+  /usr/bin/ruby -ryaml -e '
+    ARGV.each do |path|
+      YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
+    end
+  ' "${workflow_files[@]}"
+else
+  "${PYTHON:-python3}" - "${workflow_files[@]}" <<'PY'
+import sys
+import yaml
 
-/usr/bin/plutil -lint "$companion/Contents/Info.plist" >/dev/null
-/usr/bin/codesign --verify --deep --strict "$companion"
-[[ -x "$companion/Contents/MacOS/CodexUsageSidebar" ]]
+for path in sys.argv[1:]:
+    with open(path, encoding="utf-8") as handle:
+        events = tuple(yaml.parse(handle))
+    if any(isinstance(event, yaml.events.AliasEvent) for event in events):
+        raise SystemExit(f"{path}: YAML aliases are not allowed")
+    with open(path, encoding="utf-8") as handle:
+        yaml.safe_load(handle)
+PY
+fi
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  /usr/bin/plutil -lint "$companion/Contents/Info.plist" >/dev/null
+  /usr/bin/codesign --verify --deep --strict "$companion"
+  [[ -x "$companion/Contents/MacOS/CodexUsageSidebar" ]]
+else
+  printf 'SKIP: companion signature verification requires macOS\n'
+fi
 [[ -x "$plugin_root/scripts/sidebar-control.sh" ]]
 [[ -x "$plugin_root/scripts/build-companion.sh" ]]
 [[ -x "$repo_root/scripts/build-installer.sh" ]]
@@ -351,8 +374,18 @@ bash "$repo_root/tests/test-windows-payload-manifest.sh"
 bash "$repo_root/tests/test-v023-publish-freeze.sh"
 bash "$plugin_root/tests/test-windows-hook.sh"
 
-for svg in "$repo_root"/docs/images/*.svg; do
-  /usr/bin/xmllint --noout "$svg"
-done
+if [[ -x /usr/bin/xmllint ]]; then
+  for svg in "$repo_root"/docs/images/*.svg; do
+    /usr/bin/xmllint --noout "$svg"
+  done
+else
+  "${PYTHON:-python3}" - "$repo_root"/docs/images/*.svg <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+for path in sys.argv[1:]:
+    ET.parse(path)
+PY
+fi
 
 printf 'PASS: public repository layout, manifests, links, privacy, SVG, and companion signature\n'

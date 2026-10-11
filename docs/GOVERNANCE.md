@@ -36,20 +36,19 @@ and chore changes do not release by default.
 
 Release Please creates a draft GitHub Release. This project uses staged platform
 publishing: a platform must build from the exact tag/SHA, pass its verifier, and
-must not overwrite an existing asset. For macOS 0.4.0, the staged publisher selects the macOS runner and delegates to the versioned
-build/package/verifier scripts. It checks the exact tag, clean checkout, arm64 payload, signatures,
-SDK, checksum and provenance before upload. Windows publishing remains on its existing
-evidence-bound workflow until equivalent verification is implemented.
+must not overwrite an existing asset. The macOS publisher selects the macOS runner and delegates to
+the versioned build/package/verifier scripts. Windows uses its evidence-bound workflow and requires
+the exact tagged commit, clean checkout, installer verification, checksum, provenance, and recorded
+real-device acceptance before upload.
 
 Pre-releases are only made from `codex/prerelease/alpha`,
 `codex/prerelease/beta`, or `codex/prerelease/rc`; stable releases still come
 from `main`.
 
-## macOS 0.4.0 release preparation
+## Published platform baselines
 
-The catalog uses `v0.4.0`, matching Release Please and the unified product version policy.
-The planned catalog is release intent; only uploaded, verified assets make a platform available.
-Ordinary feature commits retain the current released version; Release Please performs the bump.
-After its version PR changes the bundle plist, rebuild and sign the companion from that PR's exact
-source commit, update payload provenance, and rerun every required check before merging.
-Never manually create a stable tag or use a dirty local build as exact release provenance.
+The current published baselines are macOS v0.4.0 and Windows v0.4.1. Their release notes and uploaded
+provenance are the source of truth for those assets. Ordinary feature commits retain the current
+released version; Release Please performs the next version bump. Rebuild every platform asset from
+the exact release tag and rerun its required checks before upload. Never manually move a stable tag,
+overwrite a published asset, or use a dirty local build as exact release provenance.

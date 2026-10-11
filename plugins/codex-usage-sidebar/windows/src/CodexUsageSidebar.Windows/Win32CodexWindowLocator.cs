@@ -9,6 +9,8 @@ namespace CodexUsageSidebar.Windows;
 public sealed class Win32CodexWindowLocator : IHostWindowLocator
 {
     private readonly IWindowLocatorAcquisition acquisition;
+    private readonly object captionCacheGate = new();
+    private CaptionCacheEntry? captionCache;
 
     public Win32CodexWindowLocator() : this(new NativeWindowLocatorAcquisition())
     {
@@ -59,24 +61,49 @@ public sealed class Win32CodexWindowLocator : IHostWindowLocator
 
     private RectD? CaptionBoundsFor(IntPtr handle, RectD hostBounds, double dpiScale)
     {
+        var key = CaptionCacheKey.For(handle, hostBounds, dpiScale);
+        lock (captionCacheGate)
+        {
+            if (captionCache is { } cached && cached.Key == key)
+            {
+                return cached.Bounds;
+            }
+        }
+
+        RectD? bounds;
         try
         {
             var candidates = acquisition.CaptionCandidatesFor(handle);
-            if (candidates is null) return null;
-            return HostWindowGeometry.TryResolveVerifiedCaptionBounds(hostBounds, candidates, dpiScale);
+            bounds = candidates is null
+                ? null
+                : HostWindowGeometry.TryResolveVerifiedCaptionBounds(hostBounds, candidates, dpiScale);
         }
         catch (ElementNotAvailableException)
         {
-            return null;
+            bounds = null;
         }
         catch (InvalidOperationException)
         {
-            return null;
+            bounds = null;
         }
         catch (COMException)
         {
-            return null;
+            bounds = null;
         }
+
+        lock (captionCacheGate)
+        {
+            captionCache = new CaptionCacheEntry(key, bounds);
+        }
+        return bounds;
+    }
+
+    private sealed record CaptionCacheEntry(CaptionCacheKey Key, RectD? Bounds);
+
+    private readonly record struct CaptionCacheKey(IntPtr Handle, RectD HostBounds, double DpiScale)
+    {
+        internal static CaptionCacheKey For(IntPtr handle, RectD hostBounds, double dpiScale) =>
+            new(handle, hostBounds, dpiScale);
     }
 
     internal static string? ExecutablePath(IntPtr handle)

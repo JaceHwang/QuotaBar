@@ -149,6 +149,9 @@ public sealed class ValidatedUiaTitlebarScanner : ITitlebarScanner
             var observations = observationProvider(host, cancellationToken).AsTask().GetAwaiter().GetResult();
             var hasConversationAnchor = observations.Any(observation =>
                 UiaSemanticRoleClassifier.Classify(observation.Name) == UiaSemanticRoles.OpenLocation);
+            nodes = NormalizeObservations(observations);
+            hasConversationAnchor |= CodexTitlebarSelector.TryResolve(
+                host.BuildIdentity, host.DpiScale, host.Bounds, nodes, selectorCatalog) is not null;
             if (observations.Any(observation => HostPagePolicy.IsSettingsNavigation(
                 new HostPageControl(observation.Bounds, observation.Name),
                 host.Bounds,
@@ -156,7 +159,6 @@ public sealed class ValidatedUiaTitlebarScanner : ITitlebarScanner
             {
                 throw new HostSettingsPageDetectedException();
             }
-            nodes = NormalizeObservations(observations);
         }
         var snapshot = CodexTitlebarSelector.TryResolve(
             host.BuildIdentity,
@@ -181,6 +183,39 @@ public sealed class ValidatedUiaTitlebarScanner : ITitlebarScanner
             AddNode(container, 3, nodes);
             AddDirectChildren(container, 4, nodes, cancellationToken);
         }
+
+        // Newer hosts can omit Open Location entirely. Discover confirmed
+        // header containers structurally before inspecting their descendants.
+        var groups = root.FindAll(TreeScope.Descendants,
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Group));
+        var scanHost = new HostWindowSnapshot(IntPtr.Zero, hostBounds, true, dpiScale, "");
+        var inspected = 0;
+        foreach (AutomationElement group in groups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (++inspected > UiaTraversalBudget.DiagnosticMaximumNodes) break;
+            try
+            {
+                var current = group.Current;
+                var className = current.ClassName ?? "";
+                var tokens = className.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (!tokens.Contains("fixed") || !tokens.Contains("h-toolbar")
+                    || !tokens.Contains("top-toolbar-sm")) continue;
+                var rectangle = current.BoundingRectangle;
+                var bounds = new RectD(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+                if (DiagnosticTitlebarScope.Resolve(scanHost, "ControlType.Group",
+                    className, bounds, null) is null) continue;
+                var observation = new List<UiaStructureNode>();
+                AddBoundedSubtree(group, 14, MaximumTopTitlebarDescendantDepth, observation, cancellationToken);
+                nodes.AddRange(TopTitlebarObservationCollector.Normalize(observation));
+            }
+            catch (ElementNotAvailableException) { }
+        }
+
+        var structuralNodes = TopTitlebarObservationCollector.Normalize(nodes);
+        if (structuralNodes.Any(node => node.ClassName.Split(' ').Contains("button-toolbar"))
+            && CodexTitlebarSelector.TryResolve("", dpiScale, hostBounds, structuralNodes) is not null)
+            return structuralNodes;
 
         var openLocationButtons = DiscoverOpenLocationSeeds(root, hostBounds, dpiScale, cancellationToken);
         foreach (var openLocation in openLocationButtons)
@@ -484,6 +519,13 @@ public sealed class ValidatedUiaTitlebarScanner : ITitlebarScanner
         {
             throw new WindowsDeviceValidationRequiredException(host.BuildIdentity);
         }
+        var scoped = TopTitlebarObservationCollector.Normalize(WindowsDiagnosticProbe.Collect(
+            root, host, false, ProbeRedactor.Create(), cancellationToken)
+            .Select(node => new UiaStructureNode(node.Depth, node.ControlType,
+                node.AutomationId, node.ClassName, node.Bounds, node.NameLength, node.SemanticRole)).ToArray());
+        if (scoped.Any(node => node.ClassName.Split(' ').Contains("button-toolbar"))
+            && CodexTitlebarSelector.TryResolve(host.BuildIdentity, host.DpiScale, host.Bounds, scoped) is not null)
+            return scoped;
         var conversationAnchors = DiscoverOpenLocationSeeds(root, host.Bounds, host.DpiScale, cancellationToken);
         if (IsSettingsPage(root, host.Bounds, conversationAnchors.Count == 0, cancellationToken))
         {

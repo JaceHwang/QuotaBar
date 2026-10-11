@@ -2,8 +2,10 @@
 """Exercise release provenance acceptance and reject tampered metadata/assets."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -15,8 +17,14 @@ class ProvenanceTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        self.git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
         def git(*args):
-            return subprocess.check_output(["git", *args], cwd=self.root, stderr=subprocess.DEVNULL).decode().strip()
+            command = ["git"]
+            if (args and args[0] != "init"):
+                command.extend([f"--git-dir={self.root / '.git'}", f"--work-tree={self.root}"])
+            return subprocess.check_output(
+                [*command, *args], cwd=self.root, env=self.git_env, stderr=subprocess.DEVNULL
+            ).decode().strip()
         git("init")
         git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "fixture")
         git("tag", "v0.4.0")
@@ -42,8 +50,8 @@ class ProvenanceTests(unittest.TestCase):
 
     def verify(self):
         (self.root / "MACOS-V040-PROVENANCE.json").write_text(json.dumps(self.metadata))
-        return subprocess.run(["python3", str(VERIFIER), "v0.4.0", str(self.root), str(self.app)], cwd=self.root,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode
+        return subprocess.run([sys.executable, str(VERIFIER), "v0.4.0", str(self.root), str(self.app)], cwd=self.root,
+                              env=self.git_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode
 
     def test_valid_metadata(self):
         self.assertEqual(self.verify(), 0)

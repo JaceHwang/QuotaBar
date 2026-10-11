@@ -18,19 +18,19 @@
       "releaseNotes": "docs/releases/macos-v0.4.0.md"
     },
     "windows": {
-      "version": "0.3.3",
-      "tag": "v0.3.3",
-      "legacyTag": true,
-      "title": "Codex Usage Sidebar Windows v0.3.3",
+      "version": "0.4.1",
+      "tag": "v0.4.1",
+      "legacyTag": false,
+      "title": "Codex Usage Sidebar Windows v0.4.1",
       "architecture": "x64",
       "minimumSystem": "Windows 11 AMD64/x64",
       "codexCompatibility": "No fixed Codex version; validated semantic titlebar structure is required.",
       "assets": {
-        "installer": "codex-usage-sidebar-v0.3.3-windows-x64-setup.exe",
-        "checksums": "WINDOWS-V033-SHA256SUMS.txt",
-        "provenance": "WINDOWS-V033-PROVENANCE.json"
+        "installer": "codex-usage-sidebar-v0.4.1-windows-x64-setup.exe",
+        "checksums": "WINDOWS-V041-SHA256SUMS.txt",
+        "provenance": "WINDOWS-V041-PROVENANCE.json"
       },
-      "releaseNotes": "docs/releases/v0.3.3.md"
+      "releaseNotes": "docs/releases/windows-v0.4.1.md"
     }
   },
   "planned": {}

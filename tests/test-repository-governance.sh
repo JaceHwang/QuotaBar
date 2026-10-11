@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-python3 - <<'PY'
+"${PYTHON:-python3}" - <<'PY'
 import json
 import plistlib
 import xml.etree.ElementTree as ET
@@ -18,11 +18,11 @@ assert manifest == {".": expected}, manifest
 assert expected.count(".") == 2 and all(part.isdecimal() for part in expected.split(".")), expected
 
 plugin = json.loads((root / "plugins/codex-usage-sidebar/.codex-plugin/plugin.json").read_text())
-assert plugin["version"].split("+", 1)[0] == expected, plugin["version"]
+plugin_version = plugin["version"].split("+", 1)[0]
 
 with (root / "plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app/Contents/Info.plist").open("rb") as handle:
     plist = plistlib.load(handle)
-assert plist["CFBundleShortVersionString"] == expected
+assert plist["CFBundleShortVersionString"] == plugin_version
 
 xml = ET.parse(root / "plugins/codex-usage-sidebar/windows/Directory.Build.props")
 assert xml.findtext(".//VersionPrefix") == expected
@@ -31,10 +31,10 @@ config = json.loads((root / "release-please-config.json").read_text())
 package = config["packages"]["."]
 assert package["component"] == "codex-usage-sidebar"
 extra = {(item["path"], item["type"]) for item in package["extra-files"]}
-assert ("plugins/codex-usage-sidebar/.codex-plugin/plugin.json", "json") in extra
 assert ("version.txt", "generic") in extra
-assert ("plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app/Contents/Info.plist", "xml") in extra
 assert ("plugins/codex-usage-sidebar/windows/Directory.Build.props", "xml") in extra
+assert ("plugins/codex-usage-sidebar/.codex-plugin/plugin.json", "json") not in extra
+assert ("plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app/Contents/Info.plist", "xml") not in extra
 
 for channel in ("alpha", "beta", "rc"):
     prerelease = json.loads((root / ".governance/release" / f"{channel}.json").read_text())
@@ -44,6 +44,8 @@ PY
 
 grep -q '^RELEASE_MODE=staged$' .governance/policy.sh
 grep -q "^RELEASE_PLATFORMS='macos-arm64 windows-x64'$" .governance/policy.sh
+grep -q "MINGW\*|MSYS\*|CYGWIN\*" .governance/project/check-full
+grep -q "dotnet test plugins/codex-usage-sidebar/windows/CodexUsageSidebar.Windows.sln" .governance/project/check-full
 grep -q '^FAST_CHECK_ADAPTER=.governance/project/check-fast$' .governance/policy.sh
 grep -q '^FULL_CHECK_ADAPTER=.governance/project/check-full$' .governance/policy.sh
 

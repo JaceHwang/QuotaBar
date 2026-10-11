@@ -147,6 +147,17 @@ public sealed class PresentationPolicyTests
     }
 
     [TestMethod]
+    public void IndicatorDoubleClickReturnsToAutomaticPlacementWithoutTogglingDetails()
+    {
+        Assert.AreEqual(IndicatorClickAction.SwitchToAutomaticPlacement,
+            IndicatorClickPolicy.Resolve(clickCount: 2, dragged: false));
+        Assert.AreEqual(IndicatorClickAction.ToggleDetails,
+            IndicatorClickPolicy.Resolve(clickCount: 1, dragged: false));
+        Assert.AreEqual(IndicatorClickAction.None,
+            IndicatorClickPolicy.Resolve(clickCount: 2, dragged: true));
+    }
+
+    [TestMethod]
     public void IdleIndicatorRetainsAnInvisibleHitTestSurface()
     {
         Assert.AreEqual((byte)1, IndicatorHitTestPolicy.BackgroundAlpha(highlighted: false));

@@ -6,6 +6,35 @@ namespace CodexUsageSidebar.Windows.Tests;
 public sealed class HostCoordinatorTests
 {
     [TestMethod]
+    public async Task HidesWhenAnotherApplicationBecomesForegroundAndRestoresWhenCodexReturns()
+    {
+        var window = Window("fixture");
+        var overlay = new RecordingOverlay();
+        var coordinator = new WindowsHostCoordinator(
+            new SequencedLocator(window, window with { IsForeground = false }, window),
+            new StubScanner(), overlay);
+
+        Assert.AreEqual(HostRuntimeState.Visible, await coordinator.ReconcileAsync(Snapshot(), CancellationToken.None));
+        Assert.AreEqual(HostRuntimeState.Hidden, await coordinator.ReconcileAsync(Snapshot(), CancellationToken.None));
+        Assert.AreEqual(HostRuntimeState.Visible, await coordinator.ReconcileAsync(Snapshot(), CancellationToken.None));
+        CollectionAssert.AreEqual(new[] { "show", "hide", "show" }, overlay.Events.ToArray());
+    }
+
+    [TestMethod]
+    public async Task CompanionFocusPreservesVisibilityButDoesNotOverrideMissingHostOrStaleData()
+    {
+        var window = Window("fixture") with { IsForeground = false };
+        var overlay = new RecordingOverlay { HasForegroundWindow = true };
+        var coordinator = new WindowsHostCoordinator(new StubLocator(window), new StubScanner(), overlay);
+        Assert.AreEqual(HostRuntimeState.Visible, await coordinator.ReconcileAsync(Snapshot(), CancellationToken.None));
+        Assert.AreEqual(HostRuntimeState.Hidden, await coordinator.ReconcileAsync(
+            Snapshot() with { ReceivedAt = DateTimeOffset.UnixEpoch }, CancellationToken.None));
+        var missing = new WindowsHostCoordinator(new StubLocator(null), new StubScanner(), overlay);
+        Assert.AreEqual(HostRuntimeState.WaitingForCodex, await missing.ReconcileAsync(Snapshot(), CancellationToken.None));
+        Assert.IsNull(overlay.LastPresentation);
+    }
+
+    [TestMethod]
     public async Task HidesOverlayWhenTheHostScannerIdentifiesSettings()
     {
         var overlay = new RecordingOverlay();
@@ -106,7 +135,8 @@ public sealed class HostCoordinatorTests
 
         Assert.AreEqual(HostRuntimeState.Visible, result);
         Assert.AreEqual(PlacementSurface.Content, overlay.LastPresentation?.Placement.Surface);
-        Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.X - 1077.6666666666667) < 0.0001);
+        Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.X - 1062.6666666666667) < 0.0001);
+        Assert.AreEqual(8 * window.DpiScale, 1500 - overlay.LastPresentation.Placement.Frame.Right, 0.0001);
         Assert.AreEqual(98, overlay.LastPresentation?.Placement.Frame.Y);
         Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.Width - 421.3333333333333) < 0.0001);
         Assert.AreEqual(56, overlay.LastPresentation?.Placement.Frame.Height);
@@ -286,10 +316,10 @@ public sealed class HostCoordinatorTests
     }
 
     [TestMethod]
-    public async Task KeepsOverlayAttachedWhenForegroundDetectionTemporarilyReturnsFalse()
+    public async Task KeepsOverlayAttachedWhenFocusMovesToTheCompanion()
     {
         var window = Window("codex-build-a") with { IsForeground = false };
-        var overlay = new RecordingOverlay();
+        var overlay = new RecordingOverlay { HasForegroundWindow = true };
         var coordinator = new WindowsHostCoordinator(
             new StubLocator(window), new StubScanner(), overlay);
 
@@ -342,7 +372,7 @@ public sealed class HostCoordinatorTests
         Assert.AreEqual(1, scanner.InvalidateCount);
         Assert.AreEqual(DisplayLanguage.English, overlay.LastPresentation?.Language);
         Assert.AreNotEqual(simplifiedFrame, overlay.LastPresentation?.Placement.Frame);
-        Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.X - 1598.6666666666667) < 0.0001);
+        Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.X - 1583.6666666666667) < 0.0001);
         Assert.IsTrue(Math.Abs(overlay.LastPresentation.Placement.Frame.Width - 421.3333333333333) < 0.0001);
     }
 
@@ -448,12 +478,14 @@ public sealed class HostCoordinatorTests
     }
 
     [TestMethod]
-    public async Task HidesOverlayWhenNoCollisionFreeTitlebarSlotExists()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ShowsDefaultFrameWhenNoCollisionFreeTitlebarSlotExists(bool defaultOccupied)
     {
         var overlay = new RecordingOverlay();
         var scanner = new StubScanner(new TitlebarSnapshot(
             300,
-            [new RectD(300, 60, 80, 28)],
+            [new RectD(300, 60, 80, 28), new RectD(defaultOccupied ? 50 : 300, 69, 80, 28)],
             new RectD(0, 60, 400, 46),
             new RectD(300, 69, 80, 28),
             new RectD(8, 69, 280, 28)));
@@ -465,9 +497,10 @@ public sealed class HostCoordinatorTests
 
         var result = await coordinator.ReconcileAsync(Snapshot(), CancellationToken.None);
 
-        Assert.AreEqual(HostRuntimeState.Hidden, result);
-        Assert.AreEqual(1, overlay.HideCount);
-        Assert.IsNull(overlay.LastPresentation);
+        Assert.AreEqual(HostRuntimeState.Visible, result);
+        Assert.AreEqual(0, overlay.HideCount);
+        Assert.IsNotNull(overlay.LastPresentation);
+        Assert.AreEqual(defaultOccupied, overlay.LastPresentation.SwitchToFree);
     }
 
     [TestMethod]
@@ -490,9 +523,11 @@ public sealed class HostCoordinatorTests
 
         Assert.AreEqual(HostRuntimeState.Visible, result);
         Assert.AreEqual(PlacementSurface.RightToolbar, overlay.LastPresentation?.Placement.Surface);
-        Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.X - 2434.6666666666665) < 0.0001);
+        Assert.IsTrue(Math.Abs(overlay.LastPresentation!.Placement.Frame.X - 2239.6666666666665) < 0.0001);
         Assert.IsTrue(Math.Abs(overlay.LastPresentation.Placement.Frame.Width - 421.3333333333333) < 0.0001);
-        Assert.IsTrue(Math.Abs(overlay.LastPresentation.Placement.Frame.Right - 2856) < 0.0001);
+        Assert.AreEqual(window.Bounds.Right - 176 * window.DpiScale,
+            overlay.LastPresentation.Placement.Frame.Right, 0.0001);
+        Assert.IsTrue(2856 - overlay.LastPresentation.Placement.Frame.Right >= 8 * window.DpiScale);
     }
 
     [TestMethod]
@@ -710,14 +745,12 @@ public sealed class HostCoordinatorTests
     }
 
     [TestMethod]
-    public void ValidatedTitlebarCacheHasA100MillisecondFreshWindowAnd750MillisecondRetentionWindow()
+    public void ValidatedTitlebarCacheKeepsAStableHostSnapshotFreshForThirtySeconds()
     {
         long timestamp = 10_000;
         var cache = new ValidatedTitlebarCache(
             () => timestamp,
-            timestampFrequency: 1_000,
-            TimeSpan.FromMilliseconds(100),
-            TimeSpan.FromMilliseconds(750));
+            timestampFrequency: 1_000);
         var host = new HostWindowSnapshot(
             new IntPtr(9), new RectD(-2000, 0, 1600, 1200), true, 1.5, "build-a");
         var snapshot = new TitlebarSnapshot(-500, []);
@@ -728,11 +761,14 @@ public sealed class HostCoordinatorTests
         Assert.IsNull(cache.TryGet(host with { DpiScale = 2 }));
         Assert.IsNull(cache.TryGet(host with { BuildIdentity = "build-b" }));
 
-        timestamp += 100;
+        timestamp += 29_999;
+        Assert.AreSame(snapshot, cache.TryGet(host));
+
+        timestamp += 1;
         Assert.IsNull(cache.TryGet(host));
         Assert.AreSame(snapshot, cache.TryGetRetained(host));
 
-        timestamp += 650;
+        timestamp += 270_000;
         Assert.IsNull(cache.TryGetRetained(host));
 
         cache.Invalidate();
@@ -894,6 +930,7 @@ public sealed class HostCoordinatorTests
 
     private sealed class RecordingOverlay : IOverlaySurface
     {
+        public bool HasForegroundWindow { get; set; }
         public List<string> Events { get; } = new();
         public int HideCount { get; private set; }
         public OverlayPresentation? LastPresentation { get; private set; }

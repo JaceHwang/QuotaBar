@@ -25,9 +25,9 @@ public sealed partial class WpfOverlaySurface
 
     public double MeasureIndicatorWidth(AllowanceSnapshot snapshot, DisplayLanguage language, double height)
     {
-        double Measure() => IndicatorColumns(QuotaDetailFormatter.FormatIndicatorRows(snapshot, language, timeZone)).Sum()
+        double Measure() => OverlayVisualMetrics.ClampMeasuredIndicatorWidth(IndicatorColumns(QuotaDetailFormatter.FormatIndicatorRows(snapshot, language, timeZone)).Sum()
             + OverlayVisualMetrics.IndicatorLogoSize + OverlayVisualMetrics.IndicatorLogoTextGap
-            + 2 * OverlayVisualMetrics.IndicatorHorizontalPaddingForHeight(height);
+            + 2 * OverlayVisualMetrics.IndicatorHorizontalPaddingForHeight(height));
         return indicator.Dispatcher.CheckAccess() ? Measure() : indicator.Dispatcher.Invoke(Measure);
     }
 

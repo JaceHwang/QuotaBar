@@ -6,6 +6,16 @@ namespace CodexUsageSidebar.Core.Tests;
 public sealed class AccountIdentityDecoderTests
 {
     [TestMethod]
+    public void AccountFieldsTakePrecedenceOverProfileAliases()
+    {
+        var account = AccountIdentityDecoder.DecodeResponse("""
+            {"result":{"account":{"name":"Account name","image_url":"https://example.com/account.png",
+              "profile":{"displayName":"Profile name","avatarUrl":"https://example.com/profile.png"}}}}
+            """);
+        Assert.AreEqual("Account name", account.DisplayName);
+        Assert.AreEqual(new Uri("https://example.com/account.png"), account.AvatarUrl);
+    }
+    [TestMethod]
     public void DecodesDisplayNameEmailAndAvatarFromAccountResponse()
     {
         var identity = AccountIdentityDecoder.DecodeResponse(

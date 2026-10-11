@@ -1,24 +1,24 @@
 # Install with an Agent
 
-> **Published platforms:** macOS 0.4.0 and Windows 0.3.3. See [current features](CURRENT_FEATURES.md) for the macOS release behavior; Windows development source is not a new Windows release.
+> **Published platforms:** macOS v0.4.0 and Windows v0.4.1. See [current features](CURRENT_FEATURES.md) for supported behavior and platform boundaries.
 
 
 This playbook is for a coding agent with terminal access to the target computer. Use the Windows
-path for the published `v0.3.3` setup and the macOS installation path.
+path for the published `v0.4.1` setup and the macOS installation path.
 
 ## Windows 11 AMD64/x64 automatic setup install
 
 ### Copy-paste task
 
 ```text
-Install Codex Usage Sidebar v0.3.3 from the GitHub Release on this Windows 11 AMD64/x64 machine.
+Install Codex Usage Sidebar v0.4.1 from the GitHub Release on this Windows 11 AMD64/x64 machine.
 
 Requirements:
 1. Confirm this is Windows 11 on AMD64/x64. Windows ARM64 is unsupported.
-2. Download only codex-usage-sidebar-v0.3.3-windows-x64-setup.exe and WINDOWS-V033-SHA256SUMS.txt
-   from https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.3.3.
-   Setup URL: https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.3.3/codex-usage-sidebar-v0.3.3-windows-x64-setup.exe.
-3. Verify the setup SHA-256 matches the corresponding entry in WINDOWS-V033-SHA256SUMS.txt.
+2. Download only codex-usage-sidebar-v0.4.1-windows-x64-setup.exe and WINDOWS-V041-SHA256SUMS.txt
+   from https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.4.1.
+   Setup URL: https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.4.1/codex-usage-sidebar-v0.4.1-windows-x64-setup.exe.
+3. Verify the setup SHA-256 matches the corresponding entry in WINDOWS-V041-SHA256SUMS.txt.
 4. Run the setup only if the digest matches.
 5. Do not disable or bypass Defender, SmartScreen, antivirus, or system policy.
 6. If installer, SmartScreen, uninstall, or Windows security UI appears, stop and ask me for
@@ -28,6 +28,8 @@ Requirements:
    account data.
 8. Do not claim the setup lifecycle was locally validated unless the install, launch, repair or
    uninstall step you are reporting actually completed on this machine.
+9. Do not require a fixed Codex desktop version. If the active title bar exposes an unknown UI
+   Automation structure, report that the overlay remains safely hidden.
 ```
 
 ### Deterministic procedure
@@ -48,10 +50,10 @@ unsupported installation.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$release = 'https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.3.3'
-$asset = 'codex-usage-sidebar-v0.3.3-windows-x64-setup.exe'
-$checksum = 'WINDOWS-V033-SHA256SUMS.txt'
-$dest = Join-Path $env:TEMP 'codex-usage-sidebar-v0.3.3'
+$release = 'https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.4.1'
+$asset = 'codex-usage-sidebar-v0.4.1-windows-x64-setup.exe'
+$checksum = 'WINDOWS-V041-SHA256SUMS.txt'
+$dest = Join-Path $env:TEMP 'codex-usage-sidebar-v0.4.1'
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Invoke-WebRequest "$release/$asset" -OutFile (Join-Path $dest $asset)
 Invoke-WebRequest "$release/$checksum" -OutFile (Join-Path $dest $checksum)
@@ -103,7 +105,7 @@ that status output over inferred process names. Interpret Windows status conserv
 - `runtime=stopped` means the installed runtime is present but not running.
 - `runtime=running` means the approved runtime is active.
 - Unknown or unsupported UI Automation structures hide the overlay; do not guess coordinates.
-- The published `v0.3.3` package has complete 85-case real-device evidence in its provenance chain.
+- The published `v0.4.1` package has complete 130-case real-device evidence in its provenance chain.
   Report install, repair, or uninstall as locally verified only when that operation actually
   completed on the target machine.
 

@@ -18,8 +18,7 @@ public sealed class WindowsDiagnosticProbe(IHostWindowLocator locator)
         var root = AutomationElement.FromHandle(host.Handle)
             ?? throw new InvalidOperationException("Windows UI Automation could not inspect the Codex window.");
         var redactor = ProbeRedactor.Create();
-        var nodes = new List<UiaProbeNode>();
-        Append(root, 0, includeText, redactor, nodes, cancellationToken);
+        var nodes = Collect(root, host, includeText, redactor, cancellationToken);
         var executablePath = Win32CodexWindowLocator.ExecutablePath(host.Handle);
         var titlebar = CodexTitlebarSelector.TryResolve(
             host.BuildIdentity,
@@ -44,32 +43,63 @@ public sealed class WindowsDiagnosticProbe(IHostWindowLocator locator)
             titlebar);
     }
 
+    internal static IReadOnlyList<UiaProbeNode> Collect(
+        AutomationElement root, HostWindowSnapshot host, bool includeText,
+        ProbeRedactor redactor, CancellationToken cancellationToken)
+    {
+        var nodes = new List<UiaProbeNode>();
+        var visited = 0;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var metadata = new CacheRequest { TreeScope = TreeScope.Element };
+        metadata.Add(AutomationElement.BoundingRectangleProperty);
+        metadata.Add(AutomationElement.ControlTypeProperty);
+        metadata.Add(AutomationElement.ClassNameProperty);
+        metadata.Add(AutomationElement.AutomationIdProperty);
+        Append(root, 0, host, null, includeText, redactor, nodes, seen, metadata, ref visited, cancellationToken);
+        return nodes;
+    }
+
     private static void Append(
         AutomationElement element,
         int depth,
+        HostWindowSnapshot host,
+        RectD? parentScope,
         bool includeText,
         ProbeRedactor redactor,
         List<UiaProbeNode> nodes,
+        HashSet<string> seen,
+        CacheRequest metadata,
+        ref int visited,
         CancellationToken cancellationToken)
     {
-        if (depth > MaximumDepth || nodes.Count >= MaximumNodes)
+        if (depth > MaximumDepth || visited >= MaximumNodes)
         {
             return;
         }
         cancellationToken.ThrowIfCancellationRequested();
+        visited++;
+        RectD? scope;
         try
         {
-            var current = element.Current;
-            var name = current.Name ?? string.Empty;
+            var runtimeId = element.GetRuntimeId();
+            if (runtimeId.Length > 0 && !seen.Add(string.Join(",", runtimeId))) return;
+            // Batch structural properties in one provider request. Name stays
+            // outside this cache so unrelated text is never fetched eagerly.
+            var current = element.GetUpdatedCache(metadata).Cached;
             var bounds = current.BoundingRectangle;
             var resolvedBounds = new RectD(bounds.X, bounds.Y, bounds.Width, bounds.Height);
-            if (UiaTraversalBudget.HasFiniteBounds(resolvedBounds))
+            var controlType = current.ControlType?.ProgrammaticName ?? string.Empty;
+            var className = current.ClassName ?? string.Empty;
+            scope = DiagnosticTitlebarScope.Resolve(host, controlType, className, resolvedBounds, parentScope);
+            if (scope is not null)
             {
+                var name = DiagnosticTitlebarScope.ReadName(scope, resolvedBounds, controlType,
+                    () => element.Current.Name ?? string.Empty);
                 nodes.Add(new UiaProbeNode(
                     depth,
-                    current.ControlType?.ProgrammaticName ?? string.Empty,
+                    controlType,
                     current.AutomationId ?? string.Empty,
-                    current.ClassName ?? string.Empty,
+                    className,
                     resolvedBounds,
                     name.Length,
                     redactor.Token(name),
@@ -92,9 +122,9 @@ public sealed class WindowsDiagnosticProbe(IHostWindowLocator locator)
         {
             return;
         }
-        while (child is not null && nodes.Count < MaximumNodes)
+        while (child is not null && visited < MaximumNodes)
         {
-            Append(child, depth + 1, includeText, redactor, nodes, cancellationToken);
+            Append(child, depth + 1, host, scope, includeText, redactor, nodes, seen, metadata, ref visited, cancellationToken);
             try
             {
                 child = walker.GetNextSibling(child);

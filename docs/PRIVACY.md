@@ -1,6 +1,7 @@
 # Privacy model
 
-Scope: current macOS 0.4.0 candidate; Windows has its separate UIA/runtime and published-version boundary.
+Scope: published macOS v0.4.0 and Windows v0.4.1 behavior. Windows uses a separate UIA/runtime and
+signed compatibility-update boundary.
 
 ## Data read
 

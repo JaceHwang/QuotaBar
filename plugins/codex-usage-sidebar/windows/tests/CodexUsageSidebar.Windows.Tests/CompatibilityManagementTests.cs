@@ -138,7 +138,7 @@ public sealed class CompatibilityManagementTests
     }
 
     [TestMethod]
-    public void TrayPolicyOffersOnlyLocalRecoveryActionsForTheCurrentState()
+    public void TrayPolicyOmitsTheUnsafeSafeDockToggle()
     {
         var state = new RuntimeStateOutcome(HostRuntimeState.Visible,
             new CompatibilityDecision(SemanticCompatibility.Invalid, ProfileCompatibility.FallbackLocked, SafeDockPlacement.Fallback, CompatibilityFailureCode.UiaUnavailable),
@@ -147,7 +147,7 @@ public sealed class CompatibilityManagementTests
         var actions = WindowsTrayActions.For(state);
 
         CollectionAssert.AreEquivalent(
-            new[] { WindowsTrayAction.ShowStatus, WindowsTrayAction.UnlockSafeDock, WindowsTrayAction.ExportDiagnostics, WindowsTrayAction.Exit },
+            new[] { WindowsTrayAction.ShowStatus, WindowsTrayAction.ExportDiagnostics, WindowsTrayAction.Exit },
             actions.ToArray());
     }
 

@@ -15,16 +15,6 @@
           "path": "version.txt"
         },
         {
-          "type": "json",
-          "path": "plugins/codex-usage-sidebar/.codex-plugin/plugin.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "xml",
-          "path": "plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app/Contents/Info.plist",
-          "xpath": "//key[text()='CFBundleShortVersionString']/following-sibling::string[1]"
-        },
-        {
           "type": "xml",
           "path": "plugins/codex-usage-sidebar/windows/Directory.Build.props",
           "xpath": "//VersionPrefix"

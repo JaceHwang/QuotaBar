@@ -1,6 +1,7 @@
 # Architecture
 
-This page describes the published macOS **0.4.0** implementation.
+This page describes the architecture shared by the published macOS **v0.4.0** and Windows
+**v0.4.1** releases, with platform-specific UI and lifecycle components called out below.
 [Current feature inventory](CURRENT_FEATURES.md) · [Current design contract](CURRENT_DESIGN.md)
 
 ## Components
@@ -11,8 +12,8 @@ This page describes the published macOS **0.4.0** implementation.
 3. Swift/AppKit renders one quota indicator, a detail card and position/settings popovers.
 4. SidebarCore implements quota decoding, formatting, language, freshness, layout, pointer state
    and persisted position models; InstallerCore handles the macOS installer contract.
-5. Windows has a separate portable core, WPF host, UIA compatibility boundary and installer.
-   Current Windows source is not proof of a verified new Windows release.
+5. Windows has a separate portable core, WPF host, UIA compatibility boundary and installer. Its
+   release evidence and compatibility policy remain independent from the macOS AX implementation.
 
 ```text
 plugins/codex-usage-sidebar/

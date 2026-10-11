@@ -46,6 +46,9 @@ public static class AccountIdentityDecoder
         foreach (var name in names)
         {
             if (TryString(account, name) is { } accountValue) return accountValue;
+        }
+        foreach (var name in names)
+        {
             if (TryString(profile, name) is { } profileValue) return profileValue;
         }
         return null;
