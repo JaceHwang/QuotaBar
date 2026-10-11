@@ -38,10 +38,9 @@ python3 scripts/install-macos-standalone.py install --candidate '/完整路径/C
 ```bash
 python3 scripts/install-macos-standalone.py rollback
 python3 scripts/install-macos-standalone.py uninstall
-python3 scripts/install-macos-standalone.py restore-legacy
 ```
 
-`rollback` 回到前一独立候选，保留账户。`uninstall` 注销登录启动并把应用移入恢复备份，保留账户；旧插件继续停用。`restore-legacy` 显式停止独立版并恢复已备份的旧入口。卸载不删除凭据；需要清除登录时先在应用中登出，不直接删除整个历史数据根目录。
+`rollback` 回到前一独立候选，保留账户。`uninstall` 注销登录启动并把应用移入恢复备份，保留账户；旧插件继续停用。当前源码不再提供恢复旧插件的动作。卸载不删除凭据；需要清除登录时先在应用中登出，不直接删除整个历史数据根目录。
 
 ## 当前边界
 

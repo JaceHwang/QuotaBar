@@ -1,19 +1,6 @@
 #!/bin/sh
 set -eu
-
 platform=${1:-}
 tag=${2:-}
-if [ "$platform" = macos-arm64 ] && [ "$tag" != v0.4.0 ]; then
-  python3 scripts/verify-macos-standalone-release.py "$tag" .dist/release/macos-arm64
-  exit 0
-fi
-test "$platform" = macos-arm64 && test "$tag" = v0.4.0 || {
-  echo 'unsupported platform or release version' >&2; exit 64;
-}
-test "$(git rev-parse HEAD)" = "$(git rev-parse "$tag^{commit}")"
-bash scripts/verify-macos-v040-installer-package.sh \
-  '.dist/v0.4.0/macos/Codex Usage Sidebar Installer.app' \
-  '.dist/release/macos-arm64/codex-usage-sidebar-v0.4.0-macos-arm64.dmg'
-(cd .dist/release/macos-arm64 && shasum -a 256 -c MACOS-V040-SHA256SUMS.txt)
-python3 scripts/verify-macos-v040-provenance.py "$tag" .dist/release/macos-arm64 \
-  '.dist/v0.4.0/macos/Codex Usage Sidebar Installer.app'
+test "$platform" = macos-arm64 || { echo 'unsupported release platform' >&2; exit 64; }
+python3 scripts/verify-macos-standalone-release.py "$tag" .dist/release/macos-arm64

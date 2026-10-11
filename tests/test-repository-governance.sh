@@ -1,55 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$repo_root"
-
-"${PYTHON:-python3}" - <<'PY'
-import json
-import plistlib
-import xml.etree.ElementTree as ET
-from pathlib import Path
-
-root = Path.cwd()
-expected = (root / "version.txt").read_text().split()[0]
-
-manifest = json.loads((root / ".release-please-manifest.json").read_text())
-assert manifest == {".": expected}, manifest
-assert expected.count(".") == 2 and all(part.isdecimal() for part in expected.split(".")), expected
-
-plugin = json.loads((root / "plugins/codex-usage-sidebar/.codex-plugin/plugin.json").read_text())
-plugin_version = plugin["version"].split("+", 1)[0]
-
-with (root / "plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app/Contents/Info.plist").open("rb") as handle:
-    plist = plistlib.load(handle)
-assert plist["CFBundleShortVersionString"] == plugin_version
-
-xml = ET.parse(root / "plugins/codex-usage-sidebar/windows/Directory.Build.props")
-assert xml.findtext(".//VersionPrefix") == expected
-
-config = json.loads((root / "release-please-config.json").read_text())
-package = config["packages"]["."]
-assert package["component"] == "codex-usage-sidebar"
-extra = {(item["path"], item["type"]) for item in package["extra-files"]}
-assert ("version.txt", "generic") in extra
-assert ("plugins/codex-usage-sidebar/windows/Directory.Build.props", "xml") in extra
-assert ("plugins/codex-usage-sidebar/.codex-plugin/plugin.json", "json") not in extra
-assert ("plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app/Contents/Info.plist", "xml") not in extra
-
-for channel in ("alpha", "beta", "rc"):
-    prerelease = json.loads((root / ".governance/release" / f"{channel}.json").read_text())
-    assert prerelease["versioning"] == "prerelease"
-    assert prerelease["packages"]["."]["prerelease-type"] == channel
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 - "$root" <<'PY'
+import json,pathlib,re,sys
+root=pathlib.Path(sys.argv[1])
+version=(root/'version.txt').read_text().strip()
+assert re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)',version)
+assert json.loads((root/'.release-please-manifest.json').read_text())['.']==version
+config=json.loads((root/'release-please-config.json').read_text())
+assert config['packages']['.']['extra-files']==[{'type':'generic','path':'version.txt'}]
+assert config['draft'] and config['force-tag-creation']
+for channel in ['alpha','beta','rc']:
+ config=json.loads((root/'.governance/release'/f'{channel}.json').read_text())
+ assert config['versioning']=='prerelease' and config['packages']['.']['prerelease-type']==channel
+policy=(root/'.governance/policy.sh').read_text()
+assert "RELEASE_MODE=staged" in policy and "RELEASE_PLATFORMS='macos-arm64'" in policy
+for name in ['check-fast','check-full','build-release','verify-release']:
+ assert (root/'.governance/project'/name).stat().st_mode & 0o111
+full=(root/'.governance/project/check-full').read_text()
+assert 'swift test --package-path native' in full and 'test-macos-standalone-install.py' in full
+assert 'test-signing-identity.sh' in full
+build=(root/'scripts/build-macos-standalone.sh').read_text()
+assert 'CUS_RELEASE_TAG' in build and 'status --porcelain --untracked-files=no' in build
+verify=(root/'scripts/verify-macos-standalone-release.py').read_text()
+for required in ["codesign", "sourceSnapshotSha256", "runtimeSignedSha256", "applicationSignedSha256", "CFBundleShortVersionString"]:
+ assert required in verify
 PY
-
-grep -q '^RELEASE_MODE=staged$' .governance/policy.sh
-grep -q "^RELEASE_PLATFORMS='macos-arm64 windows-x64'$" .governance/policy.sh
-grep -q "MINGW\*|MSYS\*|CYGWIN\*" .governance/project/check-full
-grep -q "dotnet test plugins/codex-usage-sidebar/windows/CodexUsageSidebar.Windows.sln" .governance/project/check-full
-grep -q '^FAST_CHECK_ADAPTER=.governance/project/check-fast$' .governance/policy.sh
-grep -q '^FULL_CHECK_ADAPTER=.governance/project/check-full$' .governance/policy.sh
-
-test -x .governance/project/check-fast
-test -x .governance/project/check-full
-
-printf 'repository governance integration tests passed\n'
+printf 'Standalone repository governance integration tests passed\n'

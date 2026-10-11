@@ -1,15 +1,10 @@
 name: CI
-
 on:
   push:
-    branches:
-      - main
-      - "codex/**"
+    branches: [main, "codex/**"]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
   verify:
     name: macOS build and verification
@@ -17,101 +12,24 @@ jobs:
     timeout-minutes: 20
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
-      FROZEN_V023_INSTALLER_SOURCE_COMMIT: a72b4636ddf99fa4c1d4660b3e281376be361711
     steps:
-      - name: Check out repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-
-      - name: Verify release toolchain
+      - name: Validate standalone repository
+        run: ./governance check all
+      - name: Download pinned official runtime
         run: |
-          test "$(xcrun --sdk macosx --show-sdk-version)" = "26.5"
-          uname -m
-          xcodebuild -version
-
-      - name: Validate public repository
-        run: bash scripts/validate-public-repo.sh
-
-      - name: Build and test native companion
-        working-directory: plugins/codex-usage-sidebar
-        run: bash scripts/build-companion.sh
-
-      - name: Verify companion SDK
-        working-directory: plugins/codex-usage-sidebar
-        run: bash tests/test-build-sdk.sh
-
-      - name: Verify companion bundle version
-        working-directory: plugins/codex-usage-sidebar
-        run: bash tests/test-bundle-version.sh
-
-      - name: Test install lifecycle
-        working-directory: plugins/codex-usage-sidebar
-        run: bash tests/test-sidebar-control.sh
-
-      - name: Test stable signing selection
-        working-directory: plugins/codex-usage-sidebar
-        run: bash tests/test-signing-identity.sh
-
-      - name: Validate rebuilt payload
-        run: CUS_REBUILT_PAYLOAD=1 bash scripts/validate-public-repo.sh
-
-      - name: Restore promoted payload for main release package
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git restore --source=HEAD -- 'plugins/codex-usage-sidebar/assets/Codex Usage Sidebar.app' 'plugins/codex-usage-sidebar/assets/PROVENANCE.json'
-          bash scripts/validate-public-repo.sh
-
-      - name: Package exact tested payload
-        if: github.ref == 'refs/heads/main'
-        run: |
-          bash scripts/package-release.sh
-          (cd .dist && shasum -a 256 -c SHA256SUMS.txt)
-          archive="$(find .dist -maxdepth 1 -name 'codex-usage-sidebar-v*.zip' -print -quit)"
-          if unzip -Z1 "$archive" | \
-            grep -E '(^|/)(\.git|\.build|\.dist|\.swiftpm)(/|$)|\.DS_Store$|^__MACOSX/'; then
-            echo 'release archive contains generated or metadata files' >&2
-            exit 1
-          fi
-
-      - name: Test installer package
-        if: github.ref == 'refs/heads/main'
+          mkdir -p .dist/runtime
+          curl --fail --location --silent --show-error https://github.com/openai/codex/releases/download/rust-v0.144.1/codex-aarch64-apple-darwin.tar.gz -o .dist/runtime/runtime.tar.gz
+          tar -xzf .dist/runtime/runtime.tar.gz -C .dist/runtime
+          test "$(.dist/runtime/codex-aarch64-apple-darwin --version)" = 'codex-cli 0.144.1'
+      - name: Build and verify standalone candidate
         env:
-          CUS_INSTALLER_PAYLOAD_REF: ${{ env.FROZEN_V023_INSTALLER_SOURCE_COMMIT }}
-        run: bash tests/test-installer-package.sh
-
-      - name: Verify installer package checksum
-        if: github.ref == 'refs/heads/main'
-        run: (cd .dist && shasum -a 256 -c INSTALLER-SHA256SUMS.txt)
-
-      - name: Upload tested release payload
-        if: github.sha == env.FROZEN_V023_INSTALLER_SOURCE_COMMIT
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+          CUS_RUNTIME_BINARY: ${{ github.workspace }}/.dist/runtime/codex-aarch64-apple-darwin
+        run: bash scripts/build-macos-standalone.sh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: codex-usage-sidebar-release
-          path: |
-            .dist/codex-usage-sidebar-v*.zip
-            .dist/SHA256SUMS.txt
-          include-hidden-files: true
+          name: codex-quota-macos-candidate
+          path: .dist/standalone-macos/candidate-*/
           if-no-files-found: error
-
-      - name: Upload tested installer payload
-        if: github.sha == env.FROZEN_V023_INSTALLER_SOURCE_COMMIT
-        id: upload_installer
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: codex-usage-sidebar-installer-v0.2.3
-          path: |
-            .dist/codex-usage-sidebar-v0.2.3-macos-arm64.dmg
-            .dist/INSTALLER-SHA256SUMS.txt
-            .dist/INSTALLER-PROVENANCE.json
-          if-no-files-found: error
-
-      - name: Verify installer artifact identity is available
-        if: github.sha == env.FROZEN_V023_INSTALLER_SOURCE_COMMIT
-        env:
-          ARTIFACT_ID: ${{ steps.upload_installer.outputs.artifact-id }}
-          ARTIFACT_DIGEST: ${{ steps.upload_installer.outputs.artifact-digest }}
-        run: |
-          test -n "$ARTIFACT_ID"
-          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
