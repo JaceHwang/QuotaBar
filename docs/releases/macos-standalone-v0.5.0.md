@@ -8,4 +8,4 @@ Download `codex-quota-v0.5.0-macos-arm64.dmg`; use `CODEX-QUOTA-SHA256SUMS.txt` 
 
 Exact-tag build passed 345 Swift tests. Installed release reads real quota. Published assets were downloaded and verified against signatures, digests, bundled runtime and source snapshots. User device observations confirmed refresh with Codex closed and complete, vertically centered menu bar text.
 
-Apple Silicon, declared macOS 14+, tested macOS 27.0. Locally signed, not Developer ID notarized. Full minimum-OS, multiple-display and long-running device matrices remain pending. Windows standalone was not released; the Windows plugin remains v0.4.1.
+Apple Silicon, declared macOS 14+, tested macOS 27.0. Locally signed, not Developer ID notarized. Full minimum-OS, multiple-display and long-running device matrices remain pending. Windows standalone was not released.

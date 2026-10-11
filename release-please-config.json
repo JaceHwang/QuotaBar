@@ -13,11 +13,6 @@
         {
           "type": "generic",
           "path": "version.txt"
-        },
-        {
-          "type": "xml",
-          "path": "plugins/codex-usage-sidebar/windows/Directory.Build.props",
-          "xpath": "//VersionPrefix"
         }
       ]
     }

@@ -1,37 +1,7 @@
 #!/bin/sh
 set -eu
-
 platform=${1:-}
 tag=${2:-}
-printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || {
-  printf 'invalid stable release tag: %s\n' "$tag" >&2
-  exit 64
-}
-
-case "$platform" in
-  macos-arm64)
-    if [ "$tag" != v0.4.0 ]; then
-      bash scripts/package-macos-standalone-release.sh "$tag"
-      exit 0
-    fi
-    test "$(git rev-parse HEAD)" = "$(git rev-parse "$tag^{commit}")" || {
-      echo 'release build must run at the exact release tag' >&2; exit 65;
-    }
-    test -z "$(git status --porcelain --untracked-files=no)" || {
-      echo 'release build requires a clean checkout' >&2; exit 65;
-    }
-    bash scripts/build-macos-v040-installer.sh
-    bash scripts/package-macos-v040-installer.sh
-    mkdir -p .dist/release/macos-arm64
-    cp .dist/v0.4.0/macos/*.dmg .dist/v0.4.0/macos/MACOS-V040-* .dist/release/macos-arm64/
-    exit 0
-    ;;
-  windows-x64)
-    printf 'Windows staged publishing remains on the verified evidence-bound workflow until parity is proven\n' >&2
-    ;;
-  *)
-    printf 'unsupported release platform: %s\n' "$platform" >&2
-    exit 64
-    ;;
-esac
-exit 78
+test "$platform" = macos-arm64 || { echo 'unsupported release platform' >&2; exit 64; }
+printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || exit 64
+bash scripts/package-macos-standalone-release.sh "$tag"

@@ -1,16 +1,11 @@
-## What changed
+## Change
 
-Describe the change and its user impact.
-
-## Why
-
-Explain the problem or root cause.
+Describe the independent application's behavior and reason for the change.
 
 ## Verification
 
-- [ ] `bash scripts/validate-public-repo.sh`
-- [ ] `bash plugins/codex-usage-sidebar/scripts/build-companion.sh`
-- [ ] `bash plugins/codex-usage-sidebar/tests/test-sidebar-control.sh`
-- [ ] Live probe or UI evidence added when behavior requires it
-- [ ] No personal paths, tokens, account data, or unrelated desktop screenshots
-- [ ] `/Applications/ChatGPT.app` remains untouched
+- [ ] `./governance check all`
+- [ ] Relevant application build, installation or device evidence
+- [ ] Roadmap and project board updated
+- [ ] No credentials, account data or private screenshots
+- [ ] Product versions managed only by Release Please

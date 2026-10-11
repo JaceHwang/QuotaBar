@@ -1,54 +1,24 @@
 name: Bug report
-description: Report a reproducible problem with installation, data, or placement.
+description: Report a problem with the standalone quota app.
 title: "[Bug]: "
 labels: [bug]
 body:
-  - type: markdown
-    attributes:
-      value: Before filing, read docs/TROUBLESHOOTING.md and remove private data from logs or images.
   - type: input
     id: version
     attributes:
-      label: Plugin version
-      placeholder: 0.1.0
+      label: Application version
     validations:
       required: true
   - type: input
-    id: environment
+    id: system
     attributes:
-      label: Environment
-      description: macOS version, Mac model/architecture, and Codex build.
-    validations:
-      required: true
-  - type: dropdown
-    id: accessibility
-    attributes:
-      label: Accessibility state
-      options: [granted, required, unknown]
+      label: macOS version and architecture
     validations:
       required: true
   - type: textarea
-    id: steps
+    id: reproduction
     attributes:
-      label: Reproduction steps
-      placeholder: Describe the smallest sequence that reproduces the problem.
+      label: Steps, expected result and actual result
+      description: Remove account details and credentials from any logs or screenshots.
     validations:
       required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected behavior
-    validations:
-      required: true
-  - type: textarea
-    id: diagnostic
-    attributes:
-      label: Sanitized status output
-      render: shell
-  - type: checkboxes
-    id: privacy
-    attributes:
-      label: Privacy check
-      options:
-        - label: I removed tokens, personal paths, conversations, and unrelated desktop content.
-          required: true

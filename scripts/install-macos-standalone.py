@@ -111,6 +111,14 @@ def stop(target):
     raise RuntimeError('Application did not stop; installation left unchanged')
 
 
+def application_executable(app):
+    with (app / 'Contents/Info.plist').open('rb') as stream:
+        name = plistlib.load(stream)['CFBundleExecutable']
+    if name not in {'CodexQuota', 'CodexUsageSidebar'}:
+        raise RuntimeError('Unexpected application executable')
+    return app / 'Contents/MacOS' / name
+
+
 def verify(app):
     with (app / 'Contents/Info.plist').open('rb') as stream:
         info = plistlib.load(stream)
@@ -150,7 +158,7 @@ def recover_install(home, info, marker, record, backups, reopen=True):
                 plist.unlink()
         set_plugin_enabled(home / '.codex/config.toml', info.get('pluginEnabled', False))
         if info.get('startupEnabled') and target.exists():
-            run(str(target / 'Contents/MacOS/CodexUsageSidebar'), '--register-startup')
+            run(str(application_executable(target)), '--register-startup')
     else:
         restore_legacy(home, info)
     if info.get('oldMarker') is None:
@@ -167,9 +175,8 @@ def recover_install(home, info, marker, record, backups, reopen=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['install', 'rollback', 'uninstall', 'restore-legacy'])
+    parser.add_argument('action', choices=['install', 'rollback', 'uninstall'])
     parser.add_argument('--candidate', type=Path)
-    parser.add_argument('--migrate-old-plugin', action='store_true')
     args = parser.parse_args()
     home = Path.home()
     target = home / 'Applications/Codex Quota.app'
@@ -255,38 +262,10 @@ def main():
             raise
         journal.unlink()
         print('Rolled back application; credentials preserved')
-    elif args.action == 'restore-legacy':
-        info = json.loads(record.read_text())
-        legacy = info.get('legacy', {})
-        plist = home / 'Library/LaunchAgents/com.jace.codex-usage-sidebar.plist'
-        backup = Path(legacy['plistBackup']) if legacy.get('plistBackup') else None
-        if not backup or not backup.exists():
-            raise RuntimeError('No recoverable legacy launch agent available; standalone left unchanged')
-        if plist.exists() and plist.read_bytes() != backup.read_bytes():
-            raise RuntimeError('Legacy destination conflict; standalone left unchanged')
-        restored = backups / ('restored-legacy-' + str(time.time_ns()) + '.app')
-        executable = target / 'Contents/MacOS/CodexUsageSidebar'
-        startup = subprocess.check_output([str(executable), '--startup-status'], text=True).strip() == '1'
-        recovery = {'kind': 'restore', 'target': str(target), 'previous': str(restored), 'oldRecord': info, 'oldMarker': marker.read_text() if marker.exists() else None, 'plistExisted': plist.exists(), 'pluginEnabled': set_plugin_enabled(home / '.codex/config.toml', None), 'startupEnabled': startup}
-        atomic_json(journal, recovery)
-        stop(target)
-        try:
-            restore_legacy(home, info)
-            run(str(executable), '--unregister-startup')
-            target.rename(restored)
-            info = {**info, 'restoredStandalone': str(restored)}
-            atomic_json(record, info)
-            marker.unlink(missing_ok=True)
-        except BaseException:
-            recover_install(home, recovery, marker, record, backups)
-            journal.unlink()
-            raise
-        journal.unlink()
-        print('Restored legacy entry; standalone backup and credentials preserved')
     else:
         stop(target)
         if target.exists():
-            run(str(target / 'Contents/MacOS/CodexUsageSidebar'), '--unregister-startup')
+            run(str(application_executable(target)), '--unregister-startup')
             target.rename(backups / ('uninstalled-' + str(time.time_ns()) + '.app'))
         marker.unlink(missing_ok=True)
         print('Uninstalled active application; recoverable backup and credentials preserved')

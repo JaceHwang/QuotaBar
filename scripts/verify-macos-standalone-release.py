@@ -25,7 +25,7 @@ try:
     plist = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
     assert plist['CFBundleIdentifier'] == 'com.jace.codex-quota' and plist['CUSStandalone'] is True
     assert plist['CFBundleShortVersionString'] == tag[1:]
-    assert digest(app / 'Contents/MacOS/CodexUsageSidebar') == info['applicationSignedSha256']
+    assert digest(app / 'Contents/MacOS' / plist['CFBundleExecutable']) == info['applicationSignedSha256']
     assert digest(app / 'Contents/Helpers/codex') == info['runtimeSignedSha256']
     snapshot = app / 'Contents/Resources/SOURCE-SNAPSHOT.json'
     assert digest(snapshot) == info['sourceSnapshotSha256']

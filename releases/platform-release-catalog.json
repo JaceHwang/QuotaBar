@@ -1,37 +1,8 @@
 {
   "schemaVersion": 1,
-  "releasePolicy": "unified-version-staged-platforms",
+  "releasePolicy": "standalone-app-staged-platforms",
   "activeCandidate": null,
   "published": {
-    "macos": {
-      "version": "0.4.0",
-      "tag": "v0.4.0",
-      "title": "Codex Usage Sidebar macOS v0.4.0",
-      "architecture": "arm64",
-      "minimumSystem": "macOS 14+ Apple Silicon",
-      "codexCompatibility": "No fixed Codex version; requires supported plugin CLI commands.",
-      "assets": {
-        "installer": "codex-usage-sidebar-v0.4.0-macos-arm64.dmg",
-        "checksums": "MACOS-V040-SHA256SUMS.txt",
-        "provenance": "MACOS-V040-PROVENANCE.json"
-      },
-      "releaseNotes": "docs/releases/macos-v0.4.0.md"
-    },
-    "windows": {
-      "version": "0.4.1",
-      "tag": "v0.4.1",
-      "legacyTag": false,
-      "title": "Codex Usage Sidebar Windows v0.4.1",
-      "architecture": "x64",
-      "minimumSystem": "Windows 11 AMD64/x64",
-      "codexCompatibility": "No fixed Codex version; validated semantic titlebar structure is required.",
-      "assets": {
-        "installer": "codex-usage-sidebar-v0.4.1-windows-x64-setup.exe",
-        "checksums": "WINDOWS-V041-SHA256SUMS.txt",
-        "provenance": "WINDOWS-V041-PROVENANCE.json"
-      },
-      "releaseNotes": "docs/releases/windows-v0.4.1.md"
-    },
     "macosStandalone": {
       "version": "0.5.0",
       "tag": "v0.5.0",
