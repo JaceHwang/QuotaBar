@@ -2,9 +2,9 @@
 
 创建日期：2026-10-11（Asia/Shanghai）  
 最近更新：2026-10-11（Asia/Shanghai）  
-当前阶段：用户已确认关闭 Codex 后独立应用仍持续刷新；菜单栏原浮窗额度与重置日期显示已实现、重新打包及安装，用户确认两行均完整显示；macOS 本地开发、打包与安装验收完成。Windows 保持待开始。  
+当前阶段：macOS 独立版 v0.5.0 已公开发布为最新版本，正式安装及公开下载验证通过；菜单栏双行额度和日期完整、垂直居中，宿主关闭仍持续刷新。Windows 独立版保持待开始。  
 当前授权：完成 macOS 独立版代码推送与最新正式安装包发布；Windows 独立版未授权实施。  
-下一步：合并代码 PR，审查 Release Please 版本 PR，从正式 tag 构建、上传并下载验证安装包。
+下一步：根据用户反馈维护；Windows 独立版、公证及扩大实机矩阵需另行确定范围。
 
 ### 2026-10-11 macOS 执行范围与视觉决定
 
@@ -222,3 +222,11 @@ P1 完成后重新估算，并为各任务填写实际开始/完成时间。关�
 ### 2026-10-11 公开发布授权
 
 用户授权推送当前代码及安装包作为最新版本，现公开发布纳入范围。远端最新为 Windows v0.4.1；同步远端后由 Release Please 生成新版本，不覆盖已有资产、不手动改版本。已使用保留的 macOS 26.5 SDK 同步旧插件受控载荷，并接入独立 app 正式 tag 构建、来源快照、DMG 校验及发布资产验证。当前发布进行中；Windows 独立版未实施。独立版仍为本机签名，未作 Developer ID 公证，发布说明需明确首次打开限制。
+
+### 2026-10-11 v0.5.0 published
+
+Release Please PR #24 generated v0.5.0 and merged after all macOS/Windows and governance checks passed. Code PR #23 merged as 25f0162; release tag resolves to fee843145fa6a5ab2b782a3e987eea66a1b76177. Exact-tag build passed 345 Swift tests; strict signatures, runtime/application digests and every source snapshot entry matched the tag. Installed v0.5.0 reads real quota (ready).
+
+Public release: https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.0. All five assets uploaded without overwriting older versions, GitHub latest reports v0.5.0. Public assets downloaded again and passed the complete standalone release verifier, including mounted DMG signature and source checks. No Developer ID notarization claim; Windows standalone is unimplemented and Windows plugin remains v0.4.1.
+
+Current status: macOS standalone v0.5.0 released and download-verified. Next action: maintenance from user feedback; Windows standalone or notarization/device-matrix work requires new scope.

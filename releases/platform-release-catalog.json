@@ -31,6 +31,22 @@
         "provenance": "WINDOWS-V041-PROVENANCE.json"
       },
       "releaseNotes": "docs/releases/windows-v0.4.1.md"
+    },
+    "macosStandalone": {
+      "version": "0.5.0",
+      "tag": "v0.5.0",
+      "title": "Codex Quota macOS standalone v0.5.0",
+      "architecture": "arm64",
+      "minimumSystem": "macOS 14+ Apple Silicon; device-tested on macOS 27.0",
+      "runtimeVersion": "codex-cli 0.144.1",
+      "notarized": false,
+      "assets": {
+        "installer": "codex-quota-v0.5.0-macos-arm64.dmg",
+        "checksums": "CODEX-QUOTA-SHA256SUMS.txt",
+        "provenance": "CODEX-QUOTA-PROVENANCE.json",
+        "migration": "install-macos-standalone.py"
+      },
+      "releaseNotes": "docs/releases/macos-standalone-v0.5.0.md"
     }
   },
   "planned": {}
