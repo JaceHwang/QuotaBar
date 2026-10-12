@@ -264,3 +264,11 @@ Windows验收至少记录：Windows版本/架构、运行时版本、构建来�
 ### Windows源码换行与UI回调世代
 
 第二轮Windows CI发现CRLF源文件中的raw string夹具再次替换LF产生CRCRLF，已在macOS通过临时CRLF源文件复现同一失败，再以规范化夹具验证修复。仓库新增.gitattributes统一文本LF和图标二进制处理，保留真实CRLF配置测试。增加UI队列回调的AccountEpoch检查，取消后排队的旧登录URL/账号事件不能在UI线程迟到生效；新回归通过。补齐整型小数JSON解析与长周期标签测量，避免跨平台数据/排版差异。下一步推送修复并继续Windows原生UI、包和真实runtime启动/退出CI。
+
+### Windows候选交付前验证（2026-10-12）
+
+源码 `f529fe3b718117ff23b6f93a99fc5a4abd3dc7f1` 的 [CI 38253022055](https://github.com/JaceHwang/codex-usage-sidebar/actions/runs/38253022055) 中 Windows 与 macOS job 均成功。Windows 已通过核心/协议/安装事务、原生WPF渲染、完整包与来源校验、真实独立runtime启动和正常退出，以及实际每用户安装、升级、回滚、卸载、数据保留测试。CI运行环境不是用户Windows 11实机，不等同真实账号、鼠标、DPI、多屏及休眠验收。
+
+同源码本地候选 `.dist/standalone-windows/candidate-20261012-130346/QuotaBar-0.6.0-windows-x64-candidate.zip` 已通过完整文件、PE x64、官方runtime摘要、来源和ZIP校验；SHA256为 `0a3ae4ed736a289cc2ecad8ca22721789f02c73cebf93364cb8f4e4f63d5de03`。包为未签名开发候选，产品版本未提升，PR #32仍为draft，尚未公开发布。
+
+用户已确认拥有Windows 11电脑并可安装验收。下一步交付候选，按 `WINDOWS_STANDALONE.zh-CN.md` 验收真实登录、关闭Codex持续刷新、悬停关闭/拖动/右键恢复和重启持久化、DPI及退出清理；逐条记录设备证据后再判断W4–W6完成状态。
