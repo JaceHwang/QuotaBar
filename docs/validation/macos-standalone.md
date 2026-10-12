@@ -1,4 +1,6 @@
-# macOS standalone validation
+# QuotaBar macOS validation
+
+Updated: 2026-10-12. Historical sections describe evidence at their release dates. Current-source acceptance is recorded separately.
 
 ## Published v0.5.0
 
@@ -23,3 +25,13 @@ The retained independent-app suite passed 142 tests. Legacy-only test cases were
 PR #26 and Release Please PR #27 passed all CI and were merged. Release tag commit: `2989a834eecc0bd888a73f49723b0ab57b0619c5`. Exact-tag 142 Swift tests, complete app/DMG build, resources, strict signatures, runtime/application digests and source snapshots passed. Five assets were published as latest. Installed v0.5.0 and account data were preserved; v0.5.1 device installation has not been performed.
 
 Public v0.5.1 assets were downloaded again and passed the complete release verifier. GitHub latest API confirmed v0.5.1, draft=false, prerelease=false and all five assets.
+
+## Current QuotaBar source (2026-10-12)
+
+- Local full governance: 158 Swift tests and 10 installer/migration tests passed; signing selection, links, privacy, source isolation and shell syntax passed.
+- Local candidates: full native release build, ICNS resources, transparent template-icon preview/alpha regression, strict signature, DMG and installed source snapshot matched.
+- Device: real quota, default floating visibility, toggle persistence, drag position/restart recovery, click dismissal, entry switching, clean exit, rename to QuotaBar, Finder artwork/reopen, preserved login startup and menu bar display persistence passed on macOS 27.0 arm64.
+- Context-menu floating action was code-reviewed but not clicked through computer automation; complete system-theme switching and multi-display unplug matrices were not device-tested.
+- These are local-source observations, not evidence that published v0.5.1 contains these changes. New source CI, exact-tag packaging and public asset verification are pending for the next release.
+
+Outstanding: Developer ID notarization, minimum-system/full multi-display/sleep/network/long-running matrices and Windows standalone.

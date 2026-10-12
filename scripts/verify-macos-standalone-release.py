@@ -20,11 +20,13 @@ subprocess.run(['hdiutil', 'verify', str(dmg)], check=True)
 mount = plistlib.loads(run('hdiutil', 'attach', '-readonly', '-nobrowse', '-plist', str(dmg)))
 volume = next(pathlib.Path(e['mount-point']) for e in mount['system-entities'] if 'mount-point' in e)
 try:
-    app = volume / 'Codex Quota.app'
+    app = volume / 'QuotaBar.app'
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
     plist = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
     assert plist['CFBundleIdentifier'] == 'com.jace.codex-quota' and plist['CUSStandalone'] is True
     assert plist['CFBundleShortVersionString'] == tag[1:]
+    assert plist['CFBundleDisplayName'] == 'QuotaBar' and plist['CFBundleIconFile'] == 'AppIcon'
+    assert (app / 'Contents/Resources/AppIcon.icns').read_bytes()[:4] == b'icns'
     assert digest(app / 'Contents/MacOS' / plist['CFBundleExecutable']) == info['applicationSignedSha256']
     assert digest(app / 'Contents/Helpers/codex') == info['runtimeSignedSha256']
     snapshot = app / 'Contents/Resources/SOURCE-SNAPSHOT.json'

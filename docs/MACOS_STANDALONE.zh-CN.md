@@ -1,10 +1,14 @@
-# macOS 独立额度应用使用说明
+# QuotaBar macOS 安装与使用
 
 这是独立菜单栏应用，正式发布状态以 GitHub Release 为准。当前安装包使用本地签名，未经过 Developer ID 公证。声明最低 macOS 14、Apple Silicon；本次实机验证环境为 macOS 27.0 arm64。Windows 路线另见开发进度文档。
 
 ## 使用
 
-应用安装在用户目录 `~/Applications/Codex Quota.app`。启动后常驻菜单栏，分两行显示周期剩余比例和重置日期；点击显示原额度详情卡，右键提供刷新、设置和退出。双击已运行的应用可打开设置。关闭设置窗口继续常驻；退出或 Cmd-Q 会清理内嵌采集子进程。
+QuotaBar 安装包中的应用名为 **QuotaBar.app**，正式图标沿用额度图标；历史 v0.5.1 及更早安装包仍使用 Codex Quota 名称。退出后，在 Finder 按 `Command + Shift + G`，输入 `~/Applications`，双击 **QuotaBar.app** 重新开启；也可通过 Spotlight 搜索 QuotaBar。双击已运行的应用会打开设置。启用“登录时启动”可在下次登录系统时自动开启，不会阻止本次手动退出。
+
+应用安装在用户目录 `~/Applications/QuotaBar.app`。启动后常驻菜单栏，分两行显示周期剩余比例和重置日期；点击显示原额度详情卡，右键提供刷新、设置和退出。双击已运行的应用可打开设置。关闭设置窗口继续常驻；退出或 Cmd-Q 会清理内嵌采集子进程。
+
+默认同时显示可自由拖动的悬浮额度按钮，沿用原图标、两行额度和重置日期。菜单栏右键菜单中的“显示悬浮按钮”默认开启，勾选状态对应显示状态，关闭立即隐藏并记住状态；拖动位置也会保存。悬停可看详情，点击固定，未锁定时再次点击收起；锁按钮控制保持打开。菜单栏入口继续保留。设置里的“任务栏显示额度信息”默认开启，开启时显示两行额度和日期，关闭时只显示透明单色额度图标，由系统适配深浅色；图标仍可点击详情或右键打开菜单，显示模式会保存。
 
 设置支持 OpenAI 官方浏览器登录、取消、登出、刷新、重新加载运行时、系统/浅色/深色主题、系统/简中/繁中/英文语言和可选登录启动。系统要求批准登录启动时，按设置窗口提示操作。后台约一分钟查询，失败退避最长约五分钟；休眠暂停，唤醒及网络恢复尝试刷新。服务端提供的额度与重置时间为准；Token 不用于估算额度或现金余额。
 
@@ -12,15 +16,15 @@
 
 ## 下载与安装
 
-从对应 GitHub Release 下载 `codex-quota-vX.Y.Z-macos-arm64.dmg`，用同页 `CODEX-QUOTA-SHA256SUMS.txt` 校验。打开 DMG，将 `Codex Quota.app` 复制到用户的 Applications 文件夹后启动。应用内已包含官方运行时，不需要预装 Codex CLI。
+从对应 GitHub Release 下载 `codex-quota-vX.Y.Z-macos-arm64.dmg`，用同页 `CODEX-QUOTA-SHA256SUMS.txt` 校验。打开 DMG，将 `QuotaBar.app` 复制到用户的 Applications 文件夹后启动。应用内已包含官方运行时，不需要预装 Codex CLI。
 
 已安装旧插件或希望保留可恢复升级记录时，建议下载同页 `install-macos-standalone.py`，在装有 Python 3 的终端运行以下命令，路径替换为 DMG 中应用的实际路径：
 
 ```bash
-python3 install-macos-standalone.py install --candidate '/Volumes/Codex Quota/Codex Quota.app'
+python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/QuotaBar.app'
 ```
 
-此方式负责停用旧入口并保留备份。手动复制应用不会自动迁移旧插件；迁移前应停止旧插件以免重复常驻。首次打开若被 macOS 拦截，需要由用户在系统“隐私与安全性”中检查并允许该应用；未公证包没有自动通过 Gatekeeper 的保证。
+此方式负责将旧名 Codex Quota.app 迁移为 QuotaBar.app、停用旧入口并保留可恢复备份，同时保留账户、显示选项、悬浮位置和登录启动。若改名中断，会先恢复原路径；回退或卸载随后重新定位活动应用。手动复制应用不会自动迁移旧插件；迁移前应停止旧插件以免重复常驻。首次打开若被 macOS 拦截，需要由用户在系统“隐私与安全性”中检查并允许该应用；未公证包没有自动通过 Gatekeeper 的保证。
 
 ## 构建与可恢复安装
 
@@ -28,7 +32,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/Codex Quota/Co
 
 ```bash
 bash scripts/build-macos-standalone.sh
-python3 scripts/install-macos-standalone.py install --candidate '/完整路径/Codex Quota.app'
+python3 scripts/install-macos-standalone.py install --candidate '/完整路径/QuotaBar.app'
 ```
 
 构建要求本机 Xcode、Apple Silicon 和固定官方 CLI `codex-cli 0.144.1`，也可用 `CUS_RUNTIME_BINARY` 指向已验证的同版本程序。产物包含 app、DMG、许可、来源及源码快照、校验摘要，安装后的应用只使用自身内嵌运行时。

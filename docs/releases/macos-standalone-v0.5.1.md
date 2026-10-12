@@ -1,5 +1,6 @@
 # macOS standalone v0.5.1
 
+Historical record for this exact release. New QuotaBar branding, floating controls and monochrome menu bar icons are documented in [current installation](../MACOS_STANDALONE.zh-CN.md) and [progress](../PROJECT_PROGRESS-standalone-app.md); they are not retroactively included in this package.
 [Release](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.5.1). Source tag commit: `2989a834eecc0bd888a73f49723b0ab57b0619c5`.
 
 The independent application and tests now live in `native/`; obsolete Codex host UI and Windows plugin implementations and historical packaging paths are removed. Quota/reset dates, details, isolated login and background refresh behavior are retained. Migration supports both executable names.
