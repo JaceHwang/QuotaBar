@@ -1,9 +1,11 @@
-# Contributing
+# Contributing to QuotaBar
 
-Develop on `codex/<type>/<kebab-case>`, never directly on `main`. Run `./governance doctor` before changes and `./governance check all` before pushing. Do not bypass hooks, weaken checks or overwrite published assets.
+The current product is the standalone macOS menu bar/floating quota app. Native source/resources/tests are in `native/`; packaging and transaction install are in `scripts/`. Windows standalone is not implemented.
 
-The current product is the standalone macOS app. Native source/tests live in `native/`. Packaging requires Xcode, Apple Silicon and official Codex 0.144.1. Keep owned-process shutdown, isolated login and release source verification intact. Add meaningful regression coverage when behavior changes.
+Develop on `codex/<type>/<kebab-case>`. Run `./governance doctor` before changes and `./governance check all` before pushing. Use English Conventional Commit headers/PR titles. Do not bypass hooks, weaken checks or overwrite published assets. Release Please owns product versions.
 
-Read [development progress](docs/PROJECT_PROGRESS-standalone-app.md) and resume the project board before continuing work. Update both after milestones. Distinguish local tests, CI, device observations and publication.
+Read [development progress](docs/PROJECT_PROGRESS-standalone-app.md) and resume the project board before every continuation. Update the roadmap and generated board through its utility after milestones. Keep README, installation, architecture, troubleshooting, privacy and validation aligned with final behavior. Preserve historical release facts.
 
-Use English Conventional Commit headers and PR titles. Describe behavior, why it changed, verification and material limits. Versions are managed only by generated Release Please PRs. Never include credentials, account data, private screenshots, build caches or runtime binaries in source commits.
+Protect owned-process shutdown, isolated login and rename-safe installation. Add meaningful regression coverage for behavior changes; distinguish unit tests, CI and device evidence. Packaging needs Xcode, Apple Silicon and official `codex-cli 0.144.1`. Menu bar artwork is a transparent vector template; AppIcon.icns contains the existing full application artwork.
+
+Never include credentials, account data, private screenshots, build caches or runtime binaries in source commits. Exact-tag app/DMG builds and public-download verification are required for publication; document untested OS/device matrices.

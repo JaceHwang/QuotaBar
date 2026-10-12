@@ -140,13 +140,16 @@ def atomic_json(path, value):
 
 def recover_install(home, info, marker, record, backups, reopen=True):
     target = Path(info['target'])
+    original_target = Path(info.get('originalTarget', info['target']))
     previous = Path(info['previous']) if info.get('previous') else None
     if previous and previous.exists():
         if target.exists():
             stop(target)
+            if info.get('originalTarget') and info.get('startupEnabled'):
+                run(str(application_executable(target)), '--unregister-startup')
             replacement = Path(info['replacementSource']) if info.get('replacementSource') else backups / ('failed-' + str(time.time_ns()) + '.app')
             target.rename(replacement)
-        previous.rename(target)
+        previous.rename(original_target)
     elif previous is None and target.exists():
         stop(target)
         target.rename(backups / ('failed-' + str(time.time_ns()) + '.app'))
@@ -169,8 +172,25 @@ def recover_install(home, info, marker, record, backups, reopen=True):
         atomic_json(record, info['oldRecord'])
     else:
         record.unlink(missing_ok=True)
-    if reopen and target.exists():
-        run('open', str(target))
+    if info.get('startupEnabled') and info.get('originalTarget') and original_target.exists():
+        run(str(application_executable(original_target)), '--register-startup')
+    if reopen and original_target.exists():
+        run('open', str(original_target))
+
+
+def active_application(home):
+    preferred = home / 'Applications/QuotaBar.app'
+    legacy = home / 'Applications/Codex Quota.app'
+    return preferred if preferred.exists() or not legacy.exists() else legacy
+
+
+def startup_enabled(app):
+    if not app.exists(): return False
+    try:
+        result = subprocess.run([str(application_executable(app)), '--startup-status'], capture_output=True, text=True)
+        return result.returncode == 0 and result.stdout.strip() == '1'
+    except (OSError, ValueError, KeyError):
+        return False
 
 
 def main():
@@ -179,7 +199,7 @@ def main():
     parser.add_argument('--candidate', type=Path)
     args = parser.parse_args()
     home = Path.home()
-    target = home / 'Applications/Codex Quota.app'
+    target = home / 'Applications/QuotaBar.app' if args.action == 'install' else active_application(home)
     root = home / 'Library/Application Support/CodexUsageSidebar'
     backups = root / '.StandaloneBackups'
     root.mkdir(parents=True, exist_ok=True)
@@ -190,6 +210,8 @@ def main():
     if journal.exists():
         recover_install(home, json.loads(journal.read_text()), marker, record, backups, reopen=False)
         journal.unlink()
+        if args.action != 'install':
+            target = active_application(home)
     if args.action == 'install':
         if args.candidate is None:
             parser.error('install requires --candidate APP')
@@ -199,10 +221,14 @@ def main():
         old_record = json.loads(record.read_text()) if record.exists() else {}
         old_marker = marker.read_text() if marker.exists() else None
         legacy = old_record.get('legacy', {})
-        previous = backups / (str(time.time_ns()) + '.app') if target.exists() else None
+        original_target = active_application(home)
+        if target.exists() and (home / 'Applications/Codex Quota.app').exists():
+            raise RuntimeError('Both QuotaBar and Codex Quota bundles exist; resolve duplicate applications before installing')
+        startup = startup_enabled(original_target)
+        previous = backups / (str(time.time_ns()) + '.app') if original_target.exists() else None
         plist = home / 'Library/LaunchAgents/com.jace.codex-usage-sidebar.plist'
         legacy_backup = backups / ('legacy-' + str(time.time_ns()) + '.plist') if plist.exists() else None
-        recovery = {'target': str(target), 'previous': str(previous) if previous else None, 'oldRecord': old_record, 'oldMarker': old_marker, 'legacy': {'pluginEnabled': set_plugin_enabled(home / '.codex/config.toml', None), 'plistBackup': str(legacy_backup) if legacy_backup else None}}
+        recovery = {'target': str(target), 'originalTarget': str(original_target), 'startupEnabled': startup, 'previous': str(previous) if previous else None, 'oldRecord': old_record, 'oldMarker': old_marker, 'legacy': {'pluginEnabled': set_plugin_enabled(home / '.codex/config.toml', None), 'plistBackup': str(legacy_backup) if legacy_backup else None}}
         atomic_json(journal, recovery)
         moved_legacy = False
         changed_flag = None
@@ -211,8 +237,10 @@ def main():
             staged = Path(temporary) / target.name
             run('ditto', str(source), str(staged))
             verify(staged)
-            stop(target)
+            stop(original_target)
             try:
+                if startup and original_target != target:
+                    run(str(application_executable(original_target)), '--unregister-startup')
                 config = home / '.codex/config.toml'
                 changed_flag = set_plugin_enabled(config, False)
                 if 'pluginEnabled' not in legacy:
@@ -227,12 +255,14 @@ def main():
                     suspend_legacy(plist)
                     plist.rename(backup)
                     moved_legacy = True
-                if target.exists():
-                    target.rename(previous)
+                if original_target.exists():
+                    original_target.rename(previous)
                 staged.rename(target)
                 installed = True
                 marker.write_text('Independent Codex Quota owns the isolated account directory.\n')
                 record.write_text(json.dumps({'target': str(target), 'previous': str(previous) if previous else None, 'legacy': legacy, 'credentialsPreserved': True}, indent=2) + '\n')
+                if startup and original_target != target:
+                    run(str(application_executable(target)), '--register-startup')
                 run('open', str(target))
             except BaseException:
                 recover_install(home, recovery, marker, record, backups)

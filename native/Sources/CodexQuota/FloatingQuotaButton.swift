@@ -1,0 +1,270 @@
+import AppKit
+import QuotaCore
+
+@MainActor
+final class FloatingQuotaPreferences {
+    private let defaults: UserDefaults
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    var enabled: Bool {
+        get { defaults.object(forKey: "standalone.floating.enabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "standalone.floating.enabled") }
+    }
+    var origin: CGPoint? {
+        get {
+            guard let values = defaults.array(forKey: "standalone.floating.origin") as? [Double], values.count == 2, values.allSatisfy(\.isFinite) else { return nil }
+            return CGPoint(x: values[0], y: values[1])
+        }
+        set {
+            guard let newValue, newValue.x.isFinite, newValue.y.isFinite else { defaults.removeObject(forKey: "standalone.floating.origin"); return }
+            defaults.set([Double(newValue.x), Double(newValue.y)], forKey: "standalone.floating.origin")
+        }
+    }
+    func frame(size: CGSize, screens: [CGRect]) -> CGRect {
+        let screen = screens.first ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+        let point = origin ?? CGPoint(x: screen.maxX - size.width - 24, y: screen.maxY - size.height - 24)
+        // Select the closest visible work area, including disconnected-display recovery.
+        let selected = screens.min { distance(point, $0) < distance(point, $1) } ?? screen
+        let width = min(size.width, selected.width), height = min(size.height, selected.height)
+        return CGRect(x: min(max(point.x, selected.minX), selected.maxX - width), y: min(max(point.y, selected.minY), selected.maxY - height), width: width, height: height)
+    }
+    private func distance(_ point: CGPoint, _ rect: CGRect) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return dx * dx + dy * dy
+    }
+}
+
+@MainActor
+final class FloatingQuotaInteractionView: NSView {
+    var onPrimaryClick: (() -> Void)?
+    var onSecondaryClick: (() -> Void)?
+    var onDragBegan: (() -> Void)?
+    var onDrag: ((CGPoint) -> Void)?
+    var onDragEnded: (() -> Void)?
+    var onHover: ((Bool) -> Void)?
+    var screenPointResolver: ((NSEvent) -> CGPoint)?
+    private var origin: CGPoint?
+    private var dragging = false
+    private var tracking: NSTrackingArea?
+    override func hitTest(_ point: NSPoint) -> NSView? { bounds.contains(point) ? self : nil }
+    override func resetCursorRects() { super.resetCursorRects(); addCursorRect(bounds, cursor: .openHand) }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+        tracking = area; addTrackingArea(area)
+    }
+    override func mouseEntered(with event: NSEvent) { onHover?(true) }
+    override func mouseExited(with event: NSEvent) { onHover?(false) }
+    override func rightMouseDown(with event: NSEvent) { onSecondaryClick?() }
+    override func mouseDown(with event: NSEvent) { origin = point(event); dragging = false }
+    override func mouseDragged(with event: NSEvent) {
+        guard let origin else { return }
+        let current = point(event), delta = CGPoint(x: current.x - origin.x, y: current.y - origin.y)
+        guard dragging || hypot(delta.x, delta.y) >= 4 else { return }
+        if !dragging { dragging = true; NSCursor.closedHand.set(); onDragBegan?() }
+        onDrag?(delta)
+    }
+    override func mouseUp(with event: NSEvent) {
+        guard origin != nil else { return }
+        if dragging { onDragEnded?() } else { onPrimaryClick?() }
+        origin = nil; dragging = false; window?.invalidateCursorRects(for: self)
+    }
+    private func point(_ event: NSEvent) -> CGPoint { screenPointResolver?(event) ?? window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow }
+    override func accessibilityPerformPress() -> Bool { onPrimaryClick?(); return true }
+}
+
+@MainActor
+final class FloatingQuotaButton {
+    private final class PassivePanel: NSPanel {
+        override var canBecomeKey: Bool { false }
+        override var canBecomeMain: Bool { false }
+    }
+    let preferences: FloatingQuotaPreferences
+    private let panel: NSPanel
+    let interaction = FloatingQuotaInteractionView(frame: .zero)
+    private let label = NSTextField(labelWithString: "")
+    private let icon = QuotaThemeIconView(frame: .zero)
+    private var dragOrigin: CGPoint?
+    var onClick: (() -> Void)?
+    var onMenu: (() -> Void)?
+    var onHover: ((Bool) -> Void)?
+    var onMove: (() -> Void)?
+    var frame: CGRect? { panel.isVisible ? panel.frame : nil }
+    init(preferences: FloatingQuotaPreferences = FloatingQuotaPreferences()) {
+        self.preferences = preferences
+        panel = PassivePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
+        panel.hidesOnDeactivate = false; panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.contentView = interaction
+        interaction.wantsLayer = true; interaction.layer?.cornerRadius = 10
+        label.maximumNumberOfLines = 2; label.usesSingleLineMode = false; label.lineBreakMode = .byClipping
+        interaction.addSubview(icon); interaction.addSubview(label)
+        interaction.setAccessibilityElement(true); interaction.setAccessibilityRole(.button)
+        interaction.onPrimaryClick = { [weak self] in self?.onClick?() }
+        interaction.onSecondaryClick = { [weak self] in self?.onMenu?() }
+        interaction.onHover = { [weak self] value in
+            guard let self else { return }
+            panel.appearance?.performAsCurrentDrawingAppearance {
+                interaction.layer?.backgroundColor = (value ? NSColor.labelColor.withAlphaComponent(0.07) : .clear).cgColor
+            }
+            onHover?(value)
+        }
+        interaction.onDragBegan = { [weak self] in self?.dragOrigin = self?.panel.frame.origin }
+        interaction.onDrag = { [weak self] delta in
+            guard let self, let dragOrigin else { return }
+            preferences.origin = CGPoint(x: dragOrigin.x + delta.x, y: dragOrigin.y + delta.y)
+            let frame = preferences.frame(size: panel.frame.size, screens: NSScreen.screens.map(\.visibleFrame))
+            panel.setFrame(frame, display: true); onMove?()
+        }
+        interaction.onDragEnded = { [weak self] in
+            guard let self else { return }
+            preferences.origin = panel.frame.origin; dragOrigin = nil
+        }
+    }
+    func show(summary: ResetIndicatorSummary?, theme: CodexInterfaceTheme, tooltip: String, fallback: String, dimmed: Bool) {
+        guard preferences.enabled else { hide(); return }
+        panel.appearance = theme.appKitAppearance; icon.updateAppearance(theme.appKitAppearance)
+        label.attributedStringValue = summary.map { FloatingQuotaTypography.string(summary: $0, alignment: .left) } ?? NSAttributedString(string: fallback, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor])
+        let width = min(280, max(164, ceil(label.attributedStringValue.size().width + 44)))
+        let frame = preferences.frame(size: CGSize(width: width, height: 30), screens: NSScreen.screens.map(\.visibleFrame))
+        panel.setFrame(frame, display: true); interaction.frame = CGRect(origin: .zero, size: frame.size)
+        icon.frame = CGRect(x: 6, y: 5, width: 20, height: 20)
+        let height = min(label.intrinsicContentSize.height, 30)
+        label.frame = CGRect(x: 32, y: floor((30 - height) / 2), width: frame.width - 40, height: height)
+        panel.alphaValue = dimmed ? 0.52 : 1
+        interaction.toolTip = tooltip; interaction.setAccessibilityLabel(label.stringValue)
+        panel.orderFrontRegardless()
+    }
+    func hide() { panel.orderOut(nil) }
+    func showMenu(_ menu: NSMenu) { guard let event = NSApp.currentEvent else { return }; NSMenu.popUpContextMenu(menu, with: event, for: interaction) }
+}
+
+@MainActor
+enum FloatingQuotaTypography {
+    private static let labelColumnWidth: CGFloat = 46
+    private static let percentColumnWidth: CGFloat = 78
+
+    static func string(
+        summary: ResetIndicatorSummary,
+        alignment: NSTextAlignment
+    ) -> NSAttributedString {
+        let lines = [
+            formattedLine(
+                summary.primary,
+                remainingPercent: summary.primaryRemainingPercent
+            ),
+            summary.secondary.flatMap { secondary in
+                guard let percent = summary.secondaryRemainingPercent else {
+                    return nil
+                }
+                return formattedLine(secondary, remainingPercent: percent)
+            }
+        ].compactMap { $0 }
+        let label = lines.joined(separator: "\n")
+        let result = NSMutableAttributedString(string: label)
+        let fullRange = NSRange(location: 0, length: result.length)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = alignment
+        paragraph.lineBreakMode = .byClipping
+        paragraph.lineSpacing = 0
+        paragraph.tabStops = [
+            NSTextTab(
+                textAlignment: .left,
+                location: labelColumnWidth,
+                options: [:]
+            ),
+            NSTextTab(
+                textAlignment: .left,
+                location: percentColumnWidth,
+                options: [:]
+            )
+        ]
+        result.addAttributes(
+            [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph
+            ],
+            range: fullRange
+        )
+
+        applyPercentStyle(
+            to: result,
+            label: label,
+            remainingPercent: summary.primaryRemainingPercent,
+            searchStart: label.startIndex
+        )
+        if summary.secondary != nil,
+           let secondaryPercent = summary.secondaryRemainingPercent,
+           let newline = label.firstIndex(of: "\n")
+        {
+            applyPercentStyle(
+                to: result,
+                label: label,
+                remainingPercent: secondaryPercent,
+                searchStart: label.index(after: newline)
+            )
+        }
+        return result
+    }
+
+    private static func formattedLine(
+        _ line: String,
+        remainingPercent: Int
+    ) -> String {
+        let percent = "\(remainingPercent)%"
+        guard let percentRange = line.range(of: percent) else {
+            return line
+        }
+        let window = line[..<percentRange.lowerBound]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let date = line[percentRange.upperBound...]
+            .trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines.union(
+                    CharacterSet(charactersIn: "·")
+                )
+            )
+        return "\(window)\t\(percent)\t· \(date)"
+    }
+
+    private static func applyPercentStyle(
+        to result: NSMutableAttributedString,
+        label: String,
+        remainingPercent: Int,
+        searchStart: String.Index
+    ) {
+        let target = "\(remainingPercent)%"
+        var searchRange = NSRange(
+            searchStart..<label.endIndex,
+            in: label
+        )
+        while searchRange.location != NSNotFound,
+              searchRange.location < result.length,
+              let range = label.range(
+                  of: target,
+                  options: [],
+                  range: Range(searchRange, in: label)
+              )
+        {
+            let nsRange = NSRange(range, in: label)
+            result.addAttributes(
+                [
+                    .font: NSFont.systemFont(ofSize: 12, weight: .bold),
+                    .foregroundColor: QuotaColorScale.components(
+                        remainingPercent: remainingPercent
+                    ).appKitColor
+                ],
+                range: nsRange
+            )
+            let nextLocation = nsRange.location + nsRange.length
+            searchRange = NSRange(
+                location: nextLocation,
+                length: max(0, result.length - nextLocation)
+            )
+        }
+    }
+
+}
+

@@ -117,5 +117,40 @@ class InstallTransactionTests(unittest.TestCase):
             self.assertIn('enabled = true', config.read_text())
             self.assertFalse((home / 'Library/Application Support/CodexUsageSidebar/standalone-mode').exists())
 
+class BrandingMigrationTests(unittest.TestCase):
+    def test_active_application_recognizes_previous_bundle_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            old = home / 'Applications/Codex Quota.app'
+            old.mkdir(parents=True)
+            self.assertEqual(installer.active_application(home), old)
+            new = home / 'Applications/QuotaBar.app'
+            old.rename(new)
+            self.assertEqual(installer.active_application(home), new)
+
+    def test_uninstall_after_interrupted_rename_uses_recovered_path(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory); root = home/'Library/Application Support/CodexUsageSidebar'; backups = root/'.StandaloneBackups'; backups.mkdir(parents=True)
+            old = home/'Applications/Codex Quota.app'; new = home/'Applications/QuotaBar.app'; new.mkdir(parents=True)
+            previous = backups/'previous.app'; previous.mkdir()
+            info = {'target':str(new),'originalTarget':str(old),'previous':str(previous),'oldRecord':{'target':str(old)},'oldMarker':'standalone','legacy':{}}
+            (root/'standalone-transaction.json').write_text(json.dumps(info))
+            with patch.object(installer.Path,'home',return_value=home), patch.object(installer,'run'), patch.object(installer,'stop'), patch.object(installer,'application_executable',return_value=Path('/fake/executable')), patch.object(sys,'argv',['installer','uninstall']):
+                installer.main()
+            self.assertFalse(old.exists()); self.assertFalse(new.exists())
+            self.assertFalse((root/'standalone-mode').exists())
+
+    def test_failed_branding_upgrade_restores_original_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory); root = home / 'data'; backups = root / 'backups'; backups.mkdir(parents=True)
+            old = home / 'Applications/Codex Quota.app'; old.parent.mkdir()
+            previous = backups / 'previous.app'; previous.mkdir(); (previous / 'old').write_text('old')
+            new = home / 'Applications/QuotaBar.app'; new.mkdir()
+            info = {'target': str(new), 'originalTarget': str(old), 'previous': str(previous), 'oldRecord': {'target':str(old)}, 'oldMarker':None, 'legacy':{}}
+            with patch.object(installer,'run'), patch.object(installer,'stop'):
+                installer.recover_install(home, info, root/'marker', root/'record', backups, reopen=False)
+            self.assertTrue((old/'old').exists()); self.assertFalse(new.exists())
+
 if __name__ == '__main__':
     unittest.main()

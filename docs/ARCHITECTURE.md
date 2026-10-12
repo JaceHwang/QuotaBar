@@ -1,13 +1,25 @@
-# Standalone architecture
+# QuotaBar architecture
 
-`native/Sources/CodexQuota` owns the AppKit menu bar item, detail panel, native settings, startup registration and application lifetime. `native/Sources/QuotaCore` owns protocol decoding, isolated app-server session, quota/token/account models, formatting and refresh state. Shared fixtures live in `contracts/`.
+Updated: 2026-10-12.
 
-The app launches only its bundled official Codex runtime over stdio. Official browser login stores credentials in the isolated `CodexHome`. The existing `CodexUsageSidebar` data-directory name is retained for account compatibility; it does not imply a plugin or desktop-UI dependency.
+`native/Sources/CodexQuota` owns the AppKit menu bar, floating button, shared detail panel, settings, startup registration and application lifetime. `native/Sources/QuotaCore` owns JSON-RPC, the isolated app-server session, quota/token/account decoding, refresh state, formatting and pure detail interaction state. Shared protocol fixtures are in `contracts/`.
 
-No host window discovery, Accessibility authorization/scanning, title-bar positioning or desktop-theme reading remains. Menu bar text and the detail card use system or manually selected language and theme. Global mouse events dismiss the card; global keyboard monitoring is not installed.
+The app launches only bundled official Codex 0.144.1 over stdio. Official browser login keeps credentials in isolated `CodexHome`; no desktop credentials are copied. The `CodexUsageSidebar` data-directory and `com.jace.codex-quota` bundle ID stay stable across the QuotaBar rename.
 
-`install-macos-standalone.py` stages verified bundles and journals changes before activation. It can disable an existing legacy entry during migration, but this repository contains no legacy plugin implementation and no restore-to-plugin action. The app and runtime are stopped as owned processes before replacement.
+## UI and state
 
-Builds include licenses, source snapshots and runtime/application digests. Release builds require a clean checkout at the exact Release Please tag. Public assets are verified against signatures, version, runtime and tagged source; uploaded assets are never overwritten.
+- `StandaloneCoordinator`: runtime ownership, refresh, menu actions, native settings and lifecycle.
+- `FloatingQuotaButton`: nonactivating 30pt panel, original quota typography/icon, click/drag separation, saved position and visible-screen recovery.
+- `QuotaDetailInteractionState`: hover, click pinning, hover suppression and independent lock semantics. Switching from menu bar to floating details clears the other entry's display state; unlocking restarts pointer tracking.
+- `StatusItemDisplay`: persisted quota/icon choice. Quota uses the centered two-line template image; icon uses an 18pt transparent vector template tinted by macOS.
+- `QuotaDetailPanel`: shared native details; the active entry determines its anchor. Locking does not prevent the app from exiting.
 
-Windows standalone remains planned, with its own native shell/runtime ownership and the same protocol fixtures. No Windows plugin code is retained in this tree.
+The menu bar context menu owns the checked floating visibility option. Settings owns menu bar quota/icon mode. Their defaults are enabled and their preference keys are independent. Position recovery handles negative work-area coordinates and removed screens without host-window discovery.
+
+No Accessibility authorization/scanning, host title-bar positioning or desktop-app theme reading is used. Mouse monitoring handles card dismissal; no global keyboard monitor is installed. Closing settings leaves the app running; Quit stops the owned runtime and hides panels.
+
+## Installation and release
+
+The transaction installer targets `~/Applications/QuotaBar.app`, detects previous `Codex Quota.app`, stages verified bundles and records original paths before activation. Failure recovery restores the previous path and login startup; subsequent rollback/uninstall re-resolves the active path. Account data and preferences are preserved.
+
+Builds contain AppIcon.icns, runtime licenses, provenance and source snapshots. Releases require a clean checkout at the exact Release Please tag, then verify signatures, version, runtime/application digests and tagged sources. Uploaded assets are immutable. Windows has no implementation or release adapter yet.

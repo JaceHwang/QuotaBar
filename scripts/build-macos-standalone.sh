@@ -14,7 +14,7 @@ output="$repo_root/.dist/standalone-macos"
 mkdir -p "$output"
 stage="$(mktemp -d "$output/build.XXXXXX")"
 trap 'rm -rf "$stage"' EXIT
-app="$stage/Codex Quota.app"
+app="$stage/QuotaBar.app"
 version="$(cat "$repo_root/version.txt")"
 runtime_version="$("$runtime" --version)"
 [[ "$runtime_version" == 'codex-cli 0.144.1' ]] || { echo 'Expected validated codex-cli 0.144.1' >&2; exit 65; }
@@ -26,13 +26,14 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources"
 install -m 755 "$bin/CodexQuota" "$app/Contents/MacOS/CodexQuota"
 install -m 755 "$runtime" "$app/Contents/Helpers/codex"
 ditto "$bin/CodexQuota_CodexQuota.bundle" "$app/Contents/Resources/CodexQuota_CodexQuota.bundle"
+install -m 644 "$package_root/Sources/CodexQuota/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 curl --fail --location --silent --show-error https://raw.githubusercontent.com/openai/codex/rust-v0.144.1/LICENSE -o "$app/Contents/Resources/CODEX-LICENSE"
 curl --fail --location --silent --show-error https://raw.githubusercontent.com/openai/codex/rust-v0.144.1/NOTICE -o "$app/Contents/Resources/CODEX-NOTICE"
 python3 - "$app" "$version" "$runtime_version" "$repo_root" <<'PY'
 import hashlib,json,pathlib,plistlib,subprocess,sys
 app=pathlib.Path(sys.argv[1])
 with (app/'Contents/Info.plist').open('wb') as f:
- plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'Codex Quota','CFBundleDisplayName':'Codex Quota','CFBundleExecutable':'CodexQuota','CFBundlePackageType':'APPL','CFBundleShortVersionString':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True},f)
+ plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'QuotaBar','CFBundleDisplayName':'QuotaBar','CFBundleIconFile':'AppIcon','CFBundleExecutable':'CodexQuota','CFBundlePackageType':'APPL','CFBundleShortVersionString':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True},f)
 import os
 release_tag=os.environ.get('CUS_RELEASE_TAG')
 provenance={'kind':'release' if release_tag else 'local-development-candidate','sourceCommit':subprocess.check_output(['git','-C',sys.argv[4],'rev-parse','HEAD'],text=True).strip(),'workingTreeDirty':bool(subprocess.check_output(['git','-C',sys.argv[4],'status','--porcelain','--untracked-files=no'],text=True).strip()),'version':sys.argv[2],'runtimeVersion':sys.argv[3],'runtimeSource':'https://github.com/openai/codex/releases/tag/rust-v0.144.1','runtimeUnsignedSha256':hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest(),'releaseTag':release_tag}
@@ -59,15 +60,15 @@ codesign --force --sign "$identity" "$app"
 codesign --verify --deep --strict "$app"
 candidate="$output/candidate-$(date +%Y%m%d-%H%M%S)"
 mkdir "$candidate"
-ditto "$app" "$candidate/Codex Quota.app"
+ditto "$app" "$candidate/QuotaBar.app"
 python3 - "$candidate" <<'PY'
 import hashlib,json,pathlib,sys
-root=pathlib.Path(sys.argv[1]);app=root/'Codex Quota.app';info=json.loads((app/'Contents/Resources/PROVENANCE.json').read_text())
+root=pathlib.Path(sys.argv[1]);app=root/'QuotaBar.app';info=json.loads((app/'Contents/Resources/PROVENANCE.json').read_text())
 info['applicationSignedSha256']=hashlib.sha256((app/'Contents/MacOS/CodexQuota').read_bytes()).hexdigest()
 (root/'PROVENANCE.json').write_text(json.dumps(info,indent=2)+'\n')
 PY
 ln -s /Applications "$stage/Applications"
-hdiutil create -quiet -volname 'Codex Quota' -srcfolder "$stage" -format UDZO "$candidate/Codex-Quota-macos-arm64.dmg"
+hdiutil create -quiet -volname 'QuotaBar' -srcfolder "$stage" -format UDZO "$candidate/Codex-Quota-macos-arm64.dmg"
 hdiutil verify "$candidate/Codex-Quota-macos-arm64.dmg"
 shasum -a 256 "$candidate/Codex-Quota-macos-arm64.dmg" > "$candidate/SHA256SUMS.txt"
 printf 'Standalone candidate: %s\n' "$candidate"

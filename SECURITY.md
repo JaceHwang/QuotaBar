@@ -17,7 +17,8 @@ public disclosure.
 
 ## Security boundaries
 
-The companion must remain outside the official Codex application; it must not inject into, modify,
-or re-sign that app. Authentication must remain isolated from the normal `~/.codex` home. The
-companion must not upload quota data, add telemetry, inspect conversation or repository content, or
+QuotaBar must remain outside the official Codex application; it must not inject into, modify,
+or re-sign that app. Authentication must remain isolated from the normal `~/.codex` home. QuotaBar must not upload quota data, add telemetry, inspect conversation or repository content, or
 bypass macOS privacy controls. See [docs/PRIVACY.md](docs/PRIVACY.md) for the data-flow model.
+
+The menu bar/floating preferences are local. Rename-safe updates retain the isolated account; use supported sign-out before credential cleanup. See [installation](docs/MACOS_STANDALONE.zh-CN.md) for user-level paths and recovery.

@@ -8,6 +8,10 @@ nonisolated(unsafe) private var standaloneSignalWriteFD: Int32 = -1
 @MainActor
 final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private let detail = QuotaDetailPanel()
+    private let floating = FloatingQuotaButton()
+    private var detailFromFloating = false
+    private var floatingInteraction = QuotaDetailInteractionState()
+    private var floatingHoverTimer: Timer?
     private var statusItem: NSStatusItem?
     private var client: AppServerClient?
     private var tasks: [Task<Void, Never>] = []
@@ -31,6 +35,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var networkMonitor: NWPathMonitor?
     private var startupNotice: String?
     private let defaults = UserDefaults.standard
+    private let statusDisplay = StatusItemDisplayPreferences()
     private let root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/CodexUsageSidebar")
 
@@ -80,18 +85,33 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusItem = item
         let mainMenu = NSMenu()
         let appItem = NSMenuItem(); let appMenu = NSMenu()
-        let detailsItem = NSMenuItem(title: text("Quota details", "额度详情", "額度詳情"), action: #selector(detailsClicked), keyEquivalent: "d")
+        let detailsItem = NSMenuItem(title: text("Quota details", "额度详情", "額度詳情"), action: #selector(statusDetailsClicked), keyEquivalent: "d")
         detailsItem.target = self; appMenu.addItem(detailsItem)
         let preferences = NSMenuItem(title: text("Settings…", "设置…", "設定…"), action: #selector(settingsClicked), keyEquivalent: ",")
         preferences.target = self; appMenu.addItem(preferences)
-        let quitItem = NSMenuItem(title: text("Quit Codex Quota", "退出 Codex Quota", "結束 Codex Quota"), action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: text("Quit QuotaBar", "退出 QuotaBar", "結束 QuotaBar"), action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self; appMenu.addItem(quitItem); appItem.submenu = appMenu; mainMenu.addItem(appItem); NSApp.mainMenu = mainMenu
         item.button?.target = self
         item.button?.action = #selector(clicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         detail.onOpenURL = { NSWorkspace.shared.open($0) }
         detail.onSettingsButtonTapped = { [weak self] _ in self?.showSettings() }
-        detail.onLockOpenToggle = { [weak self] in self?.detailLocked.toggle(); self?.render() }
+        floating.onClick = { [weak self] in
+            guard let self else { return }
+            guard snapshot != nil else { showSettings(); return }
+            detailFromFloating = true; showingDetail = false; detailLocked = false
+            floatingInteraction.togglePinned(pointerInside: true)
+            render(); refresh()
+        }
+        floating.onMenu = { [weak self] in self?.showFloatingMenu() }
+        floating.onMove = { [weak self] in self?.render() }
+        floating.onHover = { [weak self] entered in self?.floatingHoverChanged(entered) }
+        detail.onLockOpenToggle = { [weak self] in
+            guard let self else { return }
+            if detailFromFloating { floatingInteraction.toggleLockedOpen(pointerInside: true); floatingHoverChanged(true) }
+            else { detailLocked.toggle() }
+            render()
+        }
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             self?.dismissOutsideClick(); return event
         }
@@ -186,16 +206,21 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     @objc private func wake() { sleeping = false; refresh() }
     @objc private func sleep() { sleeping = true }
     private func dismissOutsideClick() {
-        guard showingDetail, !detailLocked else { return }
+        guard showingDetail || floatingInteraction.shouldShowDetail, !(detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked) else { return }
         let point = NSEvent.mouseLocation
-        if detail.frame?.contains(point) == true || statusItem?.button?.window?.frame.contains(point) == true { return }
-        showingDetail = false; render()
+        if detail.frame?.contains(point) == true || floating.frame?.contains(point) == true || statusItem?.button?.window?.frame.contains(point) == true { return }
+        showingDetail = false; floatingInteraction.dismissForOutsideInteraction(); render()
     }
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp { showMenu(); return }
+        statusDetailsClicked()
+    }
+    @objc private func statusDetailsClicked() {
+        detailFromFloating = false; floatingInteraction.reset()
+        floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
         detailsClicked()
     }
-    @objc private func detailsClicked() {
+    private func detailsClicked() {
         if snapshot == nil { showSettings(); return }
         showingDetail.toggle(); render()
         if showingDetail { refresh() }
@@ -214,7 +239,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if let menu = NSApp.mainMenu?.items.first?.submenu, menu.items.count == 3 {
             menu.items[0].title = text("Quota details", "额度详情", "額度詳情")
             menu.items[1].title = text("Settings…", "设置…", "設定…")
-            menu.items[2].title = text("Quit Codex Quota", "退出 Codex Quota", "結束 Codex Quota")
+            menu.items[2].title = text("Quit QuotaBar", "退出 QuotaBar", "結束 QuotaBar")
         }
         switch defaults.string(forKey: "standalone.theme") {
         case "light": NSApp.appearance = NSAppearance(named: .aqua)
@@ -230,28 +255,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             return [summary.primary, summary.secondary].compactMap { $0 }.joined(separator: "\n")
                 + (isStale || state.phase != .ready ? " !" : "")
         } ?? "◉ —"
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        paragraph.minimumLineHeight = 10
-        paragraph.maximumLineHeight = 10
-        let indicator = NSAttributedString(string: indicatorText, attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
-            .paragraphStyle: paragraph,
-            .foregroundColor: NSColor.black
-        ])
-        // NSStatusBarButton positions multiline titles using its title baseline.
-        // An image uses the system's vertically centered image rectangle instead.
-        let textSize = indicator.size()
-        let imageSize = NSSize(width: ceil(textSize.width) + 2, height: ceil(textSize.height))
-        let image = NSImage(size: imageSize, flipped: false) { rect in
-            indicator.draw(in: NSRect(
-                x: (rect.width - textSize.width) / 2,
-                y: (rect.height - textSize.height) / 2,
-                width: textSize.width, height: textSize.height
-            ))
-            return true
-        }
-        image.isTemplate = true
+        let image = QuotaStatusItemImage.make(showQuotaInformation: statusDisplay.showsQuotaInformation, text: indicatorText, theme: theme)
         statusItem?.button?.attributedTitle = NSAttributedString(string: "")
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.imageScaling = .scaleNone
@@ -261,13 +265,15 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusItem?.button?.toolTip = freshness + "\n" + updated
         statusItem?.button?.setAccessibilityLabel(text("Codex remaining quota", "Codex 剩余额度", "Codex 剩餘額度") + "\n" + indicatorText)
         statusLabel?.stringValue = freshness + "\n" + (identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號")) + "\n" + updated + (startupNotice.map { "\n" + $0 } ?? "")
-        if showingDetail, let snapshot, let button = statusItem?.button, let window = button.window {
-            let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
-            detail.show(content: QuotaDetailFormatter().content(snapshot: snapshot, tokenUsage: tokens, footerName: identity?.preferredName, footerAvatarURL: identity?.avatarURL, now: Date(), language: language, timeZone: .current), relativeTo: anchor, theme: theme, isLockedOpen: detailLocked)
+        floating.show(summary: snapshot.map { ResetFormatter().indicatorSummary(snapshot: $0, language: language, timeZone: .autoupdatingCurrent, maxWidth: 236) }, theme: theme, tooltip: freshness + "\n" + updated, fallback: phaseText, dimmed: isStale || state.phase != .ready)
+        let statusAnchor = statusItem?.button.flatMap { button in button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } }
+        let anchor = detailFromFloating ? (floating.frame ?? statusAnchor) : statusAnchor
+        if showingDetail || floatingInteraction.shouldShowDetail, let snapshot, let anchor {
+            detail.show(content: QuotaDetailFormatter().content(snapshot: snapshot, tokenUsage: tokens, footerName: identity?.preferredName, footerAvatarURL: identity?.avatarURL, now: Date(), language: language, timeZone: .current), relativeTo: anchor, theme: theme, isLockedOpen: detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked)
         } else { detail.hide() }
         let detailVisible = detail.frame != nil
         let detailFits = detail.frame.map { frame in NSScreen.screens.contains { $0.visibleFrame.contains(frame) } } ?? false
-        let diagnostic = "pid=\(ProcessInfo.processInfo.processIdentifier) mode=standalone phase=\(state.phase.rawValue) has_quota=\(snapshot != nil) host_ui=false detail_visible=\(detailVisible) detail_fits_screen=\(detailFits)\n"
+        let diagnostic = "pid=\(ProcessInfo.processInfo.processIdentifier) mode=standalone phase=\(state.phase.rawValue) has_quota=\(snapshot != nil) host_ui=false status_quota=\(statusDisplay.showsQuotaInformation) floating_visible=\(floating.frame != nil) floating_enabled=\(floating.preferences.enabled) detail_visible=\(detailVisible) detail_fits_screen=\(detailFits)\n"
         try? diagnostic.write(to: root.appendingPathComponent("standalone-state.txt"), atomically: true, encoding: .utf8)
     }
     private func showMenu() {
@@ -276,6 +282,9 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
+        let floatingToggle = NSMenuItem(title: text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), action: #selector(floatingChanged), keyEquivalent: "")
+        floatingToggle.target = self; floatingToggle.state = floating.preferences.enabled ? .on : .off
+        menu.insertItem(floatingToggle, at: 2)
         statusItem?.menu = menu; statusItem?.button?.performClick(nil); statusItem?.menu = nil
     }
     @objc private func refreshClicked() { refresh() }
@@ -293,7 +302,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     @objc private func reloadClicked() {
         Task { [weak self] in
             guard let self else { return }
-            timer?.invalidate()
+            timer?.invalidate(); floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
             networkMonitor?.cancel(); networkMonitor = nil
             for task in tasks { task.cancel() }
             tasks.removeAll()
@@ -310,7 +319,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private func showSettings() {
         if let settings { settings.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 430), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = text("Codex Quota — Settings", "Codex 额度 — 设置", "Codex 額度 — 設定")
+        window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定")
         window.isReleasedWhenClosed = false
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 14
         let label = NSTextField(wrappingLabelWithString: phaseText); statusLabel = label; stack.addArrangedSubview(label)
@@ -320,18 +329,57 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
         stack.addArrangedSubview(buttons)
         let actions = NSStackView(); actions.spacing = 8
-        actions.addArrangedSubview(NSButton(title: text("Quota details", "额度详情", "額度詳情"), target: self, action: #selector(detailsClicked)))
+        actions.addArrangedSubview(NSButton(title: text("Quota details", "额度详情", "額度詳情"), target: self, action: #selector(statusDetailsClicked)))
         actions.addArrangedSubview(NSButton(title: text("Reload runtime", "重新加载运行时", "重新載入執行環境"), target: self, action: #selector(reloadClicked)))
         stack.addArrangedSubview(actions)
         let theme = NSPopUpButton(); theme.addItems(withTitles: [text("System theme", "跟随系统主题", "跟隨系統主題"), text("Light", "浅色", "淺色"), text("Dark", "深色")]); theme.target = self; theme.action = #selector(themeChanged)
         theme.selectItem(at: ["system", "light", "dark"].firstIndex(of: defaults.string(forKey: "standalone.theme") ?? "system") ?? 0); stack.addArrangedSubview(theme)
         let language = NSPopUpButton(); language.addItems(withTitles: [text("System language", "跟随系统语言", "跟隨系統語言"), "简体中文", "繁體中文", "English"]); language.target = self; language.action = #selector(languageChanged)
         language.selectItem(at: ["system", "simplifiedChinese", "traditionalChinese", "english"].firstIndex(of: defaults.string(forKey: "standalone.language") ?? "system") ?? 0); stack.addArrangedSubview(language)
+        let quotaToggle = NSButton(checkboxWithTitle: text("Show quota information in menu bar", "任务栏显示额度信息", "工作列顯示額度資訊"), target: self, action: #selector(statusDisplayChanged))
+        quotaToggle.state = statusDisplay.showsQuotaInformation ? .on : .off
+        stack.addArrangedSubview(quotaToggle)
         let startup = NSButton(checkboxWithTitle: text("Launch at login", "登录时启动", "登入時啟動"), target: self, action: #selector(startupChanged)); startup.state = SMAppService.mainApp.status == .enabled ? .on : .off; stack.addArrangedSubview(startup)
         stack.addArrangedSubview(NSTextField(wrappingLabelWithString: text("Quota is read by the bundled official runtime. Account credentials stay in the isolated local account directory.", "通过内嵌官方运行时读取额度，凭据保存在本机隔离账户目录。", "透過內嵌官方執行環境讀取額度，憑證儲存在本機隔離帳號目錄。")))
         window.contentView?.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 24)])
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
+    }
+    @objc private func statusDisplayChanged(_ sender: NSButton) {
+        statusDisplay.showsQuotaInformation = sender.state == .on; render()
+    }
+    @objc private func floatingChanged(_ sender: NSMenuItem) {
+        floating.preferences.enabled.toggle()
+        sender.state = floating.preferences.enabled ? .on : .off
+        if !floating.preferences.enabled {
+            floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
+            if detailFromFloating { showingDetail = false; detailLocked = false }
+        }
+        render()
+    }
+    private func floatingHoverChanged(_ entered: Bool) {
+        guard entered, !showingDetail else { return }
+        floatingInteraction.updatePointerInside(true); detailFromFloating = true; render()
+        floatingHoverTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateFloatingHover() }
+        }
+        floatingHoverTimer = timer; RunLoop.main.add(timer, forMode: .common)
+    }
+    private func updateFloatingHover() {
+        let point = NSEvent.mouseLocation
+        let inside = floating.frame?.contains(point) == true || (detailFromFloating && detail.frame?.contains(point) == true)
+        let previous = floatingInteraction
+        floatingInteraction.updatePointerInside(inside)
+        if !inside { floatingHoverTimer?.invalidate(); floatingHoverTimer = nil }
+        if previous != floatingInteraction { render() }
+    }
+    private func showFloatingMenu() {
+        let menu = NSMenu()
+        for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
+        }
+        floating.showMenu(menu)
     }
     @objc private func themeChanged(_ sender: NSPopUpButton) { defaults.set(["system", "light", "dark"][sender.indexOfSelectedItem], forKey: "standalone.theme"); render() }
     @objc private func languageChanged(_ sender: NSPopUpButton) { defaults.set(["system", "simplifiedChinese", "traditionalChinese", "english"][sender.indexOfSelectedItem], forKey: "standalone.language"); settings?.close(); settings = nil; showSettings(); render() }
@@ -345,7 +393,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
-        stopping = true; timer?.invalidate(); detail.hide(); statusItem = nil
+        stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil
         networkMonitor?.cancel(); networkMonitor = nil
         removeMouseMonitors()
         for task in tasks { task.cancel() }
