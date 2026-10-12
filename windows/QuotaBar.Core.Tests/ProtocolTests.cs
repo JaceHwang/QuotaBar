@@ -18,7 +18,9 @@ static class ProtocolTests {
         var clearIndex=events.ToArray().ToList().FindLastIndex(e=>e.Kind=="cleared");
         Check(!events.ToArray().Skip(clearIndex+1).Any(e=>e.Kind=="quota"),"late quota after logout ignored");
         await session.LoginAsync(); Check(events.Any(e=>e.Kind=="loginUrl"),"official browser URL");
+        var queuedUrl=events.Last(e=>e.Kind=="loginUrl");
         await session.CancelLoginAsync(); Check(events.Any(e=>e.Kind=="loginCompleted" && e.Success==false),"cancel completes state");
+        Check(!session.IsCurrentEvent(queuedUrl),"queued UI callback from cancelled login is stale");
         var count=events.Count;
         transport.Notify("{\"method\":\"account/login/completed\",\"params\":{\"success\":true}}");
         await Task.Delay(30);

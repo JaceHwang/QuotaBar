@@ -48,12 +48,17 @@ internal sealed class FloatingWindow : Window {
         var icon=Ui.Icon(dark); content.Children.Add(icon);
         var rows=new StackPanel { VerticalAlignment=VerticalAlignment.Center };
         if(quota is null) rows.Children.Add(Ui.Text(copy.PhaseLabel(state.Phase),11,fg));
-        else foreach(var window in new[]{quota.Primary,quota.Secondary}.OfType<QuotaWindow>()) {
-            var row=new Grid(); row.ColumnDefinitions.Add(new() { Width=new GridLength(50) }); row.ColumnDefinitions.Add(new() { Width=new GridLength(42) }); row.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
-            var label=Ui.Text(copy.Period(window.WindowMinutes),11,fg); label.FontWeight=FontWeights.Medium;
+        else {
+        var windows=new[]{quota.Primary,quota.Secondary}.OfType<QuotaWindow>().ToArray();
+        var labels=windows.Select(w=> { var label=Ui.Text(copy.Period(w.WindowMinutes),11,fg); label.TextWrapping=TextWrapping.NoWrap; label.FontWeight=FontWeights.Medium; label.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity)); return label; }).ToArray();
+        var labelWidth=Math.Max(50,labels.Max(label=>Math.Ceiling(label.DesiredSize.Width)));
+        for(var i=0;i<windows.Length;i++) {
+            var window=windows[i]; var label=labels[i];
+            var row=new Grid(); row.ColumnDefinitions.Add(new() { Width=new GridLength(labelWidth) }); row.ColumnDefinitions.Add(new() { Width=new GridLength(42) }); row.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
             var pct=Ui.Text($"{window.RemainingPercent}%",12,Ui.Accent(window.RemainingPercent)); pct.FontWeight=FontWeights.Bold;
             var reset=Ui.Text("· "+copy.Reset(window.ResetsAt),11,fg); reset.TextWrapping=TextWrapping.NoWrap;
             row.Children.Add(label); Grid.SetColumn(pct,1); row.Children.Add(pct); Grid.SetColumn(reset,2); row.Children.Add(reset); rows.Children.Add(row);
+        }
         }
         Grid.SetColumn(rows,1); content.Children.Add(rows); Grid.SetColumn(close,2); if(!content.Children.Contains(close)) content.Children.Add(close);
         rows.Measure(new Size(double.PositiveInfinity,30)); Width=Math.Min(440,Math.Max(220,rows.DesiredSize.Width+60));

@@ -4,7 +4,7 @@ namespace QuotaBar.Core;
 public sealed class Copy(string language) {
     public string Language { get; }=language=="system" ? CultureInfo.CurrentUICulture.Name : language;
     public bool Chinese => Language.StartsWith("zh",StringComparison.OrdinalIgnoreCase);
-    public bool Traditional => Language is "zh-TW" or "zh-HK" or "zh-Hant";
+    public bool Traditional => new[]{"zh-TW","zh-HK","zh-MO","zh-Hant"}.Any(code=>Language.StartsWith(code,StringComparison.OrdinalIgnoreCase));
     public string Text(string english,string chinese,string? traditional=null) => !Chinese?english:Traditional?traditional??chinese:chinese;
     public string Period(int? minutes) => minutes is null ? Text("Quota","额度","額度") : minutes%1440==0 ? $"{minutes/1440} "+Text("days","天") : minutes%60==0 ? $"{minutes/60} "+Text("hours","小时","小時") : $"{minutes} "+Text("minutes","分钟","分鐘");
     public string NoData => Text("Unavailable","暂无数据","暫無資料");

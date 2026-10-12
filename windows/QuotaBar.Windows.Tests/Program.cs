@@ -16,6 +16,9 @@ internal static class Program {
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
         var quota=QuotaDecoder.Decode(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/rate-limits/read-response.json")));
+        quota=quota with { Primary=quota.Primary with { ResetsAt=DateTimeOffset.Now.AddHours(5) },Secondary=quota.Secondary is { } second ? second with { ResetsAt=DateTimeOffset.Now.AddDays(4) } : null };
+        var today=DateOnly.FromDateTime(DateTime.Now);
+        var tokens=new TokenUsage([new(today.AddDays(-1),8000),new(today,10000)],18000,10000,3600,2,4);
         var state=new RefreshState(); state.Received(DateTimeOffset.Now);
         var prefs=new Preferences(); var copy=new Copy("zh-CN");
         var button=new FloatingWindow(); var detail=new DetailWindow();
@@ -34,7 +37,7 @@ internal static class Program {
             Check(button.IsVisible && button.CloseControl.Visibility==Visibility.Hidden,"restore floating hidden close");
             var output=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(output);
             foreach(var dark in new[]{false,true}) {
-                detail.Render(quota,null,new AccountIdentity("Example",null,null),state,prefs,copy,dark,false,Platform.Bounds(button)); Pump();
+                detail.Render(quota,dark?tokens:null,new AccountIdentity("Example",null,null),state,prefs,copy,dark,false,Platform.Bounds(button)); Pump();
                 Check(detail.IsVisible && !Platform.Bounds(detail).IsEmpty,"native detail window visible");
                 Console.WriteLine("PASS refreshed detail reparenting "+(dark?"dark":"light"));
                 var root=(FrameworkElement)detail.Content; root.UpdateLayout();

@@ -11,7 +11,7 @@ var tests = new (string Name, Action Run)[] {
                 enabled = true # keep comment
                 [plugins."other"]
                 enabled = true
-                """.Replace("\n","\r\n")+"\r\n";
+                """.Replace("\r\n","\n").Replace("\n","\r\n")+"\r\n";
             File.WriteAllText(path,text); var flag=new LegacyPluginFlag(path); Check(flag.Read()==true,"known legacy enabled"); flag.Set(false);
             Check(File.ReadAllText(path)==text.Replace("enabled = true #","enabled = false #"),"only known flag modified"); flag.Set(true); Check(File.ReadAllText(path)==text,"exact logical restore");
         } finally { Directory.Delete(dir,true); }
@@ -69,6 +69,8 @@ var tests = new (string Name, Action Run)[] {
     ("token values must be integral and nonnegative", () => {
         var t=TokenDecoder.Decode("{\"result\":{\"dailyUsageBuckets\":[{\"startDate\":\"2026-10-12\",\"tokens\":42}],\"summary\":{\"lifetimeTokens\":42}}}");
         Check(t.Days.Count==1 && t.Days[0].Tokens==42, "tokens available");
+        var decimalTokens=TokenDecoder.Decode("{\"result\":{\"dailyUsageBuckets\":[{\"startDate\":\"2026-10-12\",\"tokens\":42.0}]}}");
+        Check(decimalTokens.Days[0].Tokens==42,"integral decimal JSON matches macOS parser");
         Throws(()=>TokenDecoder.Decode("{\"result\":{\"dailyUsageBuckets\":[{\"startDate\":\"2026-10-12\",\"tokens\":-1}]}}"));
     })
 };

@@ -180,6 +180,7 @@ internal sealed class Coordinator : IDisposable {
         finally { reloading=false; }
     }
     void Receive(RuntimeEvent e) {
+        if(runtime is not null && !runtime.IsCurrentEvent(e)) return;
         switch(e.Kind) {
             case "quota": Snapshot=e.Quota; State.Received(DateTimeOffset.UtcNow); break;
             case "tokens": Tokens=e.Tokens; break;

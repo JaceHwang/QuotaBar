@@ -46,6 +46,7 @@ void StopOwned() {
 }
 void Activate(string directory,bool startup) {
     var exe=Path.Combine(directory,"QuotaBar.exe");
+    Directory.CreateDirectory(Path.GetDirectoryName(shortcut)!);
     var type=Type.GetTypeFromProgID("WScript.Shell")??throw new IOException("Windows shortcut service unavailable");
     var shell=Activator.CreateInstance(type)!;
     object? link=null;

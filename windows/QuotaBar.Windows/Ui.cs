@@ -14,7 +14,7 @@ internal static class Ui {
     }
     public static Image Icon(bool dark,double size=20) => new() {
         Source=new BitmapImage(new Uri("pack://application:,,,/QuotaBar;component/Assets/quota-icon-"+(dark?"dark":"light")+".png")),
-        Width=size,Height=size,Stretch=Stretch.Uniform,IsHitTestVisible=false
+        Width=size,Height=size,Stretch=Stretch.Uniform,Clip=new EllipseGeometry(new Point(size/2,size/2),size/2,size/2),IsHitTestVisible=false
     };
     public static Border Divider() => new() { Height=1,Background=new SolidColorBrush(Color.FromArgb(25,128,128,128)),Margin=new Thickness(0,10,0,10) };
     public static Border Shell(UIElement content,bool dark,double radius=14) => new() { Child=content,Background=Surface(dark),CornerRadius=new CornerRadius(radius),BorderThickness=new Thickness(1),BorderBrush=new SolidColorBrush(Color.FromArgb(40,128,128,128)),Padding=new Thickness(16) };

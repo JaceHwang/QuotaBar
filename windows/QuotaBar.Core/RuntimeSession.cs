@@ -69,7 +69,7 @@ public sealed class ProcessTransport(string executable,string codexHome,Action<P
     }
 }
 
-public sealed record RuntimeEvent(string Kind,QuotaSnapshot? Quota=null,TokenUsage? Tokens=null,AccountIdentity? Account=null,string? Method=null,string? Message=null,Uri? LoginUrl=null,bool? Success=null);
+public sealed record RuntimeEvent(string Kind,QuotaSnapshot? Quota=null,TokenUsage? Tokens=null,AccountIdentity? Account=null,string? Method=null,string? Message=null,Uri? LoginUrl=null,bool? Success=null,long? AccountEpoch=null);
 
 public sealed class RuntimeSession(Func<ILineTransport> factory,TimeSpan? requestTimeout=null,IReadOnlyList<TimeSpan>? restartDelays=null) : IAsyncDisposable {
     private sealed record Pending(string Method,long Epoch,TaskCompletionSource<JsonElement> Completion);
@@ -89,6 +89,7 @@ public sealed class RuntimeSession(Func<ILineTransport> factory,TimeSpan? reques
     private QuotaSnapshot? previous;
     public int RestartAttempts { get; private set; }
     public event Action<RuntimeEvent>? Event;
+    public bool IsCurrentEvent(RuntimeEvent value)=>value.AccountEpoch is null || value.AccountEpoch==Volatile.Read(ref epoch);
     public async Task StartAsync() {
         Exception? failure=null; ILineTransport? failed=null; long number=0;
         await sessionGate.WaitAsync(lifetime.Token);
@@ -127,7 +128,7 @@ public sealed class RuntimeSession(Func<ILineTransport> factory,TimeSpan? reques
                 if(notification!=quotaNotificationSerial && previous is not null) snapshot=previous.MergeSupplementary(snapshot);
                 previous=snapshot; Emit(new("quota",Quota:snapshot));
             }
-        } catch(Exception e) when(Recoverable(e)) { lock(accountGate) { if(current==epoch && !suppressAccount) Fail("account/rateLimits/read",e); } }
+        } catch(Exception e) when(Recoverable(e)) { lock(accountGate) { if(current==epoch && !suppressAccount) Fail("account/rateLimits/read",e is FormatException ? new IOException("Unsupported quota response",e) : e); } }
     }
     private async Task ReadTokensAsync() {
         var current=Volatile.Read(ref epoch);
@@ -261,7 +262,7 @@ public sealed class RuntimeSession(Func<ILineTransport> factory,TimeSpan? reques
     }
     private static bool Recoverable(Exception e) => e is IOException or InvalidOperationException or OperationCanceledException or FormatException or System.ComponentModel.Win32Exception;
     private void Fail(string method,Exception e) { if(!stopping) Emit(new("failure",Method:method,Message:e.Message)); }
-    private void Emit(RuntimeEvent value) { if(!stopping) Event?.Invoke(value); }
+    private void Emit(RuntimeEvent value) { if(!stopping) Event?.Invoke(value with { AccountEpoch=Volatile.Read(ref epoch) }); }
     public async ValueTask DisposeAsync() {
         if(stopping) return; stopping=true; lifetime.Cancel(); Interlocked.Increment(ref sessionNumber);
         foreach(var item in pending.Values) item.Completion.TrySetCanceled(); pending.Clear();

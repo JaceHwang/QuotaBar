@@ -67,6 +67,12 @@ jobs:
           $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
           python scripts/test-windows-standalone-startup.py $candidate.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Standalone startup smoke failed.' }
+      - name: Concrete per-user setup, upgrade, rollback and uninstall
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
+          python scripts/test-windows-standalone-install.py $candidate.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Concrete installation smoke failed.' }
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: quotabar-windows-candidate

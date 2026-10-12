@@ -49,7 +49,7 @@ internal static class Platform {
     }
     public static void SetStartup(bool enabled) {
         using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-        if(enabled) key.SetValue("QuotaBar",'"'+Environment.ProcessPath+'"'); else key.DeleteValue("QuotaBar",false);
+        if(enabled) key.SetValue("QuotaBar",'"'+Path.Combine(AppContext.BaseDirectory,"QuotaBar.exe")+'"'); else key.DeleteValue("QuotaBar",false);
     }
     public static void OpenUrl(string url) { Process.Start(new ProcessStartInfo(url) { UseShellExecute=true }); }
 }

@@ -24,7 +24,11 @@ internal static class JsonValue {
     public static JsonElement Get(this JsonElement e,string key) => e.ValueKind==JsonValueKind.Object && e.TryGetProperty(key,out var v) ? v : default;
     public static string? String(this JsonElement e) => e.ValueKind==JsonValueKind.String ? e.GetString() : null;
     public static double? Number(this JsonElement e) => e.ValueKind==JsonValueKind.Number && e.TryGetDouble(out var v) && double.IsFinite(v) ? v : null;
-    public static long? Integer(this JsonElement e) => e.ValueKind==JsonValueKind.Number && e.TryGetInt64(out var v) ? v : null;
+    public static long? Integer(this JsonElement e) {
+        if(e.ValueKind!=JsonValueKind.Number) return null;
+        if(e.TryGetInt64(out var value)) return value;
+        return e.TryGetDecimal(out var number) && decimal.Truncate(number)==number && number>=long.MinValue && number<=long.MaxValue ? (long)number : null;
+    }
     public static DateTimeOffset? Timestamp(this JsonElement e) {
         if(e.Number() is not double t || t<=0 || t>253402300799) return null;
         return DateTimeOffset.UnixEpoch.AddSeconds(t);
