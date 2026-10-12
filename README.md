@@ -2,7 +2,7 @@
 
 Independent macOS menu bar and floating quota app for Codex accounts. A bundled official Codex 0.144.1 runtime reads quota using an isolated account; Codex desktop and its plugin UI are not required.
 
-[Latest release](https://github.com/JaceHwang/codex-usage-sidebar/releases/latest) · [中文](README.zh-CN.md) · [Documentation](docs/README.md)
+[Latest release v0.6.0](https://github.com/JaceHwang/codex-usage-sidebar/releases/latest) · [Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [中文](README.zh-CN.md) · [Documentation](docs/README.md)
 
 ## Features
 
@@ -38,4 +38,4 @@ Requires Xcode and official `codex-cli 0.144.1` for packaging. Native source/tes
 
 Read [progress](docs/PROJECT_PROGRESS-standalone-app.md) before each development session and update the project board after milestones. See [architecture](docs/ARCHITECTURE.md), [privacy](docs/PRIVACY.md), [validation](docs/validation/macos-standalone.md), and [governance](docs/GOVERNANCE.md).
 
-Current source includes QuotaBar branding and floating/menu bar controls. Published v0.5.1 used the previous Codex Quota name; the new QuotaBar release is being prepared. Historical code and immutable assets remain in Git history and earlier GitHub releases.
+Published v0.6.0 includes QuotaBar branding and floating/menu bar controls. All five public assets passed complete download verification. Earlier v0.5.1 used the previous Codex Quota name. Historical code and immutable assets remain in Git history and earlier GitHub releases.

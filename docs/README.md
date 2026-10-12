@@ -11,6 +11,7 @@
 | [仓库治理](GOVERNANCE.md) | 开发分支、检查、Release Please 和资产验证 |
 | [开发进度](PROJECT_PROGRESS-standalone-app.md) | 双平台全周期路线、当前状态和里程碑证据 |
 | [macOS 验收](validation/macos-standalone.md) | 本地/CI/设备/发布证据与未验证矩阵 |
+| [v0.6.0 记录](releases/macos-standalone-v0.6.0.md) | QuotaBar 品牌、悬浮控制及菜单栏显示正式发行 |
 | [v0.5.0 记录](releases/macos-standalone-v0.5.0.md) | 旧名称首个独立版的历史发布事实 |
 | [v0.5.1 记录](releases/macos-standalone-v0.5.1.md) | 清理重构版的历史发布事实 |
 
