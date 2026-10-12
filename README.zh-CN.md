@@ -2,7 +2,7 @@
 
 独立运行的 macOS 菜单栏与悬浮额度应用。通过内嵌官方 Codex 0.144.1 运行时和隔离账户读取额度，不需要打开 Codex 桌面版或安装旧插件。
 
-[最新发布与安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/latest) · [English](README.md) · [文档索引](docs/README.md)
+[最新发布 v0.6.0](https://github.com/JaceHwang/codex-usage-sidebar/releases/latest) · [Apple Silicon 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [English](README.md) · [文档索引](docs/README.md)
 
 ## 功能
 
@@ -36,4 +36,4 @@ CUS_RUNTIME_BINARY=/path/to/codex bash scripts/build-macos-standalone.sh
 
 每次开发前读取[详细进度](docs/PROJECT_PROGRESS-standalone-app.md)并恢复看板，里程碑后更新。其他说明：[安装](docs/MACOS_STANDALONE.zh-CN.md)、[架构](docs/ARCHITECTURE.md)、[隐私](docs/PRIVACY.md)、[验收](docs/validation/macos-standalone.md)、[治理](docs/GOVERNANCE.md)。
 
-当前源码已包含 QuotaBar 品牌和菜单栏/悬浮功能，公开 v0.5.1 仍使用旧名称，新 QuotaBar 版本正在发布准备中。历史代码及既有安装包保留在 Git 历史和 GitHub 历史发布中。
+v0.6.0 已公开发布，包含 QuotaBar 品牌和菜单栏/悬浮功能，五项公开资产已下载并完整验证。历史 v0.5.1 使用旧名称。历史代码及既有安装包保留在 Git 历史和 GitHub 历史发布中。

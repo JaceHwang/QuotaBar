@@ -32,6 +32,14 @@ Public v0.5.1 assets were downloaded again and passed the complete release verif
 - Local candidates: full native release build, ICNS resources, transparent template-icon preview/alpha regression, strict signature, DMG and installed source snapshot matched.
 - Device: real quota, default floating visibility, toggle persistence, drag position/restart recovery, click dismissal, entry switching, clean exit, rename to QuotaBar, Finder artwork/reopen, preserved login startup and menu bar display persistence passed on macOS 27.0 arm64.
 - Context-menu floating action was code-reviewed but not clicked through computer automation; complete system-theme switching and multi-display unplug matrices were not device-tested.
-- These are local-source observations, not evidence that published v0.5.1 contains these changes. New source CI, exact-tag packaging and public asset verification are pending for the next release.
+- These are local-source observations, not evidence that published v0.5.1 contains these changes. These checks were subsequently completed for v0.6.0 as recorded below.
 
 Outstanding: Developer ID notarization, minimum-system/full multi-display/sleep/network/long-running matrices and Windows standalone.
+
+## Published QuotaBar v0.6.0
+
+Release tag commit: `b308da8f7d26b3d6f6728f82977e3ded025fa10b`. PR #29 and Release Please PR #30 passed all required CI and were merged. Exact-tag 158 Swift tests, native app/DMG build, icon metadata, resources, strict signatures, runtime/application digests and source snapshots passed. Ten installer/migration tests also passed.
+
+All five public assets were downloaded again and passed the complete release verifier. Latest API confirmed v0.6.0, draft=false, prerelease=false and five uploaded assets. The exact-tag 0.6.0 app is installed on macOS 27.0 arm64; official runtime login status and real quota/detail display were confirmed, login startup remained enabled. The account initially reported not logged in, then returned to valid official login; no credentials were copied from the desktop account.
+
+Unverified platform/device matrix remains as listed above; release verification does not certify those device scenarios. See [release record](../releases/macos-standalone-v0.6.0.md).
