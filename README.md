@@ -7,7 +7,7 @@ Independent macOS menu bar and floating quota app for Codex accounts. A bundled 
 ## Features
 
 - Menu bar: remaining quota and reset dates on two centered lines, or an 18pt transparent monochrome icon. Settings → “Show quota information in menu bar” switches modes and remembers the choice.
-- Floating button: enabled by default, freely draggable with a saved position. Right-click the menu bar item → “Show floating button” toggles it independently.
+- Floating button: enabled by default, freely draggable with a saved position. Right-click the menu bar item → “Show floating button” toggles it independently. The local development candidate adds a right-side close button on hover; closing persists the hidden state, and the menu bar option restores it.
 - Details: hover the floating button to preview; click to pin, click again to dismiss unless locked. The lock button keeps details open. Outside clicks dismiss unlocked details.
 - Native settings: official browser login, sign out, refresh, runtime reload, theme, simplified/traditional Chinese or English, and optional login startup.
 - Rename-safe installation: upgrades from `Codex Quota.app` to `QuotaBar.app`, preserving the isolated account and preferences, with transaction recovery and rollback.
@@ -24,7 +24,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 The installer uses **`~/Applications/QuotaBar.app`**, not `/Applications`. Finder's Applications sidebar usually opens `/Applications`; press **Command + Shift + G**, enter `~/Applications`, and double-click QuotaBar to reopen after quitting. Double-clicking an already running app opens settings. Closing settings keeps the app running; Quit or Command + Q stops it and its runtime.
 
-Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; **not Developer ID notarized**. First launch can require user approval in macOS Privacy & Security. Windows standalone is planned, not implemented. Quota percentages are account usage limits, not API cash balances.
+Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; **not Developer ID notarized**. First launch can require user approval in macOS Privacy & Security. Windows 11 x64 standalone is under development; core tests and cross-builds pass, while native execution and device acceptance remain pending. See [Windows candidate guide](docs/WINDOWS_STANDALONE.zh-CN.md). Quota percentages are account usage limits, not API cash balances.
 
 ## Development and verification
 

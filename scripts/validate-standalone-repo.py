@@ -12,6 +12,13 @@ for p in (root/'native/Sources').rglob('*.swift'):
     text=p.read_text()
     for forbidden in ['AXUIElement', 'AXIsProcessTrusted', 'CGWindowListCopyWindowInfo', 'HostDiscovery', 'RuntimeCoordinator', 'CompanionRuntimeConfiguration']:
         assert forbidden not in text,(str(p.relative_to(root)),forbidden)
+for name in ['windows/QuotaBar.Core/QuotaBar.Core.csproj','windows/QuotaBar.Windows/QuotaBar.Windows.csproj','windows/QuotaBar.Setup/QuotaBar.Setup.csproj','scripts/build-windows-standalone.py','docs/WINDOWS_STANDALONE.zh-CN.md']:
+    assert (root/name).is_file(),name
+for p in (root/'windows').rglob('*.cs'):
+    if {'bin','obj'} & set(p.relative_to(root/'windows').parts): continue
+    text=p.read_text()
+    for forbidden in ['UIAutomationClient', 'AutomationElement.FromHandle', 'GetProcessesByName("Codex")', 'FindWindow("Codex"']:
+        assert forbidden not in text,(str(p.relative_to(root)),forbidden)
 for p in [*root.glob('*.json'),*(root/'.governance').rglob('*.json'),*(root/'contracts').rglob('*.json')]:
     json.loads(p.read_text())
 for p in [*root.glob('*.md'),*(root/'docs').rglob('*.md')]:

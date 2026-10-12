@@ -105,6 +105,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
         floating.onMenu = { [weak self] in self?.showFloatingMenu() }
         floating.onMove = { [weak self] in self?.render() }
+        floating.onClose = { [weak self] in self?.setFloatingEnabled(false) }
         floating.onHover = { [weak self] entered in self?.floatingHoverChanged(entered) }
         detail.onLockOpenToggle = { [weak self] in
             guard let self else { return }
@@ -349,9 +350,12 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusDisplay.showsQuotaInformation = sender.state == .on; render()
     }
     @objc private func floatingChanged(_ sender: NSMenuItem) {
-        floating.preferences.enabled.toggle()
+        setFloatingEnabled(!floating.preferences.enabled)
         sender.state = floating.preferences.enabled ? .on : .off
-        if !floating.preferences.enabled {
+    }
+    private func setFloatingEnabled(_ enabled: Bool) {
+        floating.preferences.enabled = enabled
+        if !enabled {
             floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
             if detailFromFloating { showingDetail = false; detailLocked = false }
         }
