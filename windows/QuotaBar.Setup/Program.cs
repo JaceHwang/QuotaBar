@@ -10,10 +10,13 @@ var target=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Loca
 var shortcut=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"QuotaBar.lnk");
 const string runKey=@"Software\Microsoft\Windows\CurrentVersion\Run";
 const string uninstallKey=@"Software\Microsoft\Windows\CurrentVersion\Uninstall\QuotaBar";
+var legacyExe=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CodexUsageSidebar","Current","CodexUsageSidebar.Windows.exe");
+var legacyFlag=new LegacyPluginFlag(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),".codex","config.toml"));
+var legacyStartupNames=new[]{"CodexUsageSidebar","Codex Usage Sidebar"};
 var command=args.FirstOrDefault()??"install";
 try {
     if(Path.GetFullPath(AppContext.BaseDirectory).StartsWith(target+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)) throw new IOException("Run setup from the extracted download or the registered uninstall entry, not the active application folder.");
-    var installer=new TransactionInstaller(target,new(StopOwned,StartupEnabled,Activate,Deactivate));
+    var installer=new TransactionInstaller(target,new(StopOwned,StartupEnabled,Activate,Deactivate,CaptureLegacy,SuspendLegacy,RestoreLegacy));
     switch(command) {
         case "install":
             var index=Array.IndexOf(args,"--candidate");
@@ -70,4 +73,45 @@ static void CopyDirectory(string source,string destination) {
     Directory.CreateDirectory(destination);
     foreach(var file in Directory.GetFiles(source)) File.Copy(file,Path.Combine(destination,Path.GetFileName(file)));
     foreach(var dir in Directory.GetDirectories(source)) CopyDirectory(dir,Path.Combine(destination,Path.GetFileName(dir)));
+}
+bool LegacyCommand(object? value)=>value is string command && string.Equals(command.Trim().Trim('"'),legacyExe,StringComparison.OrdinalIgnoreCase);
+LegacyState CaptureLegacy() {
+    using var run=Registry.CurrentUser.OpenSubKey(runKey);
+    var keys=legacyStartupNames.Where(name=>LegacyCommand(run?.GetValue(name))).ToArray();
+    var running=false;
+    foreach(var p in Process.GetProcessesByName("CodexUsageSidebar.Windows")) using(p) {
+        try { if(string.Equals(p.MainModule?.FileName,legacyExe,StringComparison.OrdinalIgnoreCase)) running=true; }
+        catch(InvalidOperationException) { }
+    }
+    return new(legacyFlag.Read(),running,keys);
+}
+void SuspendLegacy() {
+    legacyFlag.Set(false);
+    using(var run=Registry.CurrentUser.OpenSubKey(runKey,true)) foreach(var name in legacyStartupNames) if(LegacyCommand(run?.GetValue(name))) run!.DeleteValue(name,false);
+    foreach(var p in Process.GetProcessesByName("CodexUsageSidebar.Windows")) using(p) {
+        try {
+            if(!string.Equals(p.MainModule?.FileName,legacyExe,StringComparison.OrdinalIgnoreCase)) continue;
+            p.Kill(entireProcessTree:true); if(!p.WaitForExit(6000)) throw new IOException("Legacy managed application did not stop");
+        } catch(InvalidOperationException) { }
+    }
+}
+void RestoreLegacy(LegacyState state) {
+    if(state.PluginEnabled is bool enabled) {
+        legacyFlag.Set(enabled);
+        if(legacyFlag.Read()!=enabled) throw new IOException("Legacy registration changed during recovery");
+    }
+    if(state.StartupKeys.Count>0) using(var run=Registry.CurrentUser.CreateSubKey(runKey)) foreach(var name in state.StartupKeys) {
+        if(!legacyStartupNames.Contains(name)) throw new IOException("Unexpected legacy startup key");
+        var existing=run.GetValue(name);
+        if(existing is not null && !LegacyCommand(existing)) throw new IOException("Legacy startup key changed during recovery");
+        run.SetValue(name,'"'+legacyExe+'"');
+    }
+    if(state.WasRunning && File.Exists(legacyExe)) {
+        var running=false;
+        foreach(var p in Process.GetProcessesByName("CodexUsageSidebar.Windows")) using(p) {
+            try { if(string.Equals(p.MainModule?.FileName,legacyExe,StringComparison.OrdinalIgnoreCase)) running=true; }
+            catch(InvalidOperationException) { }
+        }
+        if(!running) Process.Start(new ProcessStartInfo(legacyExe) { UseShellExecute=false,WorkingDirectory=Path.GetDirectoryName(legacyExe)! });
+    }
 }

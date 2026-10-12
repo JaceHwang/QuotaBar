@@ -25,6 +25,15 @@ static class InstallerTests {
             File.WriteAllText(Path.Combine(store,"journal.json"),JsonSerializer.Serialize(new { Target=target,Stage=Path.Combine(store,"stage-missing"),Backup=backup,HadPrevious=true,Startup=true,PreviousHistory=(string?)null }));
             var before=stops; installer.RecoverInterrupted();
             Check(stops>before && File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","interrupted recovery stops active app first");
+            var legacyEnabled=true;
+            // A failed first install has no previous package to reactivate, so restoration can complete.
+            var newTarget=Path.Combine(root,"Fresh","QuotaBar");
+            var migration=new TransactionInstaller(newTarget,new InstallHooks(()=>{},()=>false,(_,_)=>throw new IOException("activation failed after migration"),()=>{},()=>new LegacyState(legacyEnabled,false,[]),()=>legacyEnabled=false,s=>legacyEnabled=s.PluginEnabled==true));
+            Throws(()=>migration.Install(one)); Check(legacyEnabled && !Directory.Exists(newTarget),"failed installation restores legacy registration");
+            legacyEnabled=true;
+            var upgradeFailure=new TransactionInstaller(target,new InstallHooks(()=>{},()=>false,(_,_)=>throw new IOException("persistent shortcut failure"),()=>{},()=>new LegacyState(legacyEnabled,false,[]),()=>legacyEnabled=false,s=>legacyEnabled=s.PluginEnabled==true));
+            Throws(()=>upgradeFailure.Install(one));
+            Check(legacyEnabled && File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","legacy restored even when old application activation still fails");
         } finally { Directory.Delete(root,true); }
     }
     static string Candidate(string root,string label) {

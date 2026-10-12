@@ -36,12 +36,13 @@ internal static class Program {
             foreach(var dark in new[]{false,true}) {
                 detail.Render(quota,null,new AccountIdentity("Example",null,null),state,prefs,copy,dark,false,Platform.Bounds(button)); Pump();
                 Check(detail.IsVisible && !Platform.Bounds(detail).IsEmpty,"native detail window visible");
+                Console.WriteLine("PASS refreshed detail reparenting "+(dark?"dark":"light"));
                 var root=(FrameworkElement)detail.Content; root.UpdateLayout();
                 var bitmap=new RenderTargetBitmap((int)Math.Ceiling(detail.Width),(int)Math.Ceiling(detail.Height),96,96,PixelFormats.Pbgra32); bitmap.Render(root);
                 var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(output,"detail-"+(dark?"dark":"light")+".png")); encoder.Save(file);
             }
             Console.WriteLine("PASS Windows native floating visibility/hover/close/restore and light/dark detail rendering"); return 0;
-        } catch(Exception e) { Console.Error.WriteLine("FAIL Windows UI: "+e.Message); return 1; }
+        } catch(Exception e) { Console.Error.WriteLine("FAIL Windows UI: "+e); return 1; }
         finally { button.Close(); detail.Close(); app.Shutdown(); }
     }
     static void Pump() { var frame=new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background,()=>frame.Continue=false); Dispatcher.PushFrame(frame); }

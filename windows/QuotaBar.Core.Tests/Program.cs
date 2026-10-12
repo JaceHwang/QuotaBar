@@ -2,6 +2,20 @@ using System.Text.Json;
 using QuotaBar.Core;
 
 var tests = new (string Name, Action Run)[] {
+    ("legacy flag migration preserves unrelated configuration", () => {
+        var dir=Path.Combine(Path.GetTempPath(),"quotabar-legacy-"+Guid.NewGuid()); Directory.CreateDirectory(dir);
+        try {
+            var path=Path.Combine(dir,"config.toml");
+            var text="""
+                [plugins."codex-usage-sidebar@codex-usage-sidebar"]
+                enabled = true # keep comment
+                [plugins."other"]
+                enabled = true
+                """.Replace("\n","\r\n")+"\r\n";
+            File.WriteAllText(path,text); var flag=new LegacyPluginFlag(path); Check(flag.Read()==true,"known legacy enabled"); flag.Set(false);
+            Check(File.ReadAllText(path)==text.Replace("enabled = true #","enabled = false #"),"only known flag modified"); flag.Set(true); Check(File.ReadAllText(path)==text,"exact logical restore");
+        } finally { Directory.Delete(dir,true); }
+    }),
     ("tray mouse-down and native click form one dismissal", () => {
         var gate=new TrayClickGate(); gate.BeginMouseDown(); gate.OutsideDismissed();
         Check(gate.SuppressTrayClick(),"native click does not reopen outside-dismissed card");

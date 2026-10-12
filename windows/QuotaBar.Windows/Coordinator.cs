@@ -113,8 +113,9 @@ internal sealed class Coordinator : IDisposable {
         void Item(string text,Action action) { menu.Items.Add(text,null,(_,_)=>action()); }
         Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail); Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
         var floatItem=new Forms.ToolStripMenuItem(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕")) { Checked=Preferences.FloatingEnabled };
-        floatItem.Click+=(_,_)=>SetFloating(!Preferences.FloatingEnabled); menu.Items.Add(floatItem);
+        floatItem.Click+=(_,_)=> { SetFloating(!Preferences.FloatingEnabled); floatItem.Checked=Preferences.FloatingEnabled; }; menu.Items.Add(floatItem);
         Item(copy.Text("Settings…","设置…","設定…"),ShowSettings); Item(copy.Text("Quit","退出","結束"),Quit);
+        menu.Closed+=(_,_)=>app.Dispatcher.BeginInvoke(()=> { if(!stopping && ReferenceEquals(tray.ContextMenuStrip,menu)) UpdateTray(); });
         var old=tray.ContextMenuStrip; tray.ContextMenuStrip=menu; old?.Dispose(); menuKey=key;
         }
         var text=Preferences.ShowsQuotaInformation?copy.Indicator(Snapshot,State.Phase)+"\n"+copy.PhaseLabel(State.Phase):"QuotaBar";

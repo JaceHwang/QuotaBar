@@ -15,8 +15,8 @@ internal sealed class DetailWindow : Window {
         if(IsMouseCaptureWithin) return;
         var fg=Ui.Foreground(dark); var body=new StackPanel();
         var heading=new DockPanel(); var controls=new StackPanel { Orientation=Orientation.Horizontal };
-        controls.Children.Add(Ui.Button(locked?"🔒":"🔓",()=>LockRequested?.Invoke()));
-        controls.Children.Add(Ui.Button("×",()=>CloseRequested?.Invoke())); DockPanel.SetDock(controls,Dock.Right); heading.Children.Add(controls);
+        controls.Children.Add(Ui.Button(locked?"🔒":"🔓",()=>LockRequested?.Invoke(),locked?copy.Text("Unlock details","解锁详情","解除鎖定詳情"):copy.Text("Lock details","锁定详情","鎖定詳情")));
+        controls.Children.Add(Ui.Button("×",()=>CloseRequested?.Invoke(),copy.Text("Close details","关闭详情","關閉詳情"))); DockPanel.SetDock(controls,Dock.Right); heading.Children.Add(controls);
         var title=Ui.Text(copy.Text("Quota details","额度详情","額度詳情"),20,fg); title.FontWeight=FontWeights.SemiBold; heading.Children.Add(title); body.Children.Add(heading);
         foreach(var window in new[]{quota.Primary,quota.Secondary}.OfType<QuotaWindow>()) {
             var row=new DockPanel { Margin=new Thickness(0,12,0,5) };
@@ -57,7 +57,7 @@ internal sealed class DetailWindow : Window {
         Row(body,"Credits",quota.Credits is { } balance ? balance.Unlimited?copy.Text("Unlimited","无限","無限"):balance.HasCredits?balance.Balance??copy.Text("Available","可用"):copy.Text("None","无","無"):copy.NoData,fg);
         Row(body,copy.Text("Updated","更新时间","更新時間"),copy.PhaseLabel(state.Phase)+" · "+quota.ReceivedAt.ToLocalTime().ToString("HH:mm:ss"),fg);
         body.Children.Add(Ui.Divider());
-        var footer=new DockPanel(); var settings=Ui.Button("⚙",()=>SettingsRequested?.Invoke()); settings.ToolTip=copy.Text("Settings","设置","設定"); DockPanel.SetDock(settings,Dock.Right); footer.Children.Add(settings);
+        var footer=new DockPanel(); var settings=Ui.Button("⚙",()=>SettingsRequested?.Invoke(),copy.Text("Settings","设置","設定")); DockPanel.SetDock(settings,Dock.Right); footer.Children.Add(settings);
         var github=Ui.Button("GitHub",()=>Platform.OpenUrl("https://github.com/JaceHwang/codex-usage-sidebar")); DockPanel.SetDock(github,Dock.Right); footer.Children.Add(github);
         var account=new DockPanel(); var key=(identity?.PreferredName??"")+"|"+(identity?.AvatarUrl??"");
         if(key!=avatarKey || avatar is null) {
@@ -80,6 +80,7 @@ internal sealed class DetailWindow : Window {
         account.Children.Add(Ui.Text(identity?.PreferredName??"QuotaBar",12,fg)); footer.Children.Add(account); body.Children.Add(footer);
         var info=Ui.Button(copy.Text("Tibo on X","Tibo 的 X 动态","Tibo 的 X 動態"),()=>Platform.OpenUrl("https://x.com/thsottiaux")); body.Children.Add(info);
         var offset=scroll.VerticalOffset; scroll.Content=body;
+        if(scroll.Parent is Panel previousContainer) previousContainer.Children.Remove(scroll);
         var dock=new DockPanel();
         var resize=new Thumb { Height=9,Cursor=Cursors.SizeNS,Background=new SolidColorBrush(Color.FromArgb(40,128,128,128)) };
         resize.DragDelta+=(_,e)=> { var area=Platform.WorkArea(Platform.Bounds(this).Location); Height=Math.Clamp(Height+e.VerticalChange,220,Math.Max(220,area.Height/VisualTreeHelper.GetDpi(this).DpiScaleY)); HeightChanged?.Invoke(Height); };

@@ -37,9 +37,9 @@ public static class PackageVerifier {
     }
 }
 
-public sealed record InstallHooks(Action StopOwnedApplication,Func<bool> StartupEnabled,Action<string,bool> Activate,Action Deactivate);
+public sealed record InstallHooks(Action StopOwnedApplication,Func<bool> StartupEnabled,Action<string,bool> Activate,Action Deactivate,Func<LegacyState>? CaptureLegacy=null,Action? SuspendLegacy=null,Action<LegacyState>? RestoreLegacy=null);
 public sealed class TransactionInstaller {
-    private sealed record Journal(string Target,string Stage,string Backup,bool HadPrevious,bool Startup,string? PreviousHistory);
+    private sealed record Journal(string Target,string Stage,string Backup,bool HadPrevious,bool Startup,string? PreviousHistory,LegacyState? Legacy);
     private sealed record History(string Backup,bool Startup);
     readonly string target,store,journalPath,historyPath;
     readonly InstallHooks hooks;
@@ -54,9 +54,10 @@ public sealed class TransactionInstaller {
         if(candidate==target || candidate.StartsWith(target+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)) throw new IOException("Candidate cannot be inside active installation");
         var stage=Path.Combine(store,"stage-"+Guid.NewGuid()); var backup=Path.Combine(store,"backup-"+Guid.NewGuid());
         Copy(candidate,stage); PackageVerifier.Verify(stage);
-        var j=new Journal(target,stage,backup,Directory.Exists(target),hooks.StartupEnabled(),HistorySnapshot()); Write(journalPath,j);
+        var j=new Journal(target,stage,backup,Directory.Exists(target),hooks.StartupEnabled(),HistorySnapshot(),hooks.CaptureLegacy?.Invoke()); Write(journalPath,j);
         try {
             hooks.StopOwnedApplication();
+            hooks.SuspendLegacy?.Invoke();
             if(j.HadPrevious) Directory.Move(target,backup);
             Directory.Move(stage,target);
             hooks.Activate(target,j.Startup);
@@ -69,9 +70,10 @@ public sealed class TransactionInstaller {
         var history=Read<History>(historyPath)??throw new IOException("No recoverable backup"); ValidateManaged(history.Backup);
         PackageVerifier.Verify(history.Backup);
         var backup=Path.Combine(store,"backup-"+Guid.NewGuid());
-        var j=new Journal(target,history.Backup,backup,Directory.Exists(target),hooks.StartupEnabled(),HistorySnapshot()); Write(journalPath,j);
+        var j=new Journal(target,history.Backup,backup,Directory.Exists(target),hooks.StartupEnabled(),HistorySnapshot(),hooks.CaptureLegacy?.Invoke()); Write(journalPath,j);
         try {
             hooks.StopOwnedApplication(); if(j.HadPrevious) Directory.Move(target,backup);
+            hooks.SuspendLegacy?.Invoke();
             Directory.Move(history.Backup,target); hooks.Activate(target,history.Startup);
             if(j.HadPrevious) Write(historyPath,new History(backup,j.Startup)); else File.Delete(historyPath);
             File.Delete(journalPath);
@@ -79,7 +81,7 @@ public sealed class TransactionInstaller {
     }
     public void Uninstall() {
         using var locked=Lock(); Recover(); if(!Directory.Exists(target)) return;
-        var backup=Path.Combine(store,"backup-"+Guid.NewGuid()); var j=new Journal(target,"",backup,true,hooks.StartupEnabled(),HistorySnapshot()); Write(journalPath,j);
+        var backup=Path.Combine(store,"backup-"+Guid.NewGuid()); var j=new Journal(target,"",backup,true,hooks.StartupEnabled(),HistorySnapshot(),null); Write(journalPath,j);
         try {
             hooks.StopOwnedApplication(); Directory.Move(target,backup); hooks.Deactivate();
             Write(historyPath,new History(backup,j.Startup)); File.Delete(journalPath);
@@ -101,12 +103,21 @@ public sealed class TransactionInstaller {
         } else if(!j.HadPrevious && Directory.Exists(target) && !Directory.Exists(j.Stage)) {
             Directory.Move(target,Path.Combine(store,"failed-"+Guid.NewGuid()));
         }
-        if(Directory.Exists(target)) hooks.Activate(target,j.Startup); else hooks.Deactivate();
-        if(j.PreviousHistory is null) File.Delete(historyPath);
-        else {
+        var failures=new List<Exception>();
+        void Attempt(Action action) {
+            try { action(); }
+            catch(Exception e) when(e is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException or JsonException) { failures.Add(e); }
+        }
+        // Restore independent registrations even when a shortcut or startup service remains unavailable.
+        if(j.Legacy is not null) Attempt(()=>hooks.RestoreLegacy?.Invoke(j.Legacy));
+        Attempt(()=> { if(Directory.Exists(target)) hooks.Activate(target,j.Startup); else hooks.Deactivate(); });
+        Attempt(()=> {
+        if(j.PreviousHistory is null) File.Delete(historyPath); else {
             var old=JsonSerializer.Deserialize<History>(j.PreviousHistory)??throw new IOException("Invalid previous installation history");
             ValidateManaged(old.Backup); Write(historyPath,old);
         }
+        });
+        if(failures.Count>0) throw new IOException("Installation recovery incomplete; journal retained for retry",new AggregateException(failures));
         File.Delete(journalPath);
     }
     string? HistorySnapshot()=>File.Exists(historyPath)?File.ReadAllText(historyPath):null;

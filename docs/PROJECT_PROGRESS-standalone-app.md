@@ -235,7 +235,7 @@ Windows验收至少记录：Windows版本/架构、运行时版本、构建来�
 
 已验证：.NET SDK 10.0.401；Core 7个行为场景、协议生命周期（登录/取消、退出晚到响应、超时及3次恢复上限）、安装事务（首次/升级/回退、激活失败、失败回退、篡改拒绝、卸载恢复）通过；WPF、Setup和Windows原生测试工程在macOS交叉编译零警告。首次自包含候选已生成，后续源码审查修改需重新打包。原生UI测试仅编译，没有在macOS伪称执行。
 
-待完成：最终只读审查、稳定源码重打包与完整验包、Windows原生UI/安装/运行时版本执行、用户设备真实账户与鼠标/DPI/Explorer/休眠矩阵。用户确认有Windows 11设备可安装候选。安装器保留账号与偏好，不自动改Codex旧插件配置；旧插件若仍由宿主启动，安装前需在原插件管理器停用。候选尚未签名、公证或公开发布；产品版本未变。
+待完成：最终只读审查、稳定源码重打包与完整验包、Windows原生UI/安装/运行时版本执行、用户设备真实账户与鼠标/DPI/Explorer/休眠矩阵。用户确认有Windows 11设备可安装候选。安装器保留账号与偏好；最新迁移实现仅停用已知旧插件enabled标志、已知旧托管目录进程及其匹配启动项，事务失败恢复原状态，未知配置不猜测改写。候选尚未签名、公证或公开发布；产品版本未变。
 
 设计与实施计划：[Windows设计](superpowers/specs/2026-10-12-windows-standalone-design.md)、[实施计划](superpowers/plans/2026-10-12-windows-standalone.md)；[Windows候选说明](WINDOWS_STANDALONE.zh-CN.md)。
 
@@ -250,3 +250,13 @@ Windows验收至少记录：Windows版本/架构、运行时版本、构建来�
 当前9项纯行为测试、协议生命周期、账号交错回归和安装事务通过；官方0.144.1的macOS运行时与C# ProcessTransport完成真实stdio握手、隔离未登录额度错误分类及退出子进程检查。这是同协议的macOS主机验证，不是Windows实机证据。
 
 完整治理已加入.NET核心及Windows工程交叉编译，Swift159与macOS安装10项通过，WPF/Setup/Windows原生UI测试工程零警告编译通过。Windows CI增加原生UI显隐/关闭/双主题渲染、真实官方runtime启动与退出以及完整包/源码摘要核验。准备提交开发分支并运行CI；不合并main、不生成Windows公开发行。Windows设备验收仍待用户安装候选后反馈。
+
+### 首次Windows原生CI反馈
+
+开发提交c137efe已推送并建立草稿PR #32。Windows核心测试在Windows runner通过；原生UI测试发现详情卡第二次刷新时复用ScrollViewer仍属于旧DockPanel，触发logical child异常。已修复为在新容器挂载前从旧容器移除；保留原双主题重复渲染回归，等待下一次Windows CI确认。首次Windows包/启动测试因前置UI失败未执行，不标为通过。
+
+### Windows旧入口事务迁移
+
+增加 `LegacyPluginFlag` 对已知插件段的窄范围enabled变更，保留其他TOML和文件权限；Setup捕获旧标志、旧目录进程是否运行及已知匹配启动项，停用后安装。失败恢复会恢复原标志/启动项，并在原来运行时重开已知旧托管应用；不保存原始配置或认证数据，不扫描或停止普通Codex进程。成功安装/卸载不自动重新启用旧插件。新增纯配置保留与失败迁移恢复测试；当前10项纯行为场景及协议/账号/安装事务通过，Windows迁移实机仍待验收。
+
+迁移审查补充：持续快捷方式/启动服务故障不能阻止旧插件注册恢复。已新增“已有安装升级后，旧版本激活仍失败”的真实失败回归；Recover分别尝试Legacy、QuotaBar入口和history恢复，任何步骤未成功保留journal并报告组合错误，不假称完整恢复。修复后回归通过。Windows原生详情逻辑父级修复待下一轮CI；Core与交叉编译通过。
