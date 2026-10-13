@@ -1,6 +1,6 @@
 # 更新清单运维与验收
 
-当前代码已实现；Pages 尚未部署。用户要求暂不发布产品，远程启用是后续独立动作。
+Pages 更新清单已于2026-10-14依用户授权启用并部署，公网入口为 https://jacehwang.github.io/codex-usage-sidebar/updates.json 。本次仅上线静态清单，未发布新版产品。
 
 ## 客户端行为
 
@@ -10,9 +10,9 @@
 - 查看更新打开 GitHub 发布页；没有自动下载或自动安装。稍后提醒24小时，跳过仅影响该版本。
 - Windows NotifyIcon 提醒以 BalloonTipShown 作为已显示依据；被系统抑制时保留重试资格，每30分钟最多尝试一次。macOS 被拒绝权限时保留应用内入口。
 
-## 首次启用顺序（需要确认后执行）
+## 首次启用顺序（已执行，供维护参考）
 
-1. 合并并确保默认分支包含更新清单生成器和 update-feed.yml；该功能 draft PR #36 依赖 macOS Tibo draft PR #35。
+1. 确保默认分支包含生成器和 update-feed.yml；#35/#36已合并，#38也已为本次完整更新说明部署合并为f321da6。
 2. 确认项目 GitHub Pages 无其他站点需保留；将发布来源设为 GitHub Actions，核对 github-pages 环境允许默认分支部署。
 3. 将仓库变量 QUOTABAR_UPDATE_FEED_ENABLED 设为 true。当前默认未启用，普通分支推送不会部署。
 4. 手动运行 Publish update feed。构建器从公开 Releases 检索平台完整资产，核对摘要、来源与 Windows 原生验证记录；成功后部署静态清单。
@@ -42,4 +42,10 @@ Publish release platform 成功结束后，Publish update feed 自动运行（�
 维护者在 Release 正文写清用户可读的变更。平台错位发布时，各平台使用自身对应版本的正文；显示发布者原文，不自动翻译。清单仍为 schemaVersion 1，旧客户端忽略新增字段，新客户端兼容缺少字段的旧清单。空内容沿用原提醒文案和发布页入口。全文显示于现有可滚动设置，系统提醒可能按可用空间截断摘要。
 
 本功能不会自动开启 Pages 或发布产品，继续遵循独立授权边界。
+
+## 首次部署证据（2026-10-14）
+
+用户明确要求启动部署Pages。原站点不存在，已创建GitHub Actions发布模式并启用HTTPS；github-pages环境允许main分支，QUOTABAR_UPDATE_FEED_ENABLED=true。工作流38441971437成功完成构建及部署，来源f321da6。
+
+公网JSON成功读取且与本地已验证生成结果一致：schemaVersion=1，macOS 0.6.0、Windows 0.7.0，各自含summary/releaseNotes。本机已安装0.7.0开发候选手动检查从失败恢复为“未发现更新版本”，符合不降级规则。真实新版本通知投递、Windows用户设备联网检查未在本轮验收。Release Please #37保持未合并，没有新安装包发布或已发布资产覆盖。
 
