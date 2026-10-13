@@ -35,3 +35,11 @@ Publish release platform 成功结束后，Publish update feed 自动运行（�
 - Windows 原生：dotnet run --project windows/QuotaBar.Windows.Tests --configuration Release
 
 通知权限的真实 OS 对话框、勿扰抑制、退出/重新启动点击行为和签名身份升级必须用实际安装件检查，mock网络与截图不能代替。
+# 更新内容字段
+
+平台条目可包含可选 `summary`（系统提醒摘要）和 `releaseNotes`（应用内完整纯文本说明）。生成器从该平台已验证的公开 Release 正文生成：摘要优先取前三条列表项，正文转为纯文本，链接保留标题，移除 HTML 标签和 Markdown 标记。摘要最多 240 个字符、正文最多 16000 个字符，不加载外部 HTML。
+
+维护者在 Release 正文写清用户可读的变更。平台错位发布时，各平台使用自身对应版本的正文；显示发布者原文，不自动翻译。清单仍为 schemaVersion 1，旧客户端忽略新增字段，新客户端兼容缺少字段的旧清单。空内容沿用原提醒文案和发布页入口。全文显示于现有可滚动设置，系统提醒可能按可用空间截断摘要。
+
+本功能不会自动开启 Pages 或发布产品，继续遵循独立授权边界。
+
