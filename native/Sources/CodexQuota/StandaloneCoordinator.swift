@@ -274,6 +274,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusItem?.button?.toolTip = freshness + "\n" + updated
         statusItem?.button?.setAccessibilityLabel(text("Codex remaining quota", "Codex 剩余额度", "Codex 剩餘額度") + "\n" + indicatorText)
         statusLabel?.stringValue = freshness + "\n" + (identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號")) + "\n" + updated + (startupNotice.map { "\n" + $0 } ?? "")
+        updates?.onChange?()
         floating.show(summary: snapshot.map { ResetFormatter().indicatorSummary(snapshot: $0, language: language, timeZone: .autoupdatingCurrent, maxWidth: 236) }, theme: theme, tooltip: freshness + "\n" + updated, fallback: phaseText, dimmed: isStale || state.phase != .ready)
         let statusAnchor = statusItem?.button.flatMap { button in button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } }
         let anchor = detailFromFloating ? (floating.frame ?? statusAnchor) : statusAnchor
@@ -327,7 +328,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func showSettings() {
-        if let settings { settings.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
+        if let settings { settings.makeKeyAndOrderFront(nil); updates?.onChange?(); NSApp.activate(ignoringOtherApps: true); return }
         let window = makeSettingsWindow()
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
     }
@@ -363,17 +364,18 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
         document.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24)])
-        stack.layoutSubtreeIfNeeded()
+        document.layoutSubtreeIfNeeded(); stack.layoutSubtreeIfNeeded()
         document.setFrameSize(NSSize(width: 510, height: max(430, ceil(stack.fittingSize.height) + 48)))
         window.setContentSize(NSSize(width: 510, height: min(document.frame.height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
         scroll.frame = window.contentView!.bounds; scroll.autoresizingMask = [.width, .height]; scroll.documentView = document
         window.contentView?.addSubview(scroll)
         updates?.onChange = { [weak stack, weak document, weak window] in
-            guard let stack, let document, let window else { return }
-            stack.layoutSubtreeIfNeeded()
+            guard let stack, let document, let window, window.isVisible else { return }
+            document.layoutSubtreeIfNeeded(); stack.layoutSubtreeIfNeeded()
             let height = max(430, ceil(stack.fittingSize.height) + 48)
-            document.setFrameSize(NSSize(width: 510, height: height))
-            window.setContentSize(NSSize(width: 510, height: min(height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
+            if document.frame.height != height { document.setFrameSize(NSSize(width: 510, height: height)) }
+            let visibleHeight = min(height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)
+            if window.contentView?.bounds.height != visibleHeight { window.setContentSize(NSSize(width: 510, height: visibleHeight)) }
         }
         return window
     }

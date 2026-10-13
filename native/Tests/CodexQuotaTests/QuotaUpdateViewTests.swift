@@ -70,7 +70,15 @@ final class QuotaUpdateViewTests: XCTestCase {
         window.contentView?.wantsLayer = true
         window.appearance?.performAsCurrentDrawingAppearance { window.contentView?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
         defer { window.close() }
-        window.setContentSize(NSSize(width: 510, height: 340)); window.orderFront(nil); window.contentView?.layoutSubtreeIfNeeded()
+        window.orderFront(nil); window.contentView?.layoutSubtreeIfNeeded()
+        let initialScroll = try XCTUnwrap(window.contentView?.subviews.compactMap { $0 as? NSScrollView }.first)
+        let initialDocument = try XCTUnwrap(initialScroll.documentView)
+        let accountStatus = try XCTUnwrap(descendants(initialDocument).compactMap { $0 as? NSTextField }.first)
+        accountStatus.stringValue = "Account ready\nExample account\nUpdated now"
+        controller.onChange?(); window.contentView?.layoutSubtreeIfNeeded()
+        let initialCheck = try XCTUnwrap(descendants(initialDocument).compactMap { $0 as? NSButton }.first { $0.title == "检查更新" })
+        XCTAssertTrue(initialDocument.visibleRect.contains(initialCheck.convert(initialCheck.bounds, to: initialDocument)), "Automatically sized settings keep the check action fully visible")
+        window.setContentSize(NSSize(width: 510, height: 340)); window.contentView?.layoutSubtreeIfNeeded()
         let scroll = try XCTUnwrap(window.contentView?.subviews.compactMap { $0 as? NSScrollView }.first)
         let document = try XCTUnwrap(scroll.documentView)
         XCTAssertTrue(document.isFlipped)
