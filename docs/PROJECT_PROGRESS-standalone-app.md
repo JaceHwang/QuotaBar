@@ -1,9 +1,9 @@
 # 独立额度应用开发进度
 
-最近更新：2026-10-13（Asia/Shanghai）
-当前阶段：Windows v0.7.0已正式发布，源码、原生CI、用户验收反馈及公开下载完整验证均完成；macOS已发布版本仍为v0.6.0。
-当前授权：2026-10-13用户明确“windows功能已经完全验证，推送打包发布”，授权推送、合并代码、通过Release Please升版、Windows正式打包及公开发行。
-下一步：维护正式发布与源码文档一致；后续修复走新开发分支和Release Please版本流程，不覆盖v0.7.0资产。
+最近更新：2026-10-14（Asia/Shanghai）
+当前阶段：macOS X＋Tibo 与跨平台更新通知已实现并验证，正在依用户授权合并 PR #35/#36；正式发布仍为 Windows v0.7.0、macOS v0.6.0。
+当前授权：2026-10-14用户明确“合并 PR #35/#36”；本次仅合并功能代码，不合并 Release Please 版本 PR、不启用 Pages 清单、不发布安装包。
+下一步：解决 #35 进度文档冲突并重跑 CI，合并 #35 后将 #36 对齐 main，验证后合并。
 
 ## 每次开发的恢复与记录
 
@@ -314,3 +314,31 @@ PR #32合并为dbecd098，Release Please生成PR #33，仅更新version.txt、ma
 [发布工作流38345901775](https://github.com/JaceHwang/codex-usage-sidebar/actions/runs/38345901775) 在Windows runner从该tag构建，完整包/源码、实际runtime启动退出、实际安装升级回滚卸载及正式来源报告均通过，上传五项不可覆盖资产并公开。发布页：[QuotaBar v0.7.0 — Windows standalone](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.7.0)，已设为最新版本；macOS本次not-targeted，仍使用v0.6.0。
 
 公开资产已重新下载至.dist/published-windows-v0.7.0，在干净准确tag检出上运行verify-windows-standalone-release.py通过：ZIP及每文件摘要、PE x64、runtime固定摘要、来源/版本/tag、原生验证记录全部匹配。主ZIP SHA256：5451992bf76a834da6fa764df1cb798abfe0bc0277fc91c10bfe75712c35787d。用户验收来自正式升版前功能源候选；准确升版二进制原生CI验证，未冒充单独实机重验。详见docs/releases/windows-standalone-v0.7.0.md。
+
+
+### macOS 详情页底栏 X＋Tibo（2026-10-13）
+
+用户要求参考 Windows 详情页底栏新增 Tibo 的 X 按钮，并明确选择直接沿用 Windows 样式、跳过效果图。当前授权为 macOS 功能实现及本地验证，不沿用此前 Windows 公开发布授权。
+
+视觉简报：以 Windows 同行黑白 X＋Tibo 及现有 macOS 底栏为依据，保持简洁克制、现有高度与悬停样式；放在账号和 GitHub 之间，账号过长截断；固定 360pt 详情卡，三语言提示/无障碍标签，使用原生按钮键盘操作及现有链接打开路径。跳过原因是用户要求沿用 Windows 现有样式。
+
+实现：QuotaDetailPanel.swift 将 informationEntry 接入底栏，复用通用 QuotaFooterLinkButton；X 使用 Windows 同一矢量路径，随浅深色显示黑白，目标为 https://x.com/thsottiaux。既有 macOS 其他详情内容保留。新增底栏实际点击转发和同行位置回归，并更新既有视觉控件计数。
+
+验证：新增集成断言在未实现时因找不到 Tibo 按钮失败，实现后完整 Swift 159 项测试通过，release 构建通过。导出简中/繁中/英文浅深色及悬停共 12 张原生截图，实际查看简中浅深色，确认 X＋Tibo 同行且无重叠。首次测试使用 CommandLineTools 缺少 XCTest，改用仓库规定的 /Applications/Xcode.app/Contents/Developer 后正常。governance check all 的 Swift、10 项 macOS 安装事务及签名检查通过，Windows 阶段因 dotnet: command not found 停止；不标为全量通过。
+
+状态：源码实现及本地测试完成；未安装、未实机点击浏览器、未执行新 CI、未提交/推送/发布，版本不变。下一步补充安装实机验收；Windows 全量检查需具备 .NET SDK 的环境。
+
+
+### macOS 底栏提交与本机安装授权（2026-10-13）
+
+用户明确“推送提交代码，暂不发布，本机安装”。范围为提交并推送开发分支、构建和本机安装候选，不发布、不合并版本 PR、不修改产品版本。找到既有 SDK $HOME/.local/share/quotabar-dotnet/dotnet 后，PATH=$HOME/.local/share/quotabar-dotnet:$PATH ./governance check all 完整通过，补齐此前未运行的 Windows Core 行为测试及 Windows 应用/安装器/UI 测试项目编译；Windows 原生 UI 不在 macOS 上执行。下一步从源码提交构建签名候选并事务安装，核对进程与额度状态。
+
+
+本机安装结果：功能提交 cc3e660 已推送至 codex/feat/macos-tibo-footer，draft PR #35。最终候选 .dist/standalone-macos/candidate-20261013-144046 的来源是干净 cc3e660，版本仍为 0.7.0 开发候选；完整 Swift 测试、release 构建、严格签名和 DMG 校验通过。事务安装至用户 Applications/QuotaBar.app；安装件与候选可执行文件逐字节一致，来源提交/干净状态及严格签名复核通过。应用 pid=85476，phase=ready、has_quota=true、host_ui=false、floating_visible=true，现有账号可继续查询额度，回退备份和登录数据保留。首次候选标记提交前 dirty 来源，已由干净提交候选重新安装替换；不作为最终交付。
+
+未执行真实浏览器点击及新平台实机矩阵；draft PR 待 CI/审查，不合并、不公开发布。当前本机安装与提交推送目标完成，后续按用户授权处理审查或发布。
+
+
+### PR #35/#36 合并授权（2026-10-14）
+
+用户明确合并两项功能 PR，继续保留暂不发布的边界。#35 与 main 仅进度文档冲突，保留 Windows 正式发布记录与 macOS Tibo 实现/安装证据；不删除任何功能代码或已发布记录。#36 原先基于 #35，将在 #35 合并后对齐 main 并重新核对 CI。自动生成的 Release Please PR 保留未合并；Pages 工作流开关保持未启用。
