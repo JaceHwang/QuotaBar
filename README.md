@@ -2,7 +2,7 @@
 
 Independent macOS menu bar and floating quota app for Codex accounts. A bundled official Codex 0.144.1 runtime reads quota using an isolated account; Codex desktop and its plugin UI are not required.
 
-[Latest release v0.6.0](https://github.com/JaceHwang/codex-usage-sidebar/releases/latest) · [Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [中文](README.zh-CN.md) · [Documentation](docs/README.md)
+[Latest release v0.7.0 (Windows)](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.7.0) · [Windows installer ZIP](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.7.0/QuotaBar-0.7.0-windows-x64.zip) · [Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [中文](README.zh-CN.md) · [Documentation](docs/README.md)
 
 ## Features
 
@@ -24,7 +24,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 The installer uses **`~/Applications/QuotaBar.app`**, not `/Applications`. Finder's Applications sidebar usually opens `/Applications`; press **Command + Shift + G**, enter `~/Applications`, and double-click QuotaBar to reopen after quitting. Double-clicking an already running app opens settings. Closing settings keeps the app running; Quit or Command + Q stops it and its runtime.
 
-Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; **not Developer ID notarized**. First launch can require user approval in macOS Privacy & Security. The Windows 11 x64 candidate passes native CI, and the user reports device acceptance of the initial candidate. The latest candidate retains the Windows detail layout with fewer token statistic rows, revised time rows and an inline Tibo button; a single circular colored icon is shared by the tray and app in every theme; all functionality and updated visuals have user-reported Windows 11 acceptance; the first standalone Windows release is being prepared. See [Windows candidate guide](docs/WINDOWS_STANDALONE.zh-CN.md). Quota percentages are account usage limits, not API cash balances.
+Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; **not Developer ID notarized**. First launch can require user approval in macOS Privacy & Security. Windows 11 x64 standalone v0.7.0 is published, with user-reported complete functional/UI acceptance, native CI and public-download verification. The tray/app share one circular icon; quota appears in the tooltip and floating button. See the [Windows install guide](docs/WINDOWS_STANDALONE.zh-CN.md). Quota percentages are account usage limits, not API cash balances.
 
 ## Development and verification
 
@@ -38,4 +38,4 @@ Requires Xcode and official `codex-cli 0.144.1` for packaging. Native source/tes
 
 Read [progress](docs/PROJECT_PROGRESS-standalone-app.md) before each development session and update the project board after milestones. See [architecture](docs/ARCHITECTURE.md), [privacy](docs/PRIVACY.md), [validation](docs/validation/macos-standalone.md), and [governance](docs/GOVERNANCE.md).
 
-Published v0.6.0 includes QuotaBar branding and floating/menu bar controls. All five public assets passed complete download verification. Earlier v0.5.1 used the previous Codex Quota name. Historical code and immutable assets remain in Git history and earlier GitHub releases.
+Windows v0.7.0 and all five public assets passed complete download verification. macOS remains at v0.6.0, which includes QuotaBar branding and floating/menu bar controls. All five public assets passed complete download verification. Earlier v0.5.1 used the previous Codex Quota name. Historical code and immutable assets remain in Git history and earlier GitHub releases.

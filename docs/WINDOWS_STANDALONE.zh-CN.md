@@ -1,6 +1,6 @@
 # QuotaBar Windows 独立版
 
-Windows功能及最新UI已获用户Windows 11完整验收。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
+Windows v0.7.0已正式发布，功能及最新UI已获用户Windows 11完整验收。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
 
 ## 安装、重开和恢复
 
