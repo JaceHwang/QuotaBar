@@ -5,6 +5,59 @@ import XCTest
 
 @MainActor
 final class QuotaUpdateViewTests: XCTestCase {
+    func testStartupIgnoresRecentSuccessAndSuccessfulChecksWaitADay() async throws {
+        let suite = "QuotaUpdateScheduleTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var now = Date(timeIntervalSince1970: 100000)
+        defaults.set(now, forKey: "updates.lastSuccess")
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AvailableFeedProtocol.self]
+        let controller = QuotaUpdateController(defaults: defaults, version: "0.7.0", transport: URLSession(configuration: config), now: { now }, text: { en, _, _ in en })
+        defer { controller.stop() }
+        now = now.addingTimeInterval(31)
+        controller.check()
+        for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(defaults.object(forKey: "updates.lastSuccess") as? Date, now, "Startup checks even after a recent success")
+        let completed = now
+        now = completed.addingTimeInterval(86399)
+        controller.check()
+        for _ in 0..<10 { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(defaults.object(forKey: "updates.lastSuccess") as? Date, completed)
+        now = completed.addingTimeInterval(86400)
+        controller.check()
+        for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(defaults.object(forKey: "updates.lastSuccess") as? Date, now, "Checks again after exactly 24 hours")
+    }
+    func testFailureKeepsShortRetryAndDisabledAutomaticChecksStayOff() async throws {
+        let suite = "QuotaUpdateRetryTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var now = Date(timeIntervalSince1970: 100000)
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [UnavailableFeedProtocol.self]
+        let controller = QuotaUpdateController(defaults: defaults, version: "0.7.0", transport: URLSession(configuration: config), now: { now }, text: { en, _, _ in en })
+        defer { controller.stop() }
+        let initial = UnavailableFeedProtocol.requests.value
+        defaults.set(true, forKey: "updates.autoDisabled")
+        now = now.addingTimeInterval(31); controller.check()
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial)
+        controller.check(manual: true)
+        for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial + 1, "Manual check works with automatic checks disabled")
+        defaults.set(false, forKey: "updates.autoDisabled")
+        now = now.addingTimeInterval(299); controller.check()
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial + 1)
+        now = now.addingTimeInterval(1); controller.check()
+        for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial + 2, "Failure retries after 5 minutes instead of a day")
+        now = now.addingTimeInterval(599); controller.check()
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial + 2)
+        now = now.addingTimeInterval(1); controller.check()
+        for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial + 3, "Second failure backs off to 10 minutes")
+    }
     func testNativeUpdateSettingsPreserveOptInAndRenderBothThemes() throws {
         let suite = "QuotaUpdateViewTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -101,10 +154,18 @@ final class QuotaUpdateViewTests: XCTestCase {
     private func descendants(_ view: NSView) -> [NSView] { view.subviews + view.subviews.flatMap(descendants) }
 }
 
+private final class RequestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+    func increment() { lock.lock(); defer { lock.unlock() }; count += 1 }
+}
 private final class UnavailableFeedProtocol: URLProtocol, @unchecked Sendable {
+    static let requests = RequestCounter()
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        Self.requests.increment()
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocolDidFinishLoading(self)
     }

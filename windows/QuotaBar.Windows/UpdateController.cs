@@ -6,12 +6,13 @@ using System.Text.Json;
 namespace QuotaBar.Windows;
 internal sealed class UpdateController : IDisposable {
     readonly Coordinator owner;
+    readonly Func<DateTimeOffset> now;
     readonly string statePath;
     readonly DispatcherTimer timer=new() { Interval=TimeSpan.FromMinutes(1) };
     readonly HttpClient http;
     readonly CancellationTokenSource lifetime=new();
     bool inFlight,stopped;
-    DateTimeOffset next=DateTimeOffset.UtcNow.AddSeconds(30),lastManual=DateTimeOffset.MinValue;
+    DateTimeOffset next,lastManual=DateTimeOffset.MinValue;
     string? pendingReminder;
     DateTimeOffset retryReminder=DateTimeOffset.MinValue;
     int failures;
@@ -36,19 +37,19 @@ internal sealed class UpdateController : IDisposable {
         public DateTimeOffset? LastSuccess { get; init; }
         public UpdateReminderPolicy Policy { get; init; }=new();
     }
-    public UpdateController(Coordinator owner,string root,HttpClient? transport=null) {
+    public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null) {
+        now=clock??(()=>DateTimeOffset.UtcNow); next=now().AddSeconds(30);
         http=transport??new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromSeconds(15) };
         this.owner=owner; statePath=Path.Combine(root,"updates.json");
         try { state=JsonSerializer.Deserialize<UpdateState>(File.ReadAllText(statePath))??new(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
         state=state with { Policy=state.Policy??new UpdateReminderPolicy() };
-        if(state.LastSuccess is { } last && last.AddHours(6)>next) next=last.AddHours(6);
         timer.Tick+=(_,_)=> { Check(); Notify(); }; timer.Start();
         _=InitialCheck();
     }
     async Task InitialCheck() { try { await Task.Delay(TimeSpan.FromSeconds(30),lifetime.Token); Check(); } catch(OperationCanceledException) { } }
     string Text(string en,string zh,string tw)=>owner.Copy.Text(en,zh,tw);
     public async void Check(bool manual=false) {
-        var now=DateTimeOffset.UtcNow;
+        var now=this.now();
         if(stopped || inFlight || (manual?now-lastManual<TimeSpan.FromSeconds(10):!owner.Preferences.AutomaticUpdates || now<next)) return;
         if(manual) lastManual=now;
         inFlight=true; Status=Text("Checking…","正在检查…","正在檢查…"); Changed?.Invoke();
@@ -70,12 +71,12 @@ internal sealed class UpdateController : IDisposable {
             if(stopped) return;
             Available=release; cache=json;
             if(response.StatusCode==HttpStatusCode.OK) etag=response.Headers.ETag?.ToString();
-            failures=0; next=DateTimeOffset.UtcNow.AddHours(6).AddSeconds(Random.Shared.Next(0,901));
-            state=state with { LastSuccess=DateTimeOffset.UtcNow }; Persist();
+            failures=0; next=this.now().AddHours(24);
+            state=state with { LastSuccess=this.now() }; Persist();
             Status=release is null?Text("No newer release found","未发现更新版本","未發現更新版本"):Text("Update available","有新版本可用","有新版本可用"); Notify();
         } catch(Exception e) when(e is HttpRequestException or IOException or OperationCanceledException or FormatException or DecoderFallbackException) {
             if(stopped) return;
-            failures=Math.Min(failures+1,6); next=DateTimeOffset.UtcNow.AddSeconds(Math.Min(21600,300*Math.Pow(2,failures-1)));
+            failures=Math.Min(failures+1,6); next=this.now().AddSeconds(Math.Min(21600,300*Math.Pow(2,failures-1)));
             Status=Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。");
         } finally { inFlight=false; if(!stopped) Changed?.Invoke(); }
     }
