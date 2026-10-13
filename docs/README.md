@@ -1,15 +1,16 @@
 # QuotaBar 文档索引
 
-当前产品是 macOS 独立额度应用，源码以 `native/` 为准，Windows 独立版尚未实施。文档更新日期：2026-10-12。
+当前产品是 macOS 独立额度应用，源码以 `native/` 为准，Windows 独立版正在开发，尚待原生运行与实机验收。文档更新日期：2026-10-12。
 
 | 文档 | 用途 |
 | --- | --- |
 | [安装和使用](MACOS_STANDALONE.zh-CN.md) | 下载校验、用户级安装、重开、菜单栏/浮窗及回退卸载 |
+| [Windows候选与验收](WINDOWS_STANDALONE.zh-CN.md) | 独立托盘/浮窗、每用户安装、重开及Windows验收步骤 |
 | [架构](ARCHITECTURE.md) | 官方运行时、UI、状态、位置和账户边界 |
 | [隐私](PRIVACY.md) | 凭据、数据、偏好和诊断 |
 | [故障处理](TROUBLESHOOTING.md) | 找不到应用、显示模式、登录、更新和退出 |
 | [仓库治理](GOVERNANCE.md) | 开发分支、检查、Release Please 和资产验证 |
-| [开发进度](PROJECT_PROGRESS-standalone-app.md) | 双平台全周期路线、当前状态和里程碑证据 |
+| [开发进度](PROJECT_PROGRESS-standalone-app.md) | 双平台全周期路线、当前功能详细基线、Windows W0–W6迁移/验收指南和里程碑证据 |
 | [macOS 验收](validation/macos-standalone.md) | 本地/CI/设备/发布证据与未验证矩阵 |
 | [v0.6.0 记录](releases/macos-standalone-v0.6.0.md) | QuotaBar 品牌、悬浮控制及菜单栏显示正式发行 |
 | [v0.5.0 记录](releases/macos-standalone-v0.5.0.md) | 旧名称首个独立版的历史发布事实 |

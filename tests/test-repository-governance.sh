@@ -14,7 +14,7 @@ for channel in ['alpha','beta','rc']:
  config=json.loads((root/'.governance/release'/f'{channel}.json').read_text())
  assert config['versioning']=='prerelease' and config['packages']['.']['prerelease-type']==channel
 policy=(root/'.governance/policy.sh').read_text()
-assert "RELEASE_MODE=staged" in policy and "RELEASE_PLATFORMS='macos-arm64'" in policy
+assert "RELEASE_MODE=staged" in policy and "RELEASE_PLATFORMS='macos-arm64 windows-x64'" in policy
 for name in ['check-fast','check-full','build-release','verify-release']:
  assert (root/'.governance/project'/name).stat().st_mode & 0o111
 full=(root/'.governance/project/check-full').read_text()

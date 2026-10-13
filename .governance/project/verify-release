@@ -2,5 +2,8 @@
 set -eu
 platform=${1:-}
 tag=${2:-}
-test "$platform" = macos-arm64 || { echo 'unsupported release platform' >&2; exit 64; }
-python3 scripts/verify-macos-standalone-release.py "$tag" .dist/release/macos-arm64
+case "$platform" in
+  macos-arm64) python3 scripts/verify-macos-standalone-release.py "$tag" .dist/release/macos-arm64 ;;
+  windows-x64) "${PYTHON_BIN:-python3}" scripts/verify-windows-standalone-release.py "$tag" .dist/release/windows-x64 ;;
+  *) echo 'unsupported release platform' >&2; exit 64 ;;
+esac

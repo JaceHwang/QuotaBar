@@ -4,6 +4,36 @@ import XCTest
 
 @MainActor
 final class FloatingQuotaButtonTests: XCTestCase {
+    func testHoverCloseRoutesSeparatelyAndHidesPersistently() {
+        let name = "FloatingQuotaButtonTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let preferences = FloatingQuotaPreferences(defaults: defaults)
+        let button = FloatingQuotaButton(preferences: preferences)
+        defer { button.hide() }
+        var clicks = 0; var closes = 0
+        button.onClick = { clicks += 1 }
+        button.onClose = { closes += 1 }
+        button.show(summary: nil, theme: .light, tooltip: "Loading", fallback: "Loading", dimmed: false)
+        XCTAssertTrue(button.closeButton.isHidden)
+        let frame = button.frame
+        button.interaction.onHover?(true)
+        XCTAssertFalse(button.closeButton.isHidden)
+        XCTAssertEqual(button.frame, frame)
+        let point = CGPoint(x: button.closeButton.frame.midX, y: button.closeButton.frame.midY)
+        XCTAssertTrue(button.interaction.hitTest(point) === button.closeButton)
+        button.closeButton.performClick(nil)
+        XCTAssertEqual(closes, 1); XCTAssertEqual(clicks, 0)
+        XCTAssertNil(button.frame)
+        XCTAssertFalse(FloatingQuotaPreferences(defaults: defaults).enabled)
+        preferences.enabled = true
+        button.show(summary: nil, theme: .dark, tooltip: "", fallback: "Loading", dimmed: false)
+        XCTAssertTrue(button.closeButton.isHidden)
+        button.interaction.onHover?(true)
+        button.interaction.onHover?(false)
+        XCTAssertTrue(button.closeButton.isHidden)
+        XCTAssertTrue(button.interaction.hitTest(point) === button.interaction)
+    }
     func testDefaultEnabledAndExplicitDisabledSurvivesRecreation() {
         let name = "FloatingQuotaButtonTests.\(UUID())"
         let defaults = UserDefaults(suiteName: name)!

@@ -2,6 +2,7 @@ name: Governance
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -24,7 +25,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail

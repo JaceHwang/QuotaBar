@@ -46,8 +46,16 @@ final class FloatingQuotaInteractionView: NSView {
     private var origin: CGPoint?
     private var dragging = false
     private var tracking: NSTrackingArea?
-    override func hitTest(_ point: NSPoint) -> NSView? { bounds.contains(point) ? self : nil }
-    override func resetCursorRects() { super.resetCursorRects(); addCursorRect(bounds, cursor: .openHand) }
+    weak var closeControl: NSButton?
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        guard bounds.contains(local) else { return nil }
+        if let closeControl, !closeControl.isHidden, closeControl.frame.contains(local) { return closeControl }
+        return self
+    }
+    override func resetCursorRects() { super.resetCursorRects(); addCursorRect(bounds, cursor: .openHand)
+        if let closeControl, !closeControl.isHidden { addCursorRect(closeControl.frame, cursor: .arrow) }
+    }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
@@ -75,7 +83,7 @@ final class FloatingQuotaInteractionView: NSView {
 }
 
 @MainActor
-final class FloatingQuotaButton {
+final class FloatingQuotaButton: NSObject {
     private final class PassivePanel: NSPanel {
         override var canBecomeKey: Bool { false }
         override var canBecomeMain: Bool { false }
@@ -83,6 +91,8 @@ final class FloatingQuotaButton {
     let preferences: FloatingQuotaPreferences
     private let panel: NSPanel
     let interaction = FloatingQuotaInteractionView(frame: .zero)
+    let closeButton = NSButton(frame: .zero)
+    var onClose: (() -> Void)?
     private let label = NSTextField(labelWithString: "")
     private let icon = QuotaThemeIconView(frame: .zero)
     private var dragOrigin: CGPoint?
@@ -97,15 +107,27 @@ final class FloatingQuotaButton {
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
         panel.hidesOnDeactivate = false; panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        super.init()
         panel.contentView = interaction
         interaction.wantsLayer = true; interaction.layer?.cornerRadius = 10
         label.maximumNumberOfLines = 2; label.usesSingleLineMode = false; label.lineBreakMode = .byClipping
         interaction.addSubview(icon); interaction.addSubview(label)
+        closeButton.isBordered = false
+        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close floating button")
+        closeButton.imageScaling = .scaleProportionallyDown
+        closeButton.contentTintColor = .secondaryLabelColor
+        closeButton.setAccessibilityLabel("Close floating button")
+        closeButton.toolTip = "Close floating button"
+        closeButton.target = self; closeButton.action = #selector(closeFloatingButton)
+        closeButton.isHidden = true
+        interaction.addSubview(closeButton); interaction.closeControl = closeButton
         interaction.setAccessibilityElement(true); interaction.setAccessibilityRole(.button)
         interaction.onPrimaryClick = { [weak self] in self?.onClick?() }
         interaction.onSecondaryClick = { [weak self] in self?.onMenu?() }
         interaction.onHover = { [weak self] value in
             guard let self else { return }
+            closeButton.isHidden = !value
+            panel.invalidateCursorRects(for: interaction)
             panel.appearance?.performAsCurrentDrawingAppearance {
                 interaction.layer?.backgroundColor = (value ? NSColor.labelColor.withAlphaComponent(0.07) : .clear).cgColor
             }
@@ -127,17 +149,23 @@ final class FloatingQuotaButton {
         guard preferences.enabled else { hide(); return }
         panel.appearance = theme.appKitAppearance; icon.updateAppearance(theme.appKitAppearance)
         label.attributedStringValue = summary.map { FloatingQuotaTypography.string(summary: $0, alignment: .left) } ?? NSAttributedString(string: fallback, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor])
-        let width = min(280, max(164, ceil(label.attributedStringValue.size().width + 44)))
+        let width = min(304, max(188, ceil(label.attributedStringValue.size().width + 68)))
         let frame = preferences.frame(size: CGSize(width: width, height: 30), screens: NSScreen.screens.map(\.visibleFrame))
         panel.setFrame(frame, display: true); interaction.frame = CGRect(origin: .zero, size: frame.size)
         icon.frame = CGRect(x: 6, y: 5, width: 20, height: 20)
         let height = min(label.intrinsicContentSize.height, 30)
-        label.frame = CGRect(x: 32, y: floor((30 - height) / 2), width: frame.width - 40, height: height)
+        label.frame = CGRect(x: 32, y: floor((30 - height) / 2), width: max(0, frame.width - 64), height: height)
+        closeButton.frame = CGRect(x: frame.width - 24, y: 5, width: 20, height: 20)
         panel.alphaValue = dimmed ? 0.52 : 1
         interaction.toolTip = tooltip; interaction.setAccessibilityLabel(label.stringValue)
         panel.orderFrontRegardless()
     }
-    func hide() { panel.orderOut(nil) }
+    @objc private func closeFloatingButton() {
+        preferences.enabled = false
+        hide()
+        onClose?()
+    }
+    func hide() { closeButton.isHidden = true; panel.orderOut(nil) }
     func showMenu(_ menu: NSMenu) { guard let event = NSApp.currentEvent else { return }; NSMenu.popUpContextMenu(menu, with: event, for: interaction) }
 }
 

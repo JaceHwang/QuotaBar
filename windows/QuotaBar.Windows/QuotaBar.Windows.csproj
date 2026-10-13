@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>QuotaBar</AssemblyName><RootNamespace>QuotaBar.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/QuotaBar.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../QuotaBar.Core/QuotaBar.Core.csproj" />
+    <Resource Include="Assets/*.png" />
+    <Resource Include="Assets/QuotaBar.ico" />
+    <None Include="Assets/QuotaBar.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

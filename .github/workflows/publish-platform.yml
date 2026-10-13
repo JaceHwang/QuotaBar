@@ -18,11 +18,15 @@ permissions:
 jobs:
   publish:
     name: release / publish platform
-    runs-on: ${{ inputs.platform == 'macos-arm64' && 'macos-26' || 'ubuntu-24.04' }}
+    runs-on: ${{ inputs.platform == 'macos-arm64' && 'macos-26' || inputs.platform == 'windows-x64' && 'windows-latest' || 'ubuntu-24.04' }}
+    defaults:
+      run:
+        shell: bash
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ inputs.tag }}
       RELEASE_PLATFORM: ${{ inputs.platform }}
+      PYTHON_BIN: python
       DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
       - name: Validate release inputs
@@ -35,6 +39,10 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        if: inputs.platform == 'windows-x64'
+        with:
+          dotnet-version: 10.0.x
       - name: Build and verify platform assets
         run: |
           set -euo pipefail

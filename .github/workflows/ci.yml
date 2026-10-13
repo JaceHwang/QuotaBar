@@ -3,6 +3,7 @@ on:
   push:
     branches: [main, "codex/**"]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -16,6 +17,9 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
       - name: Validate standalone repository
         run: ./governance check all
       - name: Download pinned official runtime
@@ -32,4 +36,56 @@ jobs:
         with:
           name: codex-quota-macos-candidate
           path: .dist/standalone-macos/candidate-*/
+          if-no-files-found: error
+  windows:
+    name: Windows standalone build and verification
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Core behavior, protocol and install transactions
+        run: dotnet run --project windows/QuotaBar.Core.Tests --configuration Release
+      - name: Native Windows UI smoke and rendering
+        env:
+          QUOTABAR_TEST_ARTIFACTS: ${{ github.workspace }}/.dist/windows-ui-tests
+        run: dotnet run --project windows/QuotaBar.Windows.Tests --configuration Release
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: quotabar-windows-ui
+          path: .dist/windows-ui-tests/
+          if-no-files-found: error
+      - name: Build self-contained candidate with verified runtime
+        run: python scripts/build-windows-standalone.py
+      - name: Verify candidate source and complete payload
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
+          python scripts/verify-windows-standalone.py $candidate.FullName --source-root .
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate verification failed.' }
+      - name: Actual standalone runtime startup and graceful exit
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
+          python scripts/test-windows-standalone-startup.py $candidate.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Standalone startup smoke failed.' }
+      - name: Concrete per-user setup, upgrade, rollback and uninstall
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
+          python scripts/test-windows-standalone-install.py $candidate.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Concrete installation smoke failed.' }
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: quotabar-windows-candidate
+          path: |
+            .dist/standalone-windows/candidate-*/QuotaBar-*-windows-x64-candidate.zip
+            .dist/standalone-windows/candidate-*/SHA256SUMS.txt
+            .dist/standalone-windows/candidate-*/QuotaBar/PROVENANCE.json
+            .dist/standalone-windows/candidate-*/QuotaBar/package.json
+            .dist/windows-ui-tests/
           if-no-files-found: error

@@ -2,6 +2,9 @@
 set -eu
 platform=${1:-}
 tag=${2:-}
-test "$platform" = macos-arm64 || { echo 'unsupported release platform' >&2; exit 64; }
 printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || exit 64
-bash scripts/package-macos-standalone-release.sh "$tag"
+case "$platform" in
+  macos-arm64) bash scripts/package-macos-standalone-release.sh "$tag" ;;
+  windows-x64) "${PYTHON_BIN:-python3}" scripts/package-windows-standalone-release.py "$tag" ;;
+  *) echo 'unsupported release platform' >&2; exit 64 ;;
+esac
