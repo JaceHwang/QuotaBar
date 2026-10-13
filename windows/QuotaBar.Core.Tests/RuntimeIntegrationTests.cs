@@ -14,7 +14,7 @@ static class RuntimeIntegrationTests {
             Console.WriteLine("PASS runtime disposal bounded when an exited parent leaves inherited stderr open");
         } finally {
             Environment.SetEnvironmentVariable("QUOTABAR_PIPE_FIXTURE",previous);
-            if(childId!=0) try { using var child=System.Diagnostics.Process.GetProcessById(childId); if(!child.HasExited) child.Kill(); } catch(ArgumentException) { }
+            if(childId!=0) try { using var child=System.Diagnostics.Process.GetProcessById(childId); if(!child.HasExited) child.Kill(); await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3)); } catch(ArgumentException) { }
             if(disposing is not null) await disposing; else await transport.DisposeAsync();
             if(Directory.Exists(home)) Directory.Delete(home,true);
         }
