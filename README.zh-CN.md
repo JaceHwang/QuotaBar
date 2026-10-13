@@ -22,7 +22,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 安装器默认放在 **`~/Applications/QuotaBar.app`**。Finder 侧栏“应用程序”通常打开 `/Applications`，因此看不到用户级安装。退出后按 **⌘⇧G**，输入 `~/Applications`，双击 QuotaBar.app 即可重新开启；重复打开已运行的应用会显示设置。关闭设置继续常驻，退出或 ⌘Q 会清理内嵌采集进程。
 
-声明支持 macOS 14+ Apple Silicon，已在 macOS 27.0 实测。安装包为本地签名，**未完成 Developer ID 公证**；首次打开可能需要在系统“隐私与安全性”批准。Windows 11 x64 独立版正在开发，核心测试和交叉编译已通过，原生运行及实机验收待完成，见 [Windows候选说明](docs/WINDOWS_STANDALONE.zh-CN.md)。周期额度不是 API 现金余额。
+声明支持 macOS 14+ Apple Silicon，已在 macOS 27.0 实测。安装包为本地签名，**未完成 Developer ID 公证**；首次打开可能需要在系统“隐私与安全性”批准。Windows 11 x64 独立版候选已通过原生CI，用户反馈初始候选实机验收通过；最新候选恢复旧Windows插件的详情卡样式并采用彩色托盘图标，最新外观待实机确认，见 [Windows候选说明](docs/WINDOWS_STANDALONE.zh-CN.md)。周期额度不是 API 现金余额。
 
 ## 开发与验证
 
