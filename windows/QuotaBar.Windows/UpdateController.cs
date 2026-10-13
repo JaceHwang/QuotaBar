@@ -21,6 +21,16 @@ internal sealed class UpdateController : IDisposable {
     public string Status { get; private set; }="";
     public bool Checking=>inFlight;
     public string Version=>typeof(UpdateController).Assembly.GetName().Version?.ToString(3)??"0.0.0";
+    public string DisplayVersion {
+        get {
+            var development=true;
+            try {
+                using var proof=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"PROVENANCE.json")));
+                development=proof.RootElement.ValueKind!=JsonValueKind.Object || !proof.RootElement.TryGetProperty("kind",out var kind) || kind.ValueKind!=JsonValueKind.String || kind.GetString()!="release";
+            } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
+            return Version+(development?" ("+Text("development candidate","开发候选","開發候選")+")":"");
+        }
+    }
     public event Action? Changed;
     sealed record UpdateState {
         public DateTimeOffset? LastSuccess { get; init; }
@@ -30,6 +40,7 @@ internal sealed class UpdateController : IDisposable {
         http=transport??new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromSeconds(15) };
         this.owner=owner; statePath=Path.Combine(root,"updates.json");
         try { state=JsonSerializer.Deserialize<UpdateState>(File.ReadAllText(statePath))??new(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
+        state=state with { Policy=state.Policy??new UpdateReminderPolicy() };
         if(state.LastSuccess is { } last && last.AddHours(6)>next) next=last.AddHours(6);
         timer.Tick+=(_,_)=> { Check(); Notify(); }; timer.Start();
         _=InitialCheck();

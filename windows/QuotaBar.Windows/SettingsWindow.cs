@@ -14,7 +14,7 @@ internal sealed class SettingsWindow : Window {
     public void UpdateUpdateStatus() {
         if(updateStatus is null) return;
         var copy=owner.Copy; var updates=owner.Updates;
-        updateStatus.Text=copy.Text("Current version","当前版本","目前版本")+" "+updates.Version+(updates.Available is { } release?" · "+copy.Text("Available","可用更新","可用更新")+" "+release.Version:"")+"\n"+updates.Status;
+        updateStatus.Text=copy.Text("Current version","当前版本","目前版本")+" "+updates.DisplayVersion+(updates.Available is { } release?" · "+copy.Text("Available","可用更新","可用更新")+" "+release.Version:"")+"\n"+updates.Status;
         if(updateActions is not null) updateActions.Visibility=updates.Available is null?Visibility.Collapsed:Visibility.Visible;
         if(updateCheck is not null) updateCheck.IsEnabled=!updates.Checking;
     }

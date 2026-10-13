@@ -74,6 +74,7 @@ internal static class Program {
                     settings.Close();
                 }
             }
+            File.WriteAllText(Path.Combine(updateRoot,"updates.json"),"{\"Policy\":null}");
             using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
                 owner.Updates.Check(true); var deadline=DateTime.UtcNow.AddSeconds(5);
                 while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();

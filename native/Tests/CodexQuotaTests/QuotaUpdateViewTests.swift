@@ -21,6 +21,7 @@ final class QuotaUpdateViewTests: XCTestCase {
             view.frame = NSRect(x: 20, y: 20, width: 450, height: 220); root.addSubview(view)
             window.orderFront(nil); view.layoutSubtreeIfNeeded(); root.displayIfNeeded()
             defer { window.close() }
+            XCTAssertTrue(descendants(view).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("开发候选") })
             let controls = descendants(view).compactMap { $0 as? NSButton }
             XCTAssertEqual(controls.first { $0.title == "自动检查更新" }?.state, .on)
             XCTAssertEqual(controls.first { $0.title == "更新提醒" }?.state, .off)

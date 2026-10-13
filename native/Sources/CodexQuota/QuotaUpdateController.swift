@@ -7,6 +7,12 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
     private var notificationCenter: UNUserNotificationCenter?
     private let defaults: UserDefaults
     private let version: String
+    private var developmentCandidate: Bool {
+        guard let url = Bundle.main.url(forResource: "PROVENANCE", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return true }
+        return object["kind"] as? String != "release"
+    }
     private let text: (String, String, String) -> String
     private var timer: Timer?
     private var request: Task<Void, Never>?
@@ -111,7 +117,8 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
     private func refreshView() {
         let current = text("Current version", "当前版本", "目前版本")
         let extra = available.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0.version } ?? ""
-        statusField?.stringValue = "\(current) \(version)\(extra)\n\(status)"
+        let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
+        statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(status)"
         actions?.isHidden = available == nil
         checkButton?.isEnabled = request == nil
     }
