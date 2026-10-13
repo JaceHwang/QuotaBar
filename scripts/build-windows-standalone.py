@@ -31,12 +31,18 @@ def main():
     parser.add_argument("--dotnet", default="dotnet")
     parser.add_argument("--runtime-archive", type=pathlib.Path)
     parser.add_argument("--output", type=pathlib.Path)
+    parser.add_argument("--release-tag")
     args = parser.parse_args()
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
     output = (args.output or ROOT / ".dist" / "standalone-windows" / ("candidate-" + stamp)).resolve()
     output.mkdir(parents=True, exist_ok=False)
     package = output / "QuotaBar"
     version = (ROOT / "version.txt").read_text().strip()
+    if args.release_tag:
+        if args.release_tag != "v" + version: raise RuntimeError("Release tag/version mismatch")
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        tagged = subprocess.check_output(["git", "rev-parse", args.release_tag + "^{commit}"], cwd=ROOT, text=True).strip()
+        if commit != tagged or subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip(): raise RuntimeError("Release requires clean exact-tag checkout")
     source = source_snapshot()
     run(args.dotnet, "run", "--project", "windows/QuotaBar.Core.Tests", "--configuration", "Release")
     options = ["--configuration", "Release", "--runtime", "win-x64", "--self-contained", "true", "-p:PublishTrimmed=false", "-p:PublishSingleFile=false", "-p:DebugType=None", "-p:DebugSymbols=false", "-p:Version=" + version]
@@ -67,11 +73,12 @@ def main():
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip())
     if source_snapshot() != source: raise RuntimeError("Build inputs changed during packaging; rebuild from stable source")
-    provenance = {"kind": "local-development-candidate", "sourceCommit": commit, "workingTreeDirty": dirty, "sources": source, "runtimeSource": RUNTIME_URL, "runtimeArchiveSHA256": RUNTIME_SHA256, "runtimeVersion": RUNTIME_VERSION, "signature": "unsigned-development-candidate", "deviceValidated": False}
+    provenance = {"kind": "release" if args.release_tag else "local-development-candidate", "sourceCommit": commit, "workingTreeDirty": dirty, "sources": source, "runtimeSource": RUNTIME_URL, "runtimeArchiveSHA256": RUNTIME_SHA256, "runtimeVersion": RUNTIME_VERSION, "signature": "unsigned-release" if args.release_tag else "unsigned-development-candidate", "deviceValidated": False}
+    if args.release_tag: provenance.update(releaseTag=args.release_tag, version=version)
     (package / "PROVENANCE.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
     files = {str(p.relative_to(package)).replace(os.sep, "/"): digest(p) for p in sorted(package.rglob("*")) if p.is_file()}
     (package / "package.json").write_text(json.dumps({"schema": 1, "product": "QuotaBar", "platform": "windows-x64", "version": version, "runtimeVersion": RUNTIME_VERSION, "files": files}, indent=2) + "\n", encoding="utf-8")
-    bundle = output / ("QuotaBar-" + version + "-windows-x64-candidate.zip")
+    bundle = output / ("QuotaBar-" + version + ("-windows-x64.zip" if args.release_tag else "-windows-x64-candidate.zip"))
     with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for path in sorted(package.rglob("*")):
             if path.is_file(): z.write(path, str(path.relative_to(output)).replace(os.sep, "/"))
