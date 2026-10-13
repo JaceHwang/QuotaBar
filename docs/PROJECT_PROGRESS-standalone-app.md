@@ -1,9 +1,9 @@
 # 独立额度应用开发进度
 
-最近更新：2026-10-13（Asia/Shanghai）
-当前阶段：Windows v0.7.0已正式发布；macOS 正在补齐详情页底栏 X＋Tibo，已发布版本仍为v0.6.0。
-当前授权：2026-10-13用户明确“windows功能已经完全验证，推送打包发布”，授权推送、合并代码、通过Release Please升版、Windows正式打包及公开发行。
-下一步：draft PR #35 待 CI/审查，公开发布需另行授权；本机安装与额度查询通过。
+最近更新：2026-10-14（Asia/Shanghai）
+当前阶段：macOS X＋Tibo 与跨平台更新通知已实现并验证，正在依用户授权合并 PR #35/#36；正式发布仍为 Windows v0.7.0、macOS v0.6.0。
+当前授权：2026-10-14用户明确“合并 PR #35/#36”；本次仅合并功能代码，不合并 Release Please 版本 PR、不启用 Pages 清单、不发布安装包。
+下一步：解决 #35 进度文档冲突并重跑 CI，合并 #35 后将 #36 对齐 main，验证后合并。
 
 ## 每次开发的恢复与记录
 
@@ -337,3 +337,8 @@ PR #32合并为dbecd098，Release Please生成PR #33，仅更新version.txt、ma
 本机安装结果：功能提交 cc3e660 已推送至 codex/feat/macos-tibo-footer，draft PR #35。最终候选 .dist/standalone-macos/candidate-20261013-144046 的来源是干净 cc3e660，版本仍为 0.7.0 开发候选；完整 Swift 测试、release 构建、严格签名和 DMG 校验通过。事务安装至用户 Applications/QuotaBar.app；安装件与候选可执行文件逐字节一致，来源提交/干净状态及严格签名复核通过。应用 pid=85476，phase=ready、has_quota=true、host_ui=false、floating_visible=true，现有账号可继续查询额度，回退备份和登录数据保留。首次候选标记提交前 dirty 来源，已由干净提交候选重新安装替换；不作为最终交付。
 
 未执行真实浏览器点击及新平台实机矩阵；draft PR 待 CI/审查，不合并、不公开发布。当前本机安装与提交推送目标完成，后续按用户授权处理审查或发布。
+
+
+### PR #35/#36 合并授权（2026-10-14）
+
+用户明确合并两项功能 PR，继续保留暂不发布的边界。#35 与 main 仅进度文档冲突，保留 Windows 正式发布记录与 macOS Tibo 实现/安装证据；不删除任何功能代码或已发布记录。#36 原先基于 #35，将在 #35 合并后对齐 main 并重新核对 CI。自动生成的 Release Please PR 保留未合并；Pages 工作流开关保持未启用。
