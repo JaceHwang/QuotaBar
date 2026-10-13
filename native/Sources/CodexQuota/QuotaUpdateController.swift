@@ -95,11 +95,11 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
     }
     func makeSettingsView() -> NSView {
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
-        let separator = NSBox(); separator.boxType = .separator; stack.addArrangedSubview(separator)
+        let separator = NSBox(); separator.boxType = .separator; stack.addArrangedSubview(separator); separator.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         let title = NSTextField(labelWithString: text("Software update", "软件更新", "軟體更新")); title.font = .boldSystemFont(ofSize: 13); stack.addArrangedSubview(title)
         let automatic = NSButton(checkboxWithTitle: text("Automatically check for updates", "自动检查更新", "自動檢查更新"), target: self, action: #selector(autoChanged)); automatic.state = auto ? .on : .off; stack.addArrangedSubview(automatic)
         let reminder = NSButton(checkboxWithTitle: text("Update reminders", "更新提醒", "更新提醒"), target: self, action: #selector(remindersChanged)); reminder.state = reminders ? .on : .off; stack.addArrangedSubview(reminder)
-        let label = NSTextField(wrappingLabelWithString: ""); label.font = .systemFont(ofSize: 12); stack.addArrangedSubview(label); statusField = label
+        let label = NSTextField(wrappingLabelWithString: ""); label.font = .systemFont(ofSize: 12); stack.addArrangedSubview(label); label.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true; statusField = label
         let check = NSButton(title: text("Check for updates", "检查更新", "檢查更新"), target: self, action: #selector(manualCheck)); stack.addArrangedSubview(check); checkButton = check
         let row = NSStackView(); row.orientation = .horizontal; row.spacing = 8
         for (label, action) in [(text("View update", "查看更新", "查看更新"), #selector(openRelease)), (text("Remind later", "稍后提醒", "稍後提醒"), #selector(snooze)), (text("Skip version", "跳过此版本", "跳過此版本"), #selector(skip))] {

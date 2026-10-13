@@ -355,16 +355,26 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(quotaToggle)
         let startup = NSButton(checkboxWithTitle: text("Launch at login", "登录时启动", "登入時啟動"), target: self, action: #selector(startupChanged)); startup.state = SMAppService.mainApp.status == .enabled ? .on : .off; stack.addArrangedSubview(startup)
         stack.addArrangedSubview(NSTextField(wrappingLabelWithString: text("Quota is read by the bundled official runtime. Account credentials stay in the isolated local account directory.", "通过内嵌官方运行时读取额度，凭据保存在本机隔离账户目录。", "透過內嵌官方執行環境讀取額度，憑證儲存在本機隔離帳號目錄。")))
-        if let updates { stack.addArrangedSubview(updates.makeSettingsView()) }
+        if let updates {
+            let updateView = updates.makeSettingsView(); stack.addArrangedSubview(updateView)
+            updateView.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
         let document = QuotaSettingsDocumentView(frame: NSRect(x: 0, y: 0, width: 510, height: 730))
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
         document.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24)])
         stack.layoutSubtreeIfNeeded()
-        document.setFrameSize(NSSize(width: 510, height: max(730, stack.fittingSize.height + 48)))
-        window.setContentSize(NSSize(width: 510, height: min(730, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
+        document.setFrameSize(NSSize(width: 510, height: max(430, ceil(stack.fittingSize.height) + 48)))
+        window.setContentSize(NSSize(width: 510, height: min(document.frame.height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
         scroll.frame = window.contentView!.bounds; scroll.autoresizingMask = [.width, .height]; scroll.documentView = document
         window.contentView?.addSubview(scroll)
+        updates?.onChange = { [weak stack, weak document, weak window] in
+            guard let stack, let document, let window else { return }
+            stack.layoutSubtreeIfNeeded()
+            let height = max(430, ceil(stack.fittingSize.height) + 48)
+            document.setFrameSize(NSSize(width: 510, height: height))
+            window.setContentSize(NSSize(width: 510, height: min(height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
+        }
         return window
     }
     @objc private func statusDisplayChanged(_ sender: NSButton) {
