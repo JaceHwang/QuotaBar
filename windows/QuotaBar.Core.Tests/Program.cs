@@ -1,6 +1,13 @@
 using System.Text.Json;
 using QuotaBar.Core;
 
+if(args.Contains("--hold-error-pipe")) { await Task.Delay(15000); return 0; }
+if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_PIPE_FIXTURE")=="1") {
+    var child=new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute=false,CreateNoWindow=true }; child.ArgumentList.Add("--hold-error-pipe");
+    using var process=System.Diagnostics.Process.Start(child)!; Console.WriteLine(process.Id); Console.Out.Flush();
+    while(await Console.In.ReadLineAsync() is not null) { }
+    return 0;
+}
 var tests = new (string Name, Action Run)[] {
     ("detail countdown uses consistent days and hours without changing tray text", () => {
         var now=new DateTimeOffset(2026,10,13,12,32,0,TimeSpan.FromHours(8)); var copy=new Copy("zh-CN");
@@ -96,6 +103,8 @@ try { await AccountRegressionTests.Run(); }
 catch(Exception e) { failed++; Console.Error.WriteLine("FAIL account regressions: "+e.Message); }
 try { InstallerTests.Run(); Console.WriteLine("PASS install, upgrade, rollback, failure recovery and uninstall"); }
 catch(Exception e) { failed++; Console.Error.WriteLine("FAIL install transaction: "+e.Message); }
+try { await RuntimeIntegrationTests.InheritedPipeExit(); }
+catch(Exception e) { failed++; Console.Error.WriteLine("FAIL inherited runtime pipe cleanup: "+e.Message); }
 if(Environment.GetEnvironmentVariable("QUOTABAR_TEST_RUNTIME") is string executable) {
     try { await RuntimeIntegrationTests.Run(executable); }
     catch(Exception e) { failed++; Console.Error.WriteLine("FAIL official runtime integration: "+e.Message); }

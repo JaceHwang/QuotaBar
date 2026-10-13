@@ -12,7 +12,7 @@ public interface ILineTransport : IAsyncDisposable {
     IAsyncEnumerable<string> ReadLinesAsync(CancellationToken ct);
 }
 
-public sealed class ProcessTransport(string executable,string codexHome,Action<Process>? processStarted=null) : ILineTransport {
+public sealed class ProcessTransport(string executable,string codexHome,Action<Process>? processStarted=null,Action<string>? disposalStage=null) : ILineTransport {
     private Process? process;
     private Task? drain;
     private readonly SemaphoreSlim writes=new(1,1);
@@ -59,12 +59,21 @@ public sealed class ProcessTransport(string executable,string codexHome,Action<P
         try {
         var current=process; if(current is null) return;
         try {
+            disposalStage?.Invoke("transport-stdin-closing");
             try { current.StandardInput.Close(); } catch(IOException) { }
+            disposalStage?.Invoke("transport-waiting-exit");
             using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(1));
             try { await current.WaitForExitAsync(timeout.Token); }
             catch(OperationCanceledException) { if(!current.HasExited) current.Kill(entireProcessTree:true); await current.WaitForExitAsync(); }
         } catch(InvalidOperationException) { }
-        finally { if(drain is not null) await drain; current.Dispose(); process=null; }
+        finally {
+            disposalStage?.Invoke("transport-draining-stderr");
+            // Descendants can inherit stderr after the runtime parent has exited.
+            // Drain briefly, then close our reader rather than waiting for their lifetime.
+            if(drain is not null) try { await drain.WaitAsync(TimeSpan.FromSeconds(1)); }
+            catch(TimeoutException) { current.StandardError.Close(); }
+            current.Dispose(); process=null; disposalStage?.Invoke("transport-disposed");
+        }
         } finally { disposal.Release(); }
     }
 }

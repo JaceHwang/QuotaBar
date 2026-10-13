@@ -162,7 +162,7 @@ internal sealed class Coordinator : IDisposable {
             State=new(); Snapshot=null; Tokens=null; Identity=null;
             var executable=Path.Combine(AppContext.BaseDirectory,"runtime","codex.exe");
             if(!File.Exists(executable)) { State.Error("initialize","Runtime unavailable"); ShowSettings(); Render(); return; }
-            var current=new RuntimeSession(()=>new ProcessTransport(executable,Path.Combine(root,"CodexHome"),job.Add)); runtime=current;
+            var current=new RuntimeSession(()=>new ProcessTransport(executable,Path.Combine(root,"CodexHome"),job.Add,ShutdownDiagnostic)); runtime=current;
             current.Event+=value=>app.Dispatcher.BeginInvoke(()=> { if(!stopping && ReferenceEquals(runtime,current)) Receive(value); });
             await current.StartAsync(); await current.RefreshAsync();
         } catch(Exception e) when(e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or OperationCanceledException) { State.Error("initialize","Runtime unavailable"); Render(); }

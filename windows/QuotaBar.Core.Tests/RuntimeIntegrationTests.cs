@@ -2,6 +2,23 @@ using System.Collections.Concurrent;
 using QuotaBar.Core;
 
 static class RuntimeIntegrationTests {
+    public static async Task InheritedPipeExit() {
+        var home=Path.Combine(Path.GetTempPath(),"quotabar-pipe-"+Guid.NewGuid());
+        var previous=Environment.GetEnvironmentVariable("QUOTABAR_PIPE_FIXTURE"); var childId=0; Task? disposing=null;
+        var transport=new ProcessTransport(Environment.ProcessPath!,home);
+        try {
+            Environment.SetEnvironmentVariable("QUOTABAR_PIPE_FIXTURE","1"); await transport.StartAsync(CancellationToken.None);
+            await using var lines=transport.ReadLinesAsync(CancellationToken.None).GetAsyncEnumerator();
+            if(!await lines.MoveNextAsync()) throw new Exception("Inherited-pipe fixture failed to start"); childId=int.Parse(lines.Current);
+            disposing=transport.DisposeAsync().AsTask(); await disposing.WaitAsync(TimeSpan.FromSeconds(4));
+            Console.WriteLine("PASS runtime disposal bounded when an exited parent leaves inherited stderr open");
+        } finally {
+            Environment.SetEnvironmentVariable("QUOTABAR_PIPE_FIXTURE",previous);
+            if(childId!=0) try { using var child=System.Diagnostics.Process.GetProcessById(childId); if(!child.HasExited) child.Kill(); } catch(ArgumentException) { }
+            if(disposing is not null) await disposing; else await transport.DisposeAsync();
+            if(Directory.Exists(home)) Directory.Delete(home,true);
+        }
+    }
     public static async Task Run(string executable) {
         var home=Path.Combine(Path.GetTempPath(),"quotabar-isolated-protocol-"+Guid.NewGuid());
         var events=new ConcurrentQueue<RuntimeEvent>();
