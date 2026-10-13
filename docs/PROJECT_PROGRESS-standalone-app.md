@@ -3,7 +3,7 @@
 最近更新：2026-10-13（Asia/Shanghai）
 当前阶段：Windows v0.7.0已正式发布；macOS 正在补齐详情页底栏 X＋Tibo，已发布版本仍为v0.6.0。
 当前授权：2026-10-13用户明确“windows功能已经完全验证，推送打包发布”，授权推送、合并代码、通过Release Please升版、Windows正式打包及公开发行。
-下一步：macOS X＋Tibo 安装实机验收及新 CI 待执行，公开发布需另行授权。
+下一步：draft PR #35 待 CI/审查，公开发布需另行授权；本机安装与额度查询通过。
 
 ## 每次开发的恢复与记录
 
@@ -332,3 +332,8 @@ PR #32合并为dbecd098，Release Please生成PR #33，仅更新version.txt、ma
 ### macOS 底栏提交与本机安装授权（2026-10-13）
 
 用户明确“推送提交代码，暂不发布，本机安装”。范围为提交并推送开发分支、构建和本机安装候选，不发布、不合并版本 PR、不修改产品版本。找到既有 SDK $HOME/.local/share/quotabar-dotnet/dotnet 后，PATH=$HOME/.local/share/quotabar-dotnet:$PATH ./governance check all 完整通过，补齐此前未运行的 Windows Core 行为测试及 Windows 应用/安装器/UI 测试项目编译；Windows 原生 UI 不在 macOS 上执行。下一步从源码提交构建签名候选并事务安装，核对进程与额度状态。
+
+
+本机安装结果：功能提交 cc3e660 已推送至 codex/feat/macos-tibo-footer，draft PR #35。最终候选 .dist/standalone-macos/candidate-20261013-144046 的来源是干净 cc3e660，版本仍为 0.7.0 开发候选；完整 Swift 测试、release 构建、严格签名和 DMG 校验通过。事务安装至用户 Applications/QuotaBar.app；安装件与候选可执行文件逐字节一致，来源提交/干净状态及严格签名复核通过。应用 pid=85476，phase=ready、has_quota=true、host_ui=false、floating_visible=true，现有账号可继续查询额度，回退备份和登录数据保留。首次候选标记提交前 dirty 来源，已由干净提交候选重新安装替换；不作为最终交付。
+
+未执行真实浏览器点击及新平台实机矩阵；draft PR 待 CI/审查，不合并、不公开发布。当前本机安装与提交推送目标完成，后续按用户授权处理审查或发布。
