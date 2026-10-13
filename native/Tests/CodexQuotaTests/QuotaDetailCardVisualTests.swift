@@ -145,8 +145,8 @@ final class QuotaDetailCardVisualTests: XCTestCase {
                     descendants(of: card)
                         .compactMap { $0 as? NSButton }
                         .count,
-                    3,
-                    "The card includes the header lock control plus its GitHub and settings footer controls."
+                    4,
+                    "The card includes the header lock control plus Tibo, GitHub and settings footer controls."
                 )
                 XCTAssertTrue(
                     descendants(of: card)

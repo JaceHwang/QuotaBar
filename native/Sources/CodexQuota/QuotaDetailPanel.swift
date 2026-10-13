@@ -541,6 +541,7 @@ final class QuotaDetailCardView: NSView {
                 name: content.footerName,
                 avatarSeed: content.footerName,
                 avatarURL: content.footerAvatarURL,
+                informationEntry: content.informationEntry,
                 onOpenURL: onOpenURL,
                 onSettingsButtonTapped: onSettingsButtonTapped
             )
@@ -792,6 +793,7 @@ private final class QuotaFooterView: NSView {
         name: String?,
         avatarSeed: String?,
         avatarURL: URL?,
+        informationEntry: QuotaInformationEntry,
         onOpenURL: @escaping (URL) -> Void,
         onSettingsButtonTapped: @escaping (NSButton) -> Void
     ) {
@@ -810,12 +812,23 @@ private final class QuotaFooterView: NSView {
         nameField.frame = CGRect(
             x: 54,
             y: 14,
-            width: max(100, frameRect.width - 196),
+            width: max(0, frameRect.width - 258),
             height: 18
         )
         addSubview(nameField)
 
-        let github = QuotaFooterGitHubButton(
+        let tibo = QuotaFooterLinkButton(
+            frame: CGRect(x: frameRect.width - 204, y: 9, width: 72, height: 30),
+            destination: informationEntry.destination,
+            label: "Tibo",
+            mark: QuotaFooterLinkButton.xMark,
+            iconTint: .labelColor,
+            accessibilityLabel: informationEntry.accessibilityLabel,
+            onActivate: onOpenURL
+        )
+        tibo.toolTip = informationEntry.title
+        addSubview(tibo)
+        let github = QuotaFooterLinkButton(
             frame: CGRect(x: frameRect.width - 132, y: 9, width: 88, height: 30),
             destination: Self.projectURL,
             onActivate: onOpenURL
@@ -837,7 +850,7 @@ private final class QuotaFooterView: NSView {
 }
 
 @MainActor
-final class QuotaFooterGitHubButton: NSButton {
+final class QuotaFooterLinkButton: NSButton {
     private static let projectMark: NSImage = {
         let svg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -849,8 +862,18 @@ final class QuotaFooterGitHubButton: NSButton {
             ?? NSImage(size: NSSize(width: 16, height: 16))
     }()
 
+    static let xMark: NSImage = {
+        let svg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path fill="#000" d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.64 7.584H.47l8.6-9.835L0 1.154h7.594l5.243 6.932 6.064-6.933zm-1.29 19.49h2.039L6.487 3.24H4.3l13.31 17.403z"/>
+        </svg>
+        """
+        return NSImage(data: Data(svg.utf8)) ?? NSImage(size: NSSize(width: 16, height: 16))
+    }()
+
     private let iconView: NSImageView
     private let titleLabel: NSTextField
+    private let iconTint: NSColor
     private let destination: URL
     private let onActivate: (URL) -> Void
     private var hoverTrackingArea: NSTrackingArea?
@@ -859,12 +882,17 @@ final class QuotaFooterGitHubButton: NSButton {
     init(
         frame frameRect: NSRect,
         destination: URL,
+        label: String = "GitHub",
+        mark: NSImage? = nil,
+        iconTint: NSColor = .secondaryLabelColor,
+        accessibilityLabel: String = "GitHub",
         onActivate: @escaping (URL) -> Void
     ) {
+        self.iconTint = iconTint
         self.destination = destination
         self.onActivate = onActivate
-        iconView = NSImageView(image: Self.projectMark)
-        titleLabel = NSTextField(labelWithString: "GitHub")
+        iconView = NSImageView(image: mark ?? Self.projectMark)
+        titleLabel = NSTextField(labelWithString: label)
         super.init(frame: frameRect)
         title = ""
         isBordered = false
@@ -888,7 +916,7 @@ final class QuotaFooterGitHubButton: NSButton {
         addSubview(titleLabel)
         setAccessibilityElement(true)
         setAccessibilityRole(.link)
-        setAccessibilityLabel("GitHub")
+        setAccessibilityLabel(accessibilityLabel)
         setAccessibilityHelp(destination.absoluteString)
         updateAppearance()
     }
@@ -946,7 +974,7 @@ final class QuotaFooterGitHubButton: NSButton {
             layer?.shadowOpacity = isPointerInside ? 0.22 : 0
             layer?.shadowRadius = isPointerInside ? 8 : 0
             layer?.shadowOffset = NSSize(width: 0, height: -1)
-            iconView.contentTintColor = .secondaryLabelColor
+            iconView.contentTintColor = iconTint
             titleLabel.textColor = .secondaryLabelColor
         }
     }

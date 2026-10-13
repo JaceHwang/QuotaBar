@@ -26,6 +26,7 @@ final class QuotaDetailLockButtonTests: XCTestCase {
 
     func testCardPlacesLockButtonInHeaderAndForwardsActivation() throws {
         var activationCount = 0
+        var openedURL: URL?
         let content = QuotaDetailContent(
             title: "Codex 剩余额度",
             remainingPercent: 85,
@@ -44,9 +45,20 @@ final class QuotaDetailLockButtonTests: XCTestCase {
             isLockedOpen: false,
             lockAccessibilityLabel: "固定浮窗",
             onLockOpenToggle: { activationCount += 1 },
-            onOpenURL: { _ in }
+            onOpenURL: { openedURL = $0 }
         )
         card.layoutSubtreeIfNeeded()
+
+        let tibo = try XCTUnwrap(descendants(of: card).compactMap { $0 as? NSButton }.first {
+            $0.accessibilityLabel() == content.informationEntry.accessibilityLabel
+        })
+        let github = try XCTUnwrap(descendants(of: card).compactMap { $0 as? QuotaFooterLinkButton }.first {
+            $0.accessibilityLabel() == "GitHub"
+        })
+        XCTAssertTrue(tibo.superview === github.superview)
+        XCTAssertLessThanOrEqual(tibo.frame.maxX, github.frame.minX)
+        tibo.performClick(nil)
+        XCTAssertEqual(openedURL, content.informationEntry.destination)
 
         let button = try XCTUnwrap(descendants(of: card).compactMap { $0 as? QuotaDetailLockButton }.first)
         XCTAssertEqual(button.frame, CGRect(x: 257, y: 256, width: 28, height: 26))

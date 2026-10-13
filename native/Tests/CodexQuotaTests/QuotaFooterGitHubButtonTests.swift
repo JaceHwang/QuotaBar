@@ -7,7 +7,7 @@ final class QuotaFooterGitHubButtonTests: XCTestCase {
     func testExposesProjectLinkAccessibilityAndOpensExactURL() {
         let destination = URL(string: "https://github.com/JaceHwang/codex-usage-sidebar")!
         var opened: URL?
-        let button = QuotaFooterGitHubButton(
+        let button = QuotaFooterLinkButton(
             frame: CGRect(x: 0, y: 0, width: 22, height: 22),
             destination: destination,
             onActivate: { opened = $0 }
@@ -23,7 +23,7 @@ final class QuotaFooterGitHubButtonTests: XCTestCase {
     }
 
     func testUsesCompactBorderlessRoundedSurface() {
-        let button = QuotaFooterGitHubButton(
+        let button = QuotaFooterLinkButton(
             frame: CGRect(x: 0, y: 0, width: 88, height: 30),
             destination: URL(string: "https://github.com/JaceHwang/codex-usage-sidebar")!,
             onActivate: { _ in }
