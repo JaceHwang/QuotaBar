@@ -6,13 +6,14 @@
 
 ## 功能
 
-- 菜单栏：两行剩余额度和重置日期，或透明单色图标。设置中的“任务栏显示额度信息”控制两种模式，选择会保存。
-- 悬浮按钮：默认开启，自由拖动并记住位置。菜单栏右键菜单的“显示悬浮按钮”独立控制显示，不在设置中。 当前本地开发候选在右侧增加悬停时显示的关闭按钮；关闭会保存隐藏状态，可由菜单栏右键重新开启。
+- macOS菜单栏：两行剩余额度和重置日期，或透明单色图标。设置中的“任务栏显示额度信息”控制两种模式，选择会保存。
+- 悬浮按钮：默认开启，自由拖动并记住位置。菜单栏右键菜单的“显示悬浮按钮”独立控制显示，不在设置中。 macOS当前本地开发候选在右侧增加悬停时显示的关闭按钮；关闭会保存隐藏状态，可由菜单栏右键重新开启。
+- Windows托盘：所有主题固定圆形彩色图标；设置中的额度信息开关控制悬停提示。Windows正式版悬浮按钮已包含悬停关闭功能，可从托盘恢复。
 - 原额度详情卡：悬停预览，点击固定，未锁定时再次点击收起；锁按钮控制保持打开，未锁定时外部点击收起。
 - 原生设置：官方浏览器登录、登出、刷新、重新加载运行时、系统/浅色/深色主题、系统/简中/繁中/英文语言及登录启动。
-- 安装迁移：旧名 Codex Quota.app 升级为 QuotaBar.app，保留账号和偏好，支持事务恢复、回退和卸载。
+- macOS安装迁移：旧名 Codex Quota.app 升级为 QuotaBar.app，保留账号和偏好，支持事务恢复、回退和卸载。
 
-## 安装和重新开启
+## macOS安装和重新开启
 
 从同一 Release 下载 DMG、安装脚本、说明、来源记录及 SHA256 文件。发行文件仍名为 `codex-quota-vX.Y.Z-macos-arm64.dmg`，当前包内应用名为 **QuotaBar.app**。校验后，升级或迁移建议使用附带脚本：
 
@@ -22,9 +23,17 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 安装器默认放在 **`~/Applications/QuotaBar.app`**。Finder 侧栏“应用程序”通常打开 `/Applications`，因此看不到用户级安装。退出后按 **⌘⇧G**，输入 `~/Applications`，双击 QuotaBar.app 即可重新开启；重复打开已运行的应用会显示设置。关闭设置继续常驻，退出或 ⌘Q 会清理内嵌采集进程。
 
-声明支持 macOS 14+ Apple Silicon，已在 macOS 27.0 实测。安装包为本地签名，**未完成 Developer ID 公证**；首次打开可能需要在系统“隐私与安全性”批准。Windows 11 x64 独立版已正式发布v0.7.0，全部功能及最新UI由用户验收，原生CI和公开下载包核验通过；托盘/程序统一圆形图标，额度放在提示及浮窗，见[Windows安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。周期额度不是 API 现金余额。
+声明支持 macOS 14+ Apple Silicon，已在 macOS 27.0 实测。安装包为本地签名，**未完成 Developer ID 公证**；首次打开可能需要在系统“隐私与安全性”批准。周期额度不是 API 现金余额。
+
+## Windows安装和重新开启
+
+Windows 11 x64 独立版已正式发布v0.7.0，全部功能及最新UI由用户验收，原生CI和公开下载包核验通过；托盘/程序统一圆形图标，额度放在提示及浮窗，见[Windows安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
+
+从同一发布下载ZIP和QUOTABAR-WINDOWS-SHA256SUMS.txt并校验，完整解压后运行 `QuotaBar/setup/QuotaBar.Setup.exe`。退出后从开始菜单搜索QuotaBar重开。Windows安装包未签名，升级和回退保留账号及设置。
 
 ## 开发与验证
+
+macOS构建（需要Xcode）：
 
 ```bash
 ./governance doctor
@@ -32,7 +41,16 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 CUS_RUNTIME_BINARY=/path/to/codex bash scripts/build-macos-standalone.sh
 ```
 
-macOS源码、资源和测试在 `native/`，Windows实现和测试在 `windows/`，安装、打包和来源验证工具在 `scripts/`。打包需要 Xcode 和固定官方 `codex-cli 0.144.1`；版本仅由 Release Please 管理，禁止覆盖已发布资产。
+macOS源码、资源和测试在 `native/`，Windows实现和测试在 `windows/`，安装、打包和来源验证工具在 `scripts/`。macOS打包需要 Xcode 和固定官方 `codex-cli 0.144.1`；版本仅由 Release Please 管理，禁止覆盖已发布资产。
+
+Windows构建需要.NET 10 SDK和Python，不需要Xcode：
+
+```sh
+dotnet run --project windows/QuotaBar.Core.Tests
+python scripts/build-windows-standalone.py
+```
+
+正式发布额外在Windows执行原生启动退出和安装检查。
 
 每次开发前读取[详细进度](docs/PROJECT_PROGRESS-standalone-app.md)并恢复看板，里程碑后更新。其他说明：[安装](docs/MACOS_STANDALONE.zh-CN.md)、[架构](docs/ARCHITECTURE.md)、[隐私](docs/PRIVACY.md)、[验收](docs/validation/macos-standalone.md)、[治理](docs/GOVERNANCE.md)。
 
