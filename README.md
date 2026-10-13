@@ -29,7 +29,7 @@ Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; 
 
 ## Windows install and reopen
 
-Windows 11 x64 standalone v0.7.0 is published, with user-reported complete functional/UI acceptance, native CI and public-download verification. The tray/app share one circular icon; quota appears in the tooltip and floating button. See the [Windows install guide](docs/WINDOWS_STANDALONE.zh-CN.md). 
+Windows 11 x64 standalone v0.7.0 is published, with user-reported complete functional/UI acceptance, native CI and public-download verification. The tray/app share one circular icon; quota appears in the tooltip and floating button. See the [Windows install guide](docs/WINDOWS_STANDALONE.zh-CN.md).
 
 Download the ZIP and verify QUOTABAR-WINDOWS-SHA256SUMS.txt from the same release. Extract the whole ZIP and run `QuotaBar/setup/QuotaBar.Setup.exe`. Search for QuotaBar in the Start menu to reopen. Windows assets are unsigned; upgrading and rollback preserve account/settings data.
 
