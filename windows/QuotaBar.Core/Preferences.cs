@@ -3,6 +3,8 @@ using System.Text.Json;
 namespace QuotaBar.Core;
 public sealed record Preferences {
     public int Schema { get; init; }=1;
+    public bool AutomaticUpdates { get; init; }=true;
+    public bool UpdateReminders { get; init; }=false;
     public bool FloatingEnabled { get; init; }=true;
     public bool ShowsQuotaInformation { get; init; }=true;
     public double? FloatingX { get; init; }

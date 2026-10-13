@@ -9,6 +9,23 @@ if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_P
     return 0;
 }
 var tests = new (string Name, Action Run)[] {
+    ("updates select platform and compare numeric stable versions", () => {
+        var json="""{"schemaVersion":1,"stable":{"windows-x64":{"version":"0.10.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.10.0"},"macos-arm64":{"version":"9.0.0","minOS":"14.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v9.0.0"}}}""";
+        Check(UpdateFeed.Available(json,"windows-x64","0.9.0","10.0")?.Version=="0.10.0","numeric ordering and platform filter");
+        Check(UpdateFeed.Available(json,"windows-x64","0.10.0","10.0") is null,"same version no update");
+        Check(UpdateFeed.Available(json,"windows-x64","1.0.0","10.0") is null,"no downgrade");
+        Check(UpdateFeed.Available(json,"windows-x64","0.9.0","9.0") is null,"minimum OS");
+        foreach(var invalid in new[]{json.Replace("0.10.0","0.10.0-beta.1"),json.Replace("https://github.com","https://evil.example"),json.Replace("0.10.0","00.10.0")}) {
+            var rejected=false; try { UpdateFeed.Available(invalid,"windows-x64","0.9.0","10.0"); } catch(FormatException) { rejected=true; }
+            Check(rejected,"unsafe or malformed stable entry rejected");
+        }
+        var policy=new UpdateReminderPolicy(); var now=DateTimeOffset.UtcNow;
+        Check(policy.ShouldNotify("0.10.0",now),"initial notification");
+        policy=policy with { NotifiedVersion="0.10.0",SkippedVersion="0.11.0" };
+        var restored=JsonSerializer.Deserialize<UpdateReminderPolicy>(JsonSerializer.Serialize(policy))!;
+        Check(!restored.ShouldNotify("0.10.0",now) && !restored.ShouldNotify("0.11.0",now),"restart dedup and skip");
+        Check(!(policy with { SnoozeUntil=now.AddDays(1) }).ShouldNotify("0.12.0",now),"snooze");
+    }),
     ("detail countdown uses consistent days and hours without changing tray text", () => {
         var now=new DateTimeOffset(2026,10,13,12,32,0,TimeSpan.FromHours(8)); var copy=new Copy("zh-CN");
         Check(copy.DetailCountdown(now.AddHours(4).AddMinutes(59),now)=="0天4小时","sub-day interval includes zero days");
