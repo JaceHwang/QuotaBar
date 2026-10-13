@@ -1,6 +1,6 @@
 # QuotaBar
 
-Independent macOS menu bar and floating quota app for Codex accounts. A bundled official Codex 0.144.1 runtime reads quota using an isolated account; Codex desktop and its plugin UI are not required.
+Independent quota app for Codex accounts on macOS and Windows, with menu bar/tray and floating controls. A bundled official Codex 0.144.1 runtime reads quota using an isolated account; Codex desktop and its plugin UI are not required.
 
 [Latest release v0.7.0 (Windows)](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.7.0) · [Windows installer ZIP](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.7.0/QuotaBar-0.7.0-windows-x64.zip) · [Apple Silicon DMG](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [中文](README.zh-CN.md) · [Documentation](docs/README.md)
 

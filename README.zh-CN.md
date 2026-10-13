@@ -1,6 +1,6 @@
 # QuotaBar 独立额度应用
 
-独立运行的 macOS 菜单栏与悬浮额度应用。通过内嵌官方 Codex 0.144.1 运行时和隔离账户读取额度，不需要打开 Codex 桌面版或安装旧插件。
+独立运行的 macOS/Windows 额度应用，提供菜单栏/托盘及悬浮入口。通过内嵌官方 Codex 0.144.1 运行时和隔离账户读取额度，不需要打开 Codex 桌面版或安装旧插件。
 
 [最新发布 v0.7.0（Windows）](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.7.0) · [Windows安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.7.0/QuotaBar-0.7.0-windows-x64.zip) · [Apple Silicon 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [English](README.md) · [文档索引](docs/README.md)
 
