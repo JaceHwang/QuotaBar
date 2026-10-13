@@ -1,9 +1,9 @@
 # 独立额度应用开发进度
 
-最近更新：2026-10-12（Asia/Shanghai）
-当前阶段：公开最新版本为 QuotaBar v0.6.0；当前工作区及本机候选另含未发布的悬停关闭浮窗功能。Windows 独立版已开始实施，核心行为测试和WPF交叉编译通过，尚待Windows原生运行和设备验收。
+最近更新：2026-10-13（Asia/Shanghai）
+当前阶段：公开最新版本为 QuotaBar v0.6.0；Windows候选已通过原生CI与用户Windows 11验收反馈，正在按用户反馈优化Windows浮窗内部UI和托盘彩色图标。
 当前授权：用户目标为开发Windows相关功能并与macOS一致；允许Windows实现和候选打包。用户已选托盘只图标、额度放提示/浮窗，并确认有Windows 11设备可验收；未授权新的公开发行。
-下一步：完成Windows候选源码审查和包核验，交付Windows 11实机登录、鼠标、DPI及安装验收；Windows CI和设备结果独立记录。
+下一步：核对历史Windows插件UI作为视觉来源，完成用户指定的Windows展示优化，验证并打包新的候选；未授权公开发行。
 
 ## 每次开发的恢复与记录
 
@@ -19,7 +19,7 @@
 
 当前 macOS：Swift 6、AppKit、NSStatusItem、官方 Codex 0.144.1 app-server、Service Management 登录启动。声明 macOS 14+ Apple Silicon，实测 macOS 27.0。公开包为本地签名，未完成 Developer ID 公证。
 
-Windows 独立版：当前采用.NET 10 LTS、WPF与WinForms NotifyIcon，官方codex.exe 0.144.1和独立账号目录。源码、核心测试及交叉编译已实现；原生UI测试与真实设备验收待执行，旧Windows插件代码不恢复。契约样例位于 `contracts/`。
+Windows 独立版：当前采用.NET 10 LTS、WPF与WinForms NotifyIcon，官方codex.exe 0.144.1和独立账号目录。原生CI通过，用户报告Windows 11验收通过；具体设备版本、DPI和逐项日志未提供，不推断覆盖全部边缘场景。仅复用历史插件视觉实现，不恢复UIA、宿主绑定或插件采集。契约样例位于 `contracts/`。
 
 ## 全周期路线
 
@@ -272,3 +272,11 @@ Windows验收至少记录：Windows版本/架构、运行时版本、构建来�
 同源码本地候选 `.dist/standalone-windows/candidate-20261012-130346/QuotaBar-0.6.0-windows-x64-candidate.zip` 已通过完整文件、PE x64、官方runtime摘要、来源和ZIP校验；SHA256为 `0a3ae4ed736a289cc2ecad8ca22721789f02c73cebf93364cb8f4e4f63d5de03`。包为未签名开发候选，产品版本未提升，PR #32仍为draft，尚未公开发布。
 
 用户已确认拥有Windows 11电脑并可安装验收。下一步交付候选，按 `WINDOWS_STANDALONE.zh-CN.md` 验收真实登录、关闭Codex持续刷新、悬停关闭/拖动/右键恢复和重启持久化、DPI及退出清理；逐条记录设备证据后再判断W4–W6完成状态。
+
+### Windows 11反馈与详情卡视觉回归（2026-10-13）
+
+用户明确报告当前Windows 11验证已通过，并指出展示需要优化；后续澄清“浮窗内部UI”指展开的额度详情卡，不是双行悬浮按钮。初始候选设备通过按用户报告记录，不推断具体DPI、多屏、睡眠等逐项证据。
+
+视觉方向沿用已批准的现有设计与跳过效果图决定。以历史v0.4.1的WpfOverlaySurface/OverlayVisualMetrics为来源恢复详情卡内布局：360px卡宽、Segoe UI、28px图标、18px标题/版本徽标、28px额度数值、4px全轨道渐变裁切、紧凑Token带、126px明细标签列、32/46px明细行、右对齐数值及数字突出倒计时、固定头像底栏和细拖动手柄。保留独立版关闭、设置、锁定、Tibo入口及补充Token统计；短高度提供整体滚动。仅复用视觉实现，不引入插件宿主依赖。双行悬浮按钮不改。
+
+Windows托盘按用户要求重新上色，透明矢量蓝色轮廓和橙色眼睛/波形，深色主题采用较浅蓝色保证辨识度；高对比度仍采用系统色。新增托盘浅深色PNG和小高度连续刷新原生UI验证。下一步运行治理/Windows原生CI、核对截图并打包新候选。

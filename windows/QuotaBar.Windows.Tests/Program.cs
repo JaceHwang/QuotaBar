@@ -37,12 +37,19 @@ internal static class Program {
             Check(button.IsVisible && button.CloseControl.Visibility==Visibility.Hidden,"restore floating hidden close");
             var output=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(output);
             foreach(var dark in new[]{false,true}) {
+                using(var icon=Coordinator.MakeTrayIcon(dark)) using(var preview=icon.ToBitmap()) preview.Save(Path.Combine(output,"tray-"+(dark?"dark":"light")+".png"),System.Drawing.Imaging.ImageFormat.Png);
                 detail.Render(quota,dark?tokens:null,new AccountIdentity("Example",null,null),state,prefs,copy,dark,false,Platform.Bounds(button)); Pump();
                 Check(detail.IsVisible && !Platform.Bounds(detail).IsEmpty,"native detail window visible");
                 Console.WriteLine("PASS refreshed detail reparenting "+(dark?"dark":"light"));
                 var root=(FrameworkElement)detail.Content; root.UpdateLayout();
                 var bitmap=new RenderTargetBitmap((int)Math.Ceiling(detail.Width),(int)Math.Ceiling(detail.Height),96,96,PixelFormats.Pbgra32); bitmap.Render(root);
                 var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(output,"detail-"+(dark?"dark":"light")+".png")); encoder.Save(file);
+            }
+            // A short saved viewport must keep all content reachable and survive repeated refresh.
+            foreach(var language in new[]{"en","zh-TW"}) {
+                detail.Render(quota,tokens,new AccountIdentity("Example with a long account name",null,null),state,prefs with { DetailHeight=220 },new Copy(language),true,true,Platform.Bounds(button)); Pump();
+                detail.Render(quota,tokens,new AccountIdentity("Example with a long account name",null,null),state,prefs with { DetailHeight=220 },new Copy(language),true,true,Platform.Bounds(button)); Pump();
+                Check(detail.Content is Border { Child:ScrollViewer },"short detail viewport can scroll fixed bands");
             }
             Console.WriteLine("PASS Windows native floating visibility/hover/close/restore and light/dark detail rendering"); return 0;
         } catch(Exception e) { Console.Error.WriteLine("FAIL Windows UI: "+e); return 1; }
