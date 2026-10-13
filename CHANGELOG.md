@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.7.0...v1.0.0) (2026-10-13)
+
+
+### Features
+
+* add platform update checks and native reminders ([f7ef206](https://github.com/JaceHwang/codex-usage-sidebar/commit/f7ef206954597a34999638073153453d5f55a4a3))
+* add release notes and daily update checks ([f321da6](https://github.com/JaceHwang/codex-usage-sidebar/commit/f321da6238ae28d16e684f3f3ff792f6bca7e90f))
+* **macos:** add Tibo X link to detail footer ([#35](https://github.com/JaceHwang/codex-usage-sidebar/issues/35)) ([f9208cf](https://github.com/JaceHwang/codex-usage-sidebar/commit/f9208cfa4e315c89d4974254f9f556e6d959ecfb))
+
 ## [0.7.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.6.0...v0.7.0) (2026-10-13)
 
 
