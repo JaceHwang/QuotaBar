@@ -1,9 +1,9 @@
 # 独立额度应用开发进度
 
 最近更新：2026-10-13（Asia/Shanghai）
-当前阶段：Windows全部功能及最新UI已获用户完整验收，准备首次Windows独立版正式发布；公开最新版本仍为v0.6.0。
+当前阶段：Windows v0.7.0已正式发布，源码、原生CI、用户验收反馈及公开下载完整验证均完成；macOS已发布版本仍为v0.6.0。
 当前授权：2026-10-13用户明确“windows功能已经完全验证，推送打包发布”，授权推送、合并代码、通过Release Please升版、Windows正式打包及公开发行。
-下一步：补齐Windows staged发布，合并功能PR与生成的Release Please PR，从准确新tag构建、验包并发布Windows资产。
+下一步：维护正式发布与源码文档一致；后续修复走新开发分支和Release Please版本流程，不覆盖v0.7.0资产。
 
 ## 每次开发的恢复与记录
 
@@ -306,3 +306,11 @@ Windows托盘按用户要求重新上色，透明矢量蓝色轮廓和橙色眼�
 ### Windows正式发布授权（2026-10-13）
 
 用户报告全部Windows功能及第二轮UI验证通过，并明确授权推送打包发布。验收依据为用户完整反馈，不虚构具体机器/DPI日志。发布前补齐Windows staged平台支持：精确tag/干净检出、自包含ZIP、来源及摘要文件、Windows native启动退出与安装全生命周期门禁。版本只能通过Release Please PR产生；不覆盖v0.6.0资产。正式二进制未单独实机测试，用户验收针对功能源候选，正式包在原生CI验证，来源说明分开记录。
+
+### Windows v0.7.0正式发布完成（2026-10-13）
+
+PR #32合并为dbecd098，Release Please生成PR #33，仅更新version.txt、manifest和CHANGELOG至0.7.0。四项发布PR检查通过后合并，准确tag为v0.7.0，指向65286812ddc335b97d15fa35b1932cbc344394da。
+
+[发布工作流38345901775](https://github.com/JaceHwang/codex-usage-sidebar/actions/runs/38345901775) 在Windows runner从该tag构建，完整包/源码、实际runtime启动退出、实际安装升级回滚卸载及正式来源报告均通过，上传五项不可覆盖资产并公开。发布页：[QuotaBar v0.7.0 — Windows standalone](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.7.0)，已设为最新版本；macOS本次not-targeted，仍使用v0.6.0。
+
+公开资产已重新下载至.dist/published-windows-v0.7.0，在干净准确tag检出上运行verify-windows-standalone-release.py通过：ZIP及每文件摘要、PE x64、runtime固定摘要、来源/版本/tag、原生验证记录全部匹配。主ZIP SHA256：5451992bf76a834da6fa764df1cb798abfe0bc0277fc91c10bfe75712c35787d。用户验收来自正式升版前功能源候选；准确升版二进制原生CI验证，未冒充单独实机重验。详见docs/releases/windows-standalone-v0.7.0.md。
