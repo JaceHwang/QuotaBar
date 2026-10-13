@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.6.0...v0.7.0) (2026-10-13)
+
+
+### Features
+
+* add Windows standalone quota app and recoverable installer ([dbecd09](https://github.com/JaceHwang/codex-usage-sidebar/commit/dbecd098f418e367cfbb00f195ad14f638556688))
+
 ## [0.6.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.5.1...v0.6.0) (2026-10-12)
 
 
