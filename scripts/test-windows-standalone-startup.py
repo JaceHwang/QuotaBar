@@ -28,7 +28,11 @@ def main():
         children=value if isinstance(value,list) else [value]
         assert children,"Actual owned runtime missing"
         subprocess.run([str(executable),"--quit"],check=True,timeout=10)
-        assert app.wait(timeout=10)==0,"Graceful application exit failed"
+        try: assert app.wait(timeout=10)==0,"Graceful application exit failed"
+        except subprocess.TimeoutExpired:
+            shutdown=data/"shutdown-state.txt"
+            print("Shutdown stage:",shutdown.read_text().strip() if shutdown.exists() else "not recorded",flush=True)
+            raise
         kernel=ctypes.WinDLL("kernel32",use_last_error=True)
         kernel.OpenProcess.restype=ctypes.c_void_p
         kernel.OpenProcess.argtypes=[ctypes.c_uint32,ctypes.c_bool,ctypes.c_uint32]

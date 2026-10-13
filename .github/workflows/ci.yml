@@ -53,6 +53,11 @@ jobs:
         env:
           QUOTABAR_TEST_ARTIFACTS: ${{ github.workspace }}/.dist/windows-ui-tests
         run: dotnet run --project windows/QuotaBar.Windows.Tests --configuration Release
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: quotabar-windows-ui
+          path: .dist/windows-ui-tests/
+          if-no-files-found: error
       - name: Build self-contained candidate with verified runtime
         run: python scripts/build-windows-standalone.py
       - name: Verify candidate source and complete payload

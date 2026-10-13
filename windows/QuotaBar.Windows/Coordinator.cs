@@ -204,9 +204,10 @@ internal sealed class Coordinator : IDisposable {
     void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(Render); }
     void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(Refresh); }
     public async void Quit() {
-        if(stopping) return; stopping=true; tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
-        if(runtime is not null) await runtime.DisposeAsync(); app.Shutdown();
+        if(stopping) return; stopping=true; ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
+        ShutdownDiagnostic("runtime-disposing"); if(runtime is not null) await runtime.DisposeAsync(); ShutdownDiagnostic("runtime-disposed"); app.Shutdown();
     }
+    void ShutdownDiagnostic(string stage) { try { File.WriteAllText(Path.Combine(root,"shutdown-state.txt"),$"pid={Environment.ProcessId} stage={stage}\n"); } catch(IOException) { } }
     public void Dispose() {
         stopping=true; tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
         SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
