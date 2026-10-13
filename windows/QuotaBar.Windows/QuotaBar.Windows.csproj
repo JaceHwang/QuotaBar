@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="../QuotaBar.Core/QuotaBar.Core.csproj" />
     <Resource Include="Assets/*.png" />
+    <Resource Include="Assets/QuotaBar.ico" />
     <None Include="Assets/QuotaBar.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

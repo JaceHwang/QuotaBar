@@ -2,6 +2,16 @@ using System.Text.Json;
 using QuotaBar.Core;
 
 var tests = new (string Name, Action Run)[] {
+    ("detail countdown uses consistent days and hours without changing tray text", () => {
+        var now=new DateTimeOffset(2026,10,13,12,32,0,TimeSpan.FromHours(8)); var copy=new Copy("zh-CN");
+        Check(copy.DetailCountdown(now.AddHours(4).AddMinutes(59),now)=="0天4小时","sub-day interval includes zero days");
+        Check(copy.DetailCountdown(now.AddDays(3).AddHours(23),now)=="3天23小时","full days and remainder hours");
+        Check(copy.DetailCountdown(now.AddMinutes(59),now)=="0天0小时","under hour consistent units");
+        Check(copy.DetailCountdown(now.AddDays(-1),now)=="0天0小时","elapsed interval clamps zero");
+        Check(new Copy("zh-TW").DetailCountdown(now.AddHours(24),now)=="1天0小時","traditional units");
+        Check(new Copy("en").DetailCountdown(now.AddHours(49),now)=="2d 1h","English units");
+        Check(copy.Countdown(now.AddHours(4).AddMinutes(59),now)=="4小时 59分钟","existing tooltip countdown unchanged");
+    }),
     ("legacy flag migration preserves unrelated configuration", () => {
         var dir=Path.Combine(Path.GetTempPath(),"quotabar-legacy-"+Guid.NewGuid()); Directory.CreateDirectory(dir);
         try {

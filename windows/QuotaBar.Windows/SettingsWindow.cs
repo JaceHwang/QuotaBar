@@ -4,7 +4,7 @@ internal sealed class SettingsWindow : Window {
     readonly StackPanel stack=new() { Margin=new Thickness(24) };
     TextBlock status=Ui.Text("");
     public SettingsWindow(Coordinator owner) {
-        this.owner=owner; Title="QuotaBar"; Width=510; SizeToContent=SizeToContent.Height; ResizeMode=ResizeMode.NoResize;
+        this.owner=owner; Icon=Ui.ApplicationIcon; Title="QuotaBar"; Width=510; SizeToContent=SizeToContent.Height; ResizeMode=ResizeMode.NoResize;
         WindowStartupLocation=WindowStartupLocation.CenterScreen; Content=stack; Build();
     }
     public void UpdateStatus() { status.Text=owner.Copy.PhaseLabel(owner.State.Phase)+"\n"+(owner.Identity?.PreferredName??"")+(owner.State.LastSuccess is { } t?"\n"+t.ToLocalTime().ToString("HH:mm:ss"):""); }

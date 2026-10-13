@@ -21,7 +21,6 @@ internal sealed class Coordinator : IDisposable {
     bool trayDetail,trayLocked,detailFromFloating,sleeping,stopping,reloading;
     Icon? trayIcon;
     string? menuKey;
-    bool? iconDark,iconContrast;
     Rect trayAnchor=Rect.Empty;
     public RefreshState State { get; private set; }=new();
     public Preferences Preferences { get; private set; }
@@ -50,7 +49,6 @@ internal sealed class Coordinator : IDisposable {
             if(detailFromFloating) { interaction.ToggleLocked(true); pointer.Start(); } else trayLocked=!trayLocked;
             Render();
         };
-        detail.CloseRequested+=()=> { interaction.Reset(); trayDetail=false; trayLocked=false; detail.Hide(); };
         detail.SettingsRequested+=ShowSettings;
         detail.HeightChanged+=height=> {
             try { var updated=Preferences with { DetailHeight=height }; store.Save(updated); Preferences=updated; }
@@ -120,22 +118,12 @@ internal sealed class Coordinator : IDisposable {
         }
         var text=Preferences.ShowsQuotaInformation?copy.Indicator(Snapshot,State.Phase)+"\n"+copy.PhaseLabel(State.Phase):"QuotaBar";
         tray.Text=text.Length<=127?text:text[..126]+"…";
-        var dark=Platform.IsDark(Preferences); var contrast=SystemParameters.HighContrast;
-        if(trayIcon is null || iconDark!=dark || iconContrast!=contrast) {
-            var icon=MakeTrayIcon(dark); var previous=trayIcon; trayIcon=icon; tray.Icon=icon; previous?.Dispose(); iconDark=dark; iconContrast=contrast;
-        }
+        if(trayIcon is null) { trayIcon=MakeTrayIcon(); tray.Icon=trayIcon; }
     }
-    internal static Icon MakeTrayIcon(bool dark) {
-        using var bitmap=new Bitmap(32,32); using var g=Graphics.FromImage(bitmap);
-        g.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var color=SystemParameters.HighContrast?System.Drawing.SystemColors.WindowText:dark?System.Drawing.Color.FromArgb(202,215,245):System.Drawing.Color.FromArgb(36,55,95);
-        var accent=SystemParameters.HighContrast?System.Drawing.SystemColors.WindowText:System.Drawing.Color.FromArgb(250,112,82);
-        using var pen=new System.Drawing.Pen(color,4) { StartCap=System.Drawing.Drawing2D.LineCap.Round,EndCap=System.Drawing.Drawing2D.LineCap.Round };
-        g.DrawArc(pen,4,4,24,24,130,300); using var brush=new SolidBrush(accent); g.FillEllipse(brush,9,10,3,3); g.FillEllipse(brush,17,9,3,3);
-        using var path=new System.Drawing.Drawing2D.GraphicsPath(); path.AddBezier(6,21,13,27,18,15,26,18); path.AddBezier(26,18,24,29,9,29,6,21); path.CloseFigure(); g.FillPath(brush,path);
-        var h=bitmap.GetHicon(); try { return (Icon)Icon.FromHandle(h).Clone(); } finally { DestroyIcon(h); }
+    internal static Icon MakeTrayIcon() {
+        var resource=Application.GetResourceStream(new Uri("pack://application:,,,/QuotaBar;component/Assets/QuotaBar.ico"))??throw new IOException("Application icon resource missing");
+        using var stream=resource.Stream; using var icon=new Icon(stream,new System.Drawing.Size(32,32)); return (Icon)icon.Clone();
     }
-    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr h);
     void Render() {
         if(stopping) return;
         UpdateTray(); floating.Render(Snapshot,State,Preferences,Copy,Platform.IsDark(Preferences)); RenderDetail(); settings?.UpdateStatus();

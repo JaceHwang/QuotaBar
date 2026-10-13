@@ -22,6 +22,10 @@ public sealed class Copy(string language) {
         if(interval<=TimeSpan.Zero) return Text("Reset due","即将重置","即將重設");
         return interval.TotalDays>=1 ? $"{(int)interval.TotalDays}"+Text("d ","天 ")+ $"{interval.Hours}"+Text("h","小时","小時") : interval.TotalHours>=1 ? $"{(int)interval.TotalHours}"+Text("h ","小时 ","小時 ")+ $"{interval.Minutes}"+Text("m","分钟","分鐘") : $"{Math.Max(1,interval.Minutes)}"+Text("m","分钟","分鐘");
     }
+    public string DetailCountdown(DateTimeOffset reset,DateTimeOffset now) {
+        var hours=(long)Math.Floor(Math.Max(0,(reset-now).TotalHours));
+        return Chinese?$"{hours/24}天{hours%24}"+Text("hours","小时","小時"):$"{hours/24}d {hours%24}h";
+    }
     public string Indicator(QuotaSnapshot? quota,Phase phase) {
         if(quota is null) return PhaseLabel(phase);
         string Line(QuotaWindow w)=>$"{Period(w.WindowMinutes)} {w.RemainingPercent}% · {Reset(w.ResetsAt)}";

@@ -24,7 +24,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 The installer uses **`~/Applications/QuotaBar.app`**, not `/Applications`. Finder's Applications sidebar usually opens `/Applications`; press **Command + Shift + G**, enter `~/Applications`, and double-click QuotaBar to reopen after quitting. Double-clicking an already running app opens settings. Closing settings keeps the app running; Quit or Command + Q stops it and its runtime.
 
-Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; **not Developer ID notarized**. First launch can require user approval in macOS Privacy & Security. The Windows 11 x64 candidate passes native CI, and the user reports device acceptance of the initial candidate. The latest candidate restores the Windows plugin detail-card styling and adds a colored tray icon; updated visuals await device confirmation. See [Windows candidate guide](docs/WINDOWS_STANDALONE.zh-CN.md). Quota percentages are account usage limits, not API cash balances.
+Apple Silicon, declared macOS 14+, device-tested on macOS 27.0. Locally signed; **not Developer ID notarized**. First launch can require user approval in macOS Privacy & Security. The Windows 11 x64 candidate passes native CI, and the user reports device acceptance of the initial candidate. The latest candidate retains the Windows detail layout with fewer token statistic rows, revised time rows and an inline Tibo button; a single circular colored icon is shared by the tray and app in every theme; updated visuals await device confirmation. See [Windows candidate guide](docs/WINDOWS_STANDALONE.zh-CN.md). Quota percentages are account usage limits, not API cash balances.
 
 ## Development and verification
 
