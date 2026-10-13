@@ -3,7 +3,7 @@
 最近更新：2026-10-13（Asia/Shanghai）
 当前阶段：公开最新版本为 QuotaBar v0.6.0；Windows候选已通过原生CI与用户Windows 11验收反馈，正在按用户反馈优化Windows浮窗内部UI和托盘彩色图标。
 当前授权：用户目标为开发Windows相关功能并与macOS一致；允许Windows实现和候选打包。用户已选托盘只图标、额度放提示/浮窗，并确认有Windows 11设备可验收；未授权新的公开发行。
-下一步：核对历史Windows插件UI作为视觉来源，完成用户指定的Windows展示优化，验证并打包新的候选；未授权公开发行。
+下一步：用户安装最新Windows候选查看详情卡与彩色托盘；跟踪CI曾出现的退出超时，未授权公开发行。
 
 ## 每次开发的恢复与记录
 
@@ -280,3 +280,9 @@ Windows验收至少记录：Windows版本/架构、运行时版本、构建来�
 视觉方向沿用已批准的现有设计与跳过效果图决定。以历史v0.4.1的WpfOverlaySurface/OverlayVisualMetrics为来源恢复详情卡内布局：360px卡宽、Segoe UI、28px图标、18px标题/版本徽标、28px额度数值、4px全轨道渐变裁切、紧凑Token带、126px明细标签列、32/46px明细行、右对齐数值及数字突出倒计时、固定头像底栏和细拖动手柄。保留独立版关闭、设置、锁定、Tibo入口及补充Token统计；短高度提供整体滚动。仅复用视觉实现，不引入插件宿主依赖。双行悬浮按钮不改。
 
 Windows托盘按用户要求重新上色，透明矢量蓝色轮廓和橙色眼睛/波形，深色主题采用较浅蓝色保证辨识度；高对比度仍采用系统色。新增托盘浅深色PNG和小高度连续刷新原生UI验证。下一步运行治理/Windows原生CI、核对截图并打包新候选。
+
+验证结果：`./governance check all` 通过；源码8668d60的CI [38338201837](https://github.com/JaceHwang/codex-usage-sidebar/actions/runs/38338201837) 和38338205116两轮均通过Windows/macOS jobs，包括新详情连续刷新、小高度整体滚动、彩色图标导出、完整候选包校验、真实runtime正常启动/退出及安装全生命周期。已实际查看 `.dist/windows-ui-8668d60/detail-light.png`、`detail-dark.png`、`tray-light.png` 和 `tray-dark.png`，核对旧版布局、对齐、颜色与底栏。
+
+本地同源码新候选：`.dist/standalone-windows/candidate-20261013-024713/QuotaBar-0.6.0-windows-x64-candidate.zip`，已通过完整文件、PE x64、runtime摘要、来源快照及ZIP核验；SHA256见同目录SHA256SUMS.txt。仍为未签名开发候选；新版外观待用户安装查看，不将旧候选实机结果冒充新外观验收。
+
+未定位的验证波动：早一轮379dd56在两个Windows runner中均出现正常退出等待10秒超时（界面和包核验通过）。8668d60加入仅PID/阶段的退出诊断后，两轮退出检查均通过，未复现；没有修改超时阈值或关闭检查，也未宣称根因已修复。后续若再次出现，检查隔离数据目录shutdown-state.txt中的阶段并继续定位。
