@@ -16,7 +16,10 @@ static class RuntimeIntegrationTests {
             Environment.SetEnvironmentVariable("QUOTABAR_PIPE_FIXTURE",previous);
             if(childId!=0) try { using var child=System.Diagnostics.Process.GetProcessById(childId); if(!child.HasExited) child.Kill(); await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3)); } catch(ArgumentException) { }
             if(disposing is not null) await disposing; else await transport.DisposeAsync();
-            if(Directory.Exists(home)) Directory.Delete(home,true);
+            for(var attempt=0;Directory.Exists(home);attempt++) {
+                try { Directory.Delete(home,true); }
+                catch(IOException) when(attempt<9) { await Task.Delay(100); }
+            }
         }
     }
     public static async Task Run(string executable) {
