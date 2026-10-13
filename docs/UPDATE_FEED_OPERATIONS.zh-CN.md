@@ -49,3 +49,5 @@ Publish release platform 成功结束后，Publish update feed 自动运行（�
 
 公网JSON成功读取且与本地已验证生成结果一致：schemaVersion=1，macOS 0.6.0、Windows 0.7.0，各自含summary/releaseNotes。本机已安装0.7.0开发候选手动检查从失败恢复为“未发现更新版本”，符合不降级规则。真实新版本通知投递、Windows用户设备联网检查未在本轮验收。Release Please #37保持未合并，没有新安装包发布或已发布资产覆盖。
 
+两平台发布页与下载URL的公网HEAD检查均返回200。初次下载链接检查出现瞬时TLS连接失败，保留证书验证，以HTTP/1.1有界重试后通过。
+
