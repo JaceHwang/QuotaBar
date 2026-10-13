@@ -90,7 +90,7 @@ internal sealed class UpdateController : IDisposable {
         if(stopped || !owner.Preferences.UpdateReminders || Available is not { } release || !state.Policy.ShouldNotify(release.Version,DateTimeOffset.UtcNow)) return;
         if(DateTimeOffset.UtcNow<retryReminder) return;
         pendingReminder=release.Version; retryReminder=DateTimeOffset.UtcNow.AddMinutes(30);
-        owner.ShowUpdateReminder(release.Version);
+        owner.ShowUpdateReminder(release.Version,release.NotificationSummary);
     }
     public void ReminderShown() {
         if(stopped) return;

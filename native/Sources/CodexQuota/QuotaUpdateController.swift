@@ -119,6 +119,11 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
         let extra = available.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0.version } ?? ""
         let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
         statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(status)"
+        if let notes = available?.releaseNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            statusField?.stringValue += "\n\n" + notes
+        } else if let summary = available?.notificationSummary {
+            statusField?.stringValue += "\n\n" + summary
+        }
         actions?.isHidden = available == nil
         checkButton?.isEnabled = request == nil
     }
@@ -149,7 +154,7 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
             let settings = await center.notificationSettings()
             guard !stopped, settings.authorizationStatus == .authorized, reminders, available == release, policy.shouldNotify(release.version, now: Date()), !Task.isCancelled else { return }
             let content = UNMutableNotificationContent(); content.title = "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version
-            content.body = text("Click to view release notes", "点击查看更新说明", "點擊查看更新說明")
+            content.body = release.notificationSummary ?? text("Click to view release notes", "点击查看更新说明", "點擊查看更新說明")
             // The release URL was validated by the feed parser; do not trust arbitrary notification payload URLs.
             content.userInfo = ["version": release.version]
             let attempted = policy

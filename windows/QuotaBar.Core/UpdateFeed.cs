@@ -3,9 +3,17 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace QuotaBar.Core;
-public sealed record UpdateRelease(string Version,string MinOS,Uri ReleaseNotesURL);
+public sealed record UpdateRelease(string Version,string MinOS,Uri ReleaseNotesURL,string? Summary=null,string? ReleaseNotes=null) {
+    public string? NotificationSummary=>string.IsNullOrWhiteSpace(Summary)?null:Summary.Trim();
+}
 public static class UpdateFeed {
     public static readonly Uri Endpoint=new("https://jacehwang.github.io/codex-usage-sidebar/updates.json");
+    static string? Text(JsonElement entry,string key,int limit) {
+        if(!entry.TryGetProperty(key,out var value) || value.ValueKind==JsonValueKind.Null) return null;
+        var text=value.GetString()!;
+        var result=string.Concat(text.EnumerateRunes().Take(limit));
+        return result;
+    }
     public static Version ParseVersion(string value,bool os=false) {
         if(!Regex.IsMatch(value,os?@"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$":@"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$") || !Version.TryParse(value,out var parsed)) throw new FormatException("Invalid version");
         return new Version(parsed.Major,parsed.Minor,Math.Max(0,parsed.Build));
@@ -20,7 +28,7 @@ public static class UpdateFeed {
             var version=e.GetProperty("version").GetString()!; var minimum=e.GetProperty("minOS").GetString()!;
             var parsed=ParseVersion(version); var link=e.GetProperty("releaseNotesURL").GetString();
             if(link!=$"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v{version}") throw new FormatException("Unsafe release URL");
-            return ParseVersion(current)<parsed && ParseVersion(os,true)>=ParseVersion(minimum,true)?new(version,minimum,new Uri(link)):null;
+            return ParseVersion(current)<parsed && ParseVersion(os,true)>=ParseVersion(minimum,true)?new(version,minimum,new Uri(link),Text(e,"summary",240),Text(e,"releaseNotes",16000)):null;
         } catch(Exception e) when(e is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException or OverflowException) { throw new FormatException("Invalid update feed",e); }
     }
 }

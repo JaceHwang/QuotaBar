@@ -18,6 +18,25 @@ def asset_names(platform, version):
         return [f'codex-quota-v{version}-macos-arm64.dmg', 'CODEX-QUOTA-PROVENANCE.json', 'CODEX-QUOTA-SHA256SUMS.txt', 'CODEX-QUOTA-INSTALL.zh-CN.md', 'install-macos-standalone.py']
     return [f'QuotaBar-{version}-windows-x64.zip', 'QUOTABAR-WINDOWS-PROVENANCE.json', 'QUOTABAR-WINDOWS-SHA256SUMS.txt', 'QUOTABAR-WINDOWS-VERIFICATION.json', 'QUOTABAR-WINDOWS-INSTALL.zh-CN.md']
 
+def release_text(body):
+    # Render release prose as inert plain text; no remote HTML or executable content.
+    body = body if isinstance(body, str) else ''
+    body = re.sub(r'<[^>]*>', '', body)
+    body = re.sub(r'!?\[([^]]*)\]\([^)]*\)', r'\1', body)
+    lines = []
+    bullets = []
+    for line in body.splitlines():
+        line = re.sub(r'^\s*#{1,6}\s*', '', line).strip()
+        line = line.replace('**', '').replace('`', '')
+        if re.match(r'^[-*+]\s+', line):
+            line = re.sub(r'^[-*+]\s+', '', line)
+            bullets.append(line)
+            line = '• ' + line
+        if line: lines.append(line)
+    notes = '\n'.join(lines)[:16000]
+    summary = ' · '.join(bullets[:3] or lines[:1])[:240]
+    return summary, notes
+
 def generate(releases, load_proof):
     feed = {'schemaVersion': 1, 'stable': {}}
     candidates = []
@@ -40,7 +59,9 @@ def generate(releases, load_proof):
             proof = load_proof(release, platform)
             if not (proof.get('kind') == 'release' and proof.get('version') == version and proof.get('releaseTag') == tag and proof.get('workingTreeDirty') is False):
                 continue
+            summary, notes = release_text(release.get('body'))
             feed['stable'][platform] = {
+                'summary': summary, 'releaseNotes': notes,
                 'version': version, 'minOS': '14.0' if platform == 'macos-arm64' else '10.0.22000',
                 'releaseNotesURL': f'https://github.com/{REPO}/releases/tag/{tag}',
                 'downloadURL': assets[names[0]]['browser_download_url'], 'publishedAt': release['published_at']

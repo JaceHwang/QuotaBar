@@ -65,6 +65,8 @@ final class QuotaUpdateViewTests: XCTestCase {
         controller.check(manual: true)
         for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
         XCTAssertEqual(controller.available?.version, "0.8.0")
+        let notesView = controller.makeSettingsView()
+        XCTAssertTrue(descendants(notesView).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("• 改善更新提醒") })
         let coordinator = StandaloneCoordinator(updateController: controller)
         let window = coordinator.makeSettingsWindow(); window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .aqua)
@@ -113,7 +115,7 @@ private final class AvailableFeedProtocol: URLProtocol, @unchecked Sendable {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        let data = Data("{\"schemaVersion\":1,\"stable\":{\"macos-arm64\":{\"version\":\"0.8.0\",\"minOS\":\"14.0\",\"releaseNotesURL\":\"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.8.0\"}}}".utf8)
+        let data = Data("{\"schemaVersion\":1,\"stable\":{\"macos-arm64\":{\"version\":\"0.8.0\",\"minOS\":\"14.0\",\"summary\":\"改善更新提醒\",\"releaseNotes\":\"更新内容\\n• 改善更新提醒\\n• 修复额度刷新\",\"releaseNotesURL\":\"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.8.0\"}}}".utf8)
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
     }

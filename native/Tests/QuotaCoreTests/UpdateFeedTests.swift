@@ -8,6 +8,27 @@ final class UpdateFeedTests: XCTestCase {
         {"schemaVersion":1,"stable":{"macos-arm64":{"version":"\(version)","minOS":"\(minOS)","releaseNotesURL":"\(link)"},"windows-x64":{"version":"9.0.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v9.0.0"}}}
         """.utf8)
     }
+    func testEmbeddedNotesAndLegacyFeed() throws {
+        var root = try JSONSerialization.jsonObject(with: feed()) as! [String: Any]
+        var stable = root["stable"] as! [String: Any]
+        var entry = stable["macos-arm64"] as! [String: Any]
+        entry["summary"] = "Fix quota refresh"
+        entry["releaseNotes"] = "Changes\n• Fix quota refresh"
+        stable["macos-arm64"] = entry; root["stable"] = stable
+        let data = try JSONSerialization.data(withJSONObject: root)
+        let release = try UpdateFeed.available(in: data, platform: "macos-arm64", current: "0.9.0", os: "14.0")!
+        XCTAssertEqual(release.summary, "Fix quota refresh")
+        XCTAssertEqual(release.releaseNotes, "Changes\n• Fix quota refresh")
+        XCTAssertEqual(release.notificationSummary, "Fix quota refresh")
+        entry["summary"] = String(repeating: "😀", count: 300)
+        entry["releaseNotes"] = String(repeating: "中", count: 17000)
+        stable["macos-arm64"] = entry; root["stable"] = stable
+        let bounded = try UpdateFeed.available(in: JSONSerialization.data(withJSONObject: root), platform: "macos-arm64", current: "0.9.0", os: "14.0")!
+        XCTAssertEqual(bounded.summary?.count, 240)
+        XCTAssertEqual(bounded.releaseNotes?.count, 16000)
+        XCTAssertNil(try UpdateFeed.available(in: feed(), platform: "macos-arm64", current: "0.9.0", os: "14.0")?.summary)
+        XCTAssertNotNil(try UpdateFeed.available(in: feed(), platform: "macos-arm64", current: "0.9.0", os: "14.0"))
+    }
     func testPlatformSelectionAndNumericVersionOrdering() throws {
         XCTAssertEqual(try UpdateFeed.available(in: feed(), platform: "macos-arm64", current: "0.9.0", os: "14.0")?.version, "0.10.0")
         XCTAssertNil(try UpdateFeed.available(in: feed(), platform: "macos-arm64", current: "0.10.0", os: "14.0"))

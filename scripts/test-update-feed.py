@@ -15,6 +15,20 @@ class FeedTests(unittest.TestCase):
         return {'tag_name':tag,'draft':draft,'prerelease':prerelease,'published_at':'2026-10-13T00:00:00Z','assets':[{'name':n,'size':100,'browser_download_url':f'https://github.com/JaceHwang/codex-usage-sidebar/releases/download/{tag}/{n}'} for n in names]}
     def proof(self, release, platform):
         return {'kind':'release','version':release['tag_name'][1:],'releaseTag':release['tag_name'],'workingTreeDirty':False}
+    def test_release_notes_are_embedded_as_plain_text(self):
+        release=self.release('0.7.0','windows-x64')
+        release['body']='## Changes\n- Fix quota refresh\n- Add update reminders'
+        entry=module.generate([release],self.proof)['stable']['windows-x64']
+        self.assertEqual(entry.get('releaseNotes'),'Changes\n• Fix quota refresh\n• Add update reminders')
+        self.assertEqual(entry.get('summary'),'Fix quota refresh · Add update reminders')
+    def test_empty_markup_and_long_notes(self):
+        self.assertEqual(module.release_text(None),('', ''))
+        summary, notes=module.release_text('## Changes\n- **Fix** [refresh](https://example.com) <b>now</b>')
+        self.assertEqual(summary,'Fix refresh now')
+        self.assertNotIn('https://', notes)
+        summary, notes=module.release_text('- '+('中'*17000))
+        self.assertEqual(len(summary),240)
+        self.assertEqual(len(notes),16000)
     def test_platform_skew_numeric_order_and_drafts(self):
         releases=[self.release('0.7.0','windows-x64'),self.release('0.6.0','macos-arm64'),self.release('0.10.0','windows-x64',draft=True),self.release('0.9.0','windows-x64')]
         result=module.generate(releases,self.proof)
