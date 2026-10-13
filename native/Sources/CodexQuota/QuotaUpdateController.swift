@@ -13,11 +13,12 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return true }
         return object["kind"] as? String != "release"
     }
+    private let now: () -> Date
     private let text: (String, String, String) -> String
     private var timer: Timer?
     private var request: Task<Void, Never>?
     private var notifyTask: Task<Void, Never>?
-    private var nextCheck = Date().addingTimeInterval(Double.random(in: 5...30))
+    private var nextCheck: Date
     private var lastManual = Date.distantPast
     private var stopped = false
     private let session: URLSession
@@ -38,7 +39,8 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
         get { defaults.data(forKey: "updates.policy").flatMap { try? JSONDecoder().decode(UpdateReminderPolicy.self, from: $0) } ?? UpdateReminderPolicy() }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "updates.policy") }
     }
-    init(defaults: UserDefaults = .standard, version: String, transport: URLSession? = nil, text: @escaping (String, String, String) -> String) {
+    init(defaults: UserDefaults = .standard, version: String, transport: URLSession? = nil, now: @escaping () -> Date = Date.init, text: @escaping (String, String, String) -> String) {
+        self.now = now; nextCheck = now().addingTimeInterval(30)
         self.defaults = defaults; self.version = version; self.text = text
         let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 15; config.timeoutIntervalForResource = 20
         session = transport ?? URLSession(configuration: config)
@@ -47,8 +49,6 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
         if Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil {
             let center = UNUserNotificationCenter.current(); center.delegate = self; notificationCenter = center
         }
-        let last = defaults.object(forKey: "updates.lastSuccess") as? Date
-        if let last { nextCheck = max(nextCheck, last.addingTimeInterval(21600)) }
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.check(); self?.notifyIfNeeded() }
         }
@@ -60,7 +60,7 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
     func stop() { stopped = true; session.invalidateAndCancel(); timer?.invalidate(); timer = nil; request?.cancel(); notifyTask?.cancel() }
     func check(manual: Bool = false) {
         guard !stopped, request == nil else { return }
-        let now = Date()
+        let now = self.now()
         guard manual ? now.timeIntervalSince(lastManual) >= 10 : auto && now >= nextCheck else { return }
         if manual { lastManual = now }
         status = text("Checking…", "正在检查…", "正在檢查…"); refreshView()
@@ -86,14 +86,14 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
                 try Task.checkCancellation()
                 available = release; cache = data
                 if http.statusCode == 200 { etag = http.value(forHTTPHeaderField: "ETag") }
-                defaults.set(Date(), forKey: "updates.lastSuccess"); failures = 0
-                nextCheck = Date().addingTimeInterval(21600 + Double.random(in: 0...900))
+                defaults.set(self.now(), forKey: "updates.lastSuccess"); failures = 0
+                nextCheck = self.now().addingTimeInterval(86400)
                 status = release == nil ? text("No newer release found", "未发现更新版本", "未發現更新版本") : text("Update available", "有新版本可用", "有新版本可用")
                 notifyIfNeeded()
             } catch {
                 if Task.isCancelled { return }
                 failures = min(failures + 1, 6)
-                nextCheck = Date().addingTimeInterval(min(21600, 300 * pow(2, Double(failures - 1))))
+                nextCheck = self.now().addingTimeInterval(min(21600, 300 * pow(2, Double(failures - 1))))
                 status = text("Could not check. Try again later.", "检查失败，请稍后重试。", "檢查失敗，請稍後重試。")
             }
         }
@@ -119,6 +119,11 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
         let extra = available.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0.version } ?? ""
         let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
         statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(status)"
+        if let notes = available?.releaseNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            statusField?.stringValue += "\n\n" + notes
+        } else if let summary = available?.notificationSummary {
+            statusField?.stringValue += "\n\n" + summary
+        }
         actions?.isHidden = available == nil
         checkButton?.isEnabled = request == nil
     }
@@ -149,7 +154,7 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
             let settings = await center.notificationSettings()
             guard !stopped, settings.authorizationStatus == .authorized, reminders, available == release, policy.shouldNotify(release.version, now: Date()), !Task.isCancelled else { return }
             let content = UNMutableNotificationContent(); content.title = "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version
-            content.body = text("Click to view release notes", "点击查看更新说明", "點擊查看更新說明")
+            content.body = release.notificationSummary ?? text("Click to view release notes", "点击查看更新说明", "點擊查看更新說明")
             // The release URL was validated by the feed parser; do not trust arbitrary notification payload URLs.
             content.userInfo = ["version": release.version]
             let attempted = policy

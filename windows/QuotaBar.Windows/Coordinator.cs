@@ -150,8 +150,8 @@ internal sealed class Coordinator : IDisposable {
         var p=Platform.Cursor; var screen=Platform.WorkArea(p); trayAnchor=new Rect(p.X,screen.Y+screen.Height,1,1);
         trayDetail=!trayDetail; Render(); Refresh();
     }
-    internal bool ShowUpdateReminder(string version) {
-        try { tray.ShowBalloonTip(10000,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),Forms.ToolTipIcon.Info); return true; }
+    internal bool ShowUpdateReminder(string version,string? summary=null) {
+        try { tray.ShowBalloonTip(10000,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),Forms.ToolTipIcon.Info); return true; }
         catch(InvalidOperationException) { return false; }
     }
     public void ShowSettings() {

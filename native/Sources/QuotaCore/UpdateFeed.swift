@@ -4,6 +4,12 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
     public let version: String
     public let minOS: String
     public let releaseNotesURL: URL
+    public var summary: String? = nil
+    public var releaseNotes: String? = nil
+    public var notificationSummary: String? {
+        let value = summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? nil : String(value.prefix(240))
+    }
 }
 public enum UpdateFeed {
     public static let endpoint = URL(string: "https://jacehwang.github.io/codex-usage-sidebar/updates.json")!
@@ -25,7 +31,10 @@ public enum UpdateFeed {
         guard url.absoluteString == "https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v\(entry.version)" else { throw CocoaError(.fileReadCorruptFile) }
         guard try versionParts(os, os: true).lexicographicallyPrecedes(versionParts(entry.minOS, os: true)) == false,
               try versionParts(current).lexicographicallyPrecedes(version) else { return nil }
-        return entry
+        var result = entry
+        result.summary = entry.summary.map { String($0.prefix(240)) }
+        result.releaseNotes = entry.releaseNotes.map { String($0.prefix(16000)) }
+        return result
     }
 }
 public struct UpdateReminderPolicy: Codable, Sendable, Equatable {

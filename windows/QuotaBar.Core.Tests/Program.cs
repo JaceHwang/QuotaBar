@@ -19,6 +19,11 @@ var tests = new (string Name, Action Run)[] {
             var rejected=false; try { UpdateFeed.Available(invalid,"windows-x64","0.9.0","10.0"); } catch(FormatException) { rejected=true; }
             Check(rejected,"unsafe or malformed stable entry rejected");
         }
+        var notesJson=json.Replace("\"minOS\":\"10.0\"","\"minOS\":\"10.0\",\"summary\":\"Fix quota refresh\",\"releaseNotes\":\"Full changes\"");
+        Check(UpdateFeed.Available(notesJson,"windows-x64","0.9.0","10.0")!.Summary=="Fix quota refresh","embedded update summary retained");
+        var bounded=UpdateFeed.Available(notesJson.Replace("Fix quota refresh",new string('中',300)).Replace("Full changes",new string('中',17000)),"windows-x64","0.9.0","10.0")!;
+        Check(bounded.Summary!.Length==240 && bounded.ReleaseNotes!.Length==16000,"remote notes bounded");
+        Check(UpdateFeed.Available(json,"windows-x64","0.9.0","10.0")!.Summary is null,"legacy feed notes optional");
         var policy=new UpdateReminderPolicy(); var now=DateTimeOffset.UtcNow;
         Check(policy.ShouldNotify("0.10.0",now),"initial notification");
         policy=policy with { NotifiedVersion="0.10.0",SkippedVersion="0.11.0" };

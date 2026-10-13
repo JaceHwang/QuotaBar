@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Text.Json;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -82,6 +83,7 @@ internal static class Program {
                 foreach(var dark in new[]{false,true}) {
                     owner.Save(new Preferences { Theme=dark?"dark":"light",Language="zh-CN",AutomaticUpdates=false },false);
                     var settings=new SettingsWindow(owner); settings.Show(); Pump();
+                    Check(Tree(settings.Content as DependencyObject??settings).OfType<TextBlock>().Any(c=>c.Text.Contains("改善更新提醒")),"embedded release notes visible");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="查看更新" && c.IsVisible),"discovered update actions visible");
                     var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
                     var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-update-available-"+(dark?"dark":"light")+".png"))) encoder.Save(file);
@@ -89,6 +91,39 @@ internal static class Program {
                 }
                 owner.Updates.Skip(); Check(File.ReadAllText(Path.Combine(updateRoot,"updates.json")).Contains("999.0.0"),"skip persisted");
                 owner.Updates.Dispose(); owner.Updates.Dispose(); owner.Updates.ReminderShown();
+            }
+            var clock=DateTimeOffset.FromUnixTimeSeconds(100000);
+            File.WriteAllText(Path.Combine(updateRoot,"updates.json"),JsonSerializer.Serialize(new { LastSuccess=clock }));
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+                owner.Save(new Preferences { AutomaticUpdates=false },false);
+                using var updates=new UpdateController(owner,updateRoot,new HttpClient(new AvailableFeedHandler()),()=>clock);
+                owner.Save(new Preferences { AutomaticUpdates=true },false);
+                clock=clock.AddSeconds(31); updates.Check();
+                var deadline=DateTime.UtcNow.AddSeconds(5); while(updates.Checking && DateTime.UtcNow<deadline) Pump();
+                using(var updateState=JsonDocument.Parse(File.ReadAllText(Path.Combine(updateRoot,"updates.json"))))
+                    Check(updateState.RootElement.GetProperty("LastSuccess").GetDateTimeOffset()==clock,"startup ignores recent successful check");
+                var completed=clock; clock=completed.AddSeconds(86399); updates.Check(); Pump();
+                using(var updateState=JsonDocument.Parse(File.ReadAllText(Path.Combine(updateRoot,"updates.json"))))
+                    Check(updateState.RootElement.GetProperty("LastSuccess").GetDateTimeOffset()==completed,"automatic check waits full 24 hours");
+                clock=completed.AddDays(1); updates.Check(); deadline=DateTime.UtcNow.AddSeconds(5); while(updates.Checking && DateTime.UtcNow<deadline) Pump();
+                using(var updateState=JsonDocument.Parse(File.ReadAllText(Path.Combine(updateRoot,"updates.json"))))
+                    Check(updateState.RootElement.GetProperty("LastSuccess").GetDateTimeOffset()==clock,"automatic check resumes after 24 hours");
+            }
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+                owner.Save(new Preferences { AutomaticUpdates=false },false);
+                var failed=new InterruptedFeedHandler();
+                using var updates=new UpdateController(owner,updateRoot,new HttpClient(failed),()=>clock);
+                clock=clock.AddSeconds(31); updates.Check(); Pump();
+                Check(failed.Requests==0,"disabled automatic startup sends no request");
+                updates.Check(true); var deadline=DateTime.UtcNow.AddSeconds(5); while(updates.Checking && DateTime.UtcNow<deadline) Pump();
+                Check(failed.Requests==1,"manual check works while automatic checks disabled");
+                owner.Save(new Preferences { AutomaticUpdates=true },false);
+                clock=clock.AddSeconds(299); updates.Check(); Pump(); Check(failed.Requests==1,"failure retry respects five-minute delay");
+                clock=clock.AddSeconds(1); updates.Check(); deadline=DateTime.UtcNow.AddSeconds(5); while(updates.Checking && DateTime.UtcNow<deadline) Pump();
+                Check(failed.Requests==2,"failure retries after five minutes rather than one day");
+                clock=clock.AddSeconds(599); updates.Check(); Pump(); Check(failed.Requests==2,"second failure waits ten minutes");
+                clock=clock.AddSeconds(1); updates.Check(); deadline=DateTime.UtcNow.AddSeconds(5); while(updates.Checking && DateTime.UtcNow<deadline) Pump();
+                Check(failed.Requests==3,"second retry resumes after ten minutes");
             }
             Directory.Delete(updateRoot,true);
             // A short saved viewport must keep all content reachable and survive repeated refresh.
@@ -110,12 +145,16 @@ internal static class Program {
 }
 
 internal sealed class InterruptedFeedHandler : HttpMessageHandler {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content=new StreamContent(new InterruptedFeedStream()) });
+    public int Requests { get; private set; }
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token) {
+        Requests++;
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content=new StreamContent(new InterruptedFeedStream()) });
+    }
 }
 internal sealed class InterruptedFeedStream : MemoryStream {
     public override ValueTask<int> ReadAsync(Memory<byte> buffer,CancellationToken token=default)=>ValueTask.FromException<int>(new IOException("Interrupted response body"));
 }
 
 internal sealed class AvailableFeedHandler : HttpMessageHandler {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content=new StringContent("""{"schemaVersion":1,"stable":{"windows-x64":{"version":"999.0.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v999.0.0"}}}""") });
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content=new StringContent("""{"schemaVersion":1,"stable":{"windows-x64":{"version":"999.0.0","minOS":"10.0","summary":"改善更新提醒","releaseNotes":"更新内容\n• 改善更新提醒\n• 修复额度刷新","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v999.0.0"}}}""") });
 }
