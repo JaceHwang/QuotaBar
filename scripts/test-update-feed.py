@@ -1,0 +1,57 @@
+import importlib.util
+import json
+import hashlib
+import pathlib
+import unittest
+
+spec = importlib.util.spec_from_file_location('update_feed', pathlib.Path(__file__).with_name('generate-update-feed.py'))
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+class FeedTests(unittest.TestCase):
+    def release(self, version, platform, draft=False, prerelease=False):
+        tag='v'+version
+        names=module.asset_names(platform, version)
+        return {'tag_name':tag,'draft':draft,'prerelease':prerelease,'published_at':'2026-10-13T00:00:00Z','assets':[{'name':n,'size':100,'browser_download_url':f'https://github.com/JaceHwang/codex-usage-sidebar/releases/download/{tag}/{n}'} for n in names]}
+    def proof(self, release, platform):
+        return {'kind':'release','version':release['tag_name'][1:],'releaseTag':release['tag_name'],'workingTreeDirty':False}
+    def test_platform_skew_numeric_order_and_drafts(self):
+        releases=[self.release('0.7.0','windows-x64'),self.release('0.6.0','macos-arm64'),self.release('0.10.0','windows-x64',draft=True),self.release('0.9.0','windows-x64')]
+        result=module.generate(releases,self.proof)
+        self.assertEqual(result['stable']['macos-arm64']['version'],'0.6.0')
+        self.assertEqual(result['stable']['windows-x64']['version'],'0.9.0')
+        releases.append(self.release('0.10.0','windows-x64'))
+        self.assertEqual(module.generate(releases,self.proof)['stable']['windows-x64']['version'],'0.10.0')
+    def test_missing_assets_and_bad_provenance_do_not_advance(self):
+        good=self.release('0.6.0','macos-arm64'); bad=self.release('0.7.0','macos-arm64'); bad['assets'].pop()
+        self.assertEqual(module.generate([bad,good],self.proof)['stable']['macos-arm64']['version'],'0.6.0')
+        def candidate(release, platform):
+            proof=self.proof(release,platform);proof['kind']='local-development-candidate';return proof
+        self.assertEqual(module.generate([good],candidate)['stable'],{})
+    def test_metadata_checksums_and_native_verification_are_required(self):
+        release = self.release('0.7.0', 'windows-x64')
+        commit = 'a' * 40
+        proof = self.proof(release, 'windows-x64'); proof['sourceCommit'] = commit
+        verification = {'schema': 1, 'tag': 'v0.7.0', 'sourceCommit': commit, 'archiveSHA256': 'b' * 64, 'nativeWindowsStartupExit': True, 'nativeWindowsInstallUpgradeRollbackUninstall': True}
+        def assets():
+            docs = {'QUOTABAR-WINDOWS-PROVENANCE.json': json.dumps(proof).encode(), 'QUOTABAR-WINDOWS-VERIFICATION.json': json.dumps(verification).encode()}
+            sums = 'b' * 64 + '  QuotaBar-0.7.0-windows-x64.zip\n'
+            sums += ''.join(hashlib.sha256(data).hexdigest() + '  ' + name + '\n' for name, data in docs.items())
+            docs['QUOTABAR-WINDOWS-SHA256SUMS.txt'] = sums.encode()
+            return docs
+        original = module.read_asset
+        try:
+            docs = assets(); module.read_asset = lambda release, name: docs[name]
+            self.assertEqual(module.load_proof(release, 'windows-x64')['sourceCommit'], commit)
+            verification['nativeWindowsStartupExit'] = False; docs = assets()
+            with self.assertRaises(ValueError): module.load_proof(release, 'windows-x64')
+            verification['nativeWindowsStartupExit'] = True; verification['sourceCommit'] = 'c' * 40; docs = assets()
+            with self.assertRaises(ValueError): module.load_proof(release, 'windows-x64')
+            docs['QUOTABAR-WINDOWS-PROVENANCE.json'] += b' '
+            with self.assertRaises(ValueError): module.load_proof(release, 'windows-x64')
+        finally: module.read_asset = original
+    def test_transport_failure_preserves_existing_feed_by_failing_build(self):
+        def failure(release, platform): raise OSError('network unavailable')
+        with self.assertRaises(OSError): module.generate([self.release('0.7.0','windows-x64')],failure)
+
+if __name__=='__main__': unittest.main()

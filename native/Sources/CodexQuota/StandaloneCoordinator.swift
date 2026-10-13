@@ -20,6 +20,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var snapshot: AllowanceSnapshot?
     private var tokens: TokenUsageSnapshot?
     private var identity: AccountIdentity?
+    private var updates: QuotaUpdateController?
     private var settings: NSWindow?
     private var statusLabel: NSTextField?
     private var showingDetail = false
@@ -38,6 +39,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private let statusDisplay = StatusItemDisplayPreferences()
     private let root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/CodexUsageSidebar")
+
+    init(updateController: QuotaUpdateController? = nil) { updates = updateController; super.init() }
 
     private var language: CodexDisplayLanguage {
         if let value = defaults.string(forKey: "standalone.language"), let language = CodexDisplayLanguage(rawValue: value) { return language }
@@ -89,6 +92,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         detailsItem.target = self; appMenu.addItem(detailsItem)
         let preferences = NSMenuItem(title: text("Settings…", "设置…", "設定…"), action: #selector(settingsClicked), keyEquivalent: ",")
         preferences.target = self; appMenu.addItem(preferences)
+        let updateItem = NSMenuItem(title: text("Check for Updates…", "检查更新…", "檢查更新…"), action: #selector(checkUpdates), keyEquivalent: "")
+        updateItem.target = self; appMenu.addItem(updateItem)
         let quitItem = NSMenuItem(title: text("Quit QuotaBar", "退出 QuotaBar", "結束 QuotaBar"), action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self; appMenu.addItem(quitItem); appItem.submenu = appMenu; mainMenu.addItem(appItem); NSApp.mainMenu = mainMenu
         item.button?.target = self
@@ -119,6 +124,9 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.dismissOutsideClick() }
         }
+        if updates == nil {
+            updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
+        }
         render()
         let refreshTimer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -147,7 +155,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         monitor.pathUpdateHandler = { [weak self] path in
             guard path.status == .satisfied else { return }
             Task { @MainActor in
-                if self?.state.phase == .offline { self?.refresh() }
+                if self?.state.phase == .offline { self?.refresh() }; self?.updates?.check()
             }
         }
         monitor.start(queue: DispatchQueue(label: "com.jace.codex-quota.network"))
@@ -204,7 +212,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             }
         }
     }
-    @objc private func wake() { sleeping = false; refresh() }
+    @objc private func wake() { sleeping = false; refresh(); updates?.check() }
     @objc private func sleep() { sleeping = true }
     private func dismissOutsideClick() {
         guard showingDetail || floatingInteraction.shouldShowDetail, !(detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked) else { return }
@@ -279,7 +287,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     private func showMenu() {
         let menu = NSMenu()
-        for (title, action) in [(text("Quota details", "额度详情", "額度詳情"), #selector(clicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
+        for (title, action) in [(text("Quota details", "额度详情", "額度詳情"), #selector(clicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
@@ -289,6 +297,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu; statusItem?.button?.performClick(nil); statusItem?.menu = nil
     }
     @objc private func refreshClicked() { refresh() }
+    @objc private func checkUpdates() { showSettings(); updates?.check(manual: true) }
     @objc private func settingsClicked() { showSettings() }
     @objc private func quit() { NSApp.terminate(nil) }
     @objc private func loginClicked() {
@@ -319,6 +328,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
 
     private func showSettings() {
         if let settings { settings.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
+        let window = makeSettingsWindow()
+        settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
+    }
+    func makeSettingsWindow() -> NSWindow {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 430), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定")
         window.isReleasedWhenClosed = false
@@ -342,9 +355,17 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(quotaToggle)
         let startup = NSButton(checkboxWithTitle: text("Launch at login", "登录时启动", "登入時啟動"), target: self, action: #selector(startupChanged)); startup.state = SMAppService.mainApp.status == .enabled ? .on : .off; stack.addArrangedSubview(startup)
         stack.addArrangedSubview(NSTextField(wrappingLabelWithString: text("Quota is read by the bundled official runtime. Account credentials stay in the isolated local account directory.", "通过内嵌官方运行时读取额度，凭据保存在本机隔离账户目录。", "透過內嵌官方執行環境讀取額度，憑證儲存在本機隔離帳號目錄。")))
-        window.contentView?.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 24)])
-        settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
+        if let updates { stack.addArrangedSubview(updates.makeSettingsView()) }
+        let document = QuotaSettingsDocumentView(frame: NSRect(x: 0, y: 0, width: 510, height: 730))
+        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
+        document.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24)])
+        stack.layoutSubtreeIfNeeded()
+        document.setFrameSize(NSSize(width: 510, height: max(730, stack.fittingSize.height + 48)))
+        window.setContentSize(NSSize(width: 510, height: min(730, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
+        scroll.frame = window.contentView!.bounds; scroll.autoresizingMask = [.width, .height]; scroll.documentView = document
+        window.contentView?.addSubview(scroll)
+        return window
     }
     @objc private func statusDisplayChanged(_ sender: NSButton) {
         statusDisplay.showsQuotaInformation = sender.state == .on; render()
@@ -380,7 +401,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     private func showFloatingMenu() {
         let menu = NSMenu()
-        for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
+        for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
         }
         floating.showMenu(menu)
@@ -397,6 +418,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
+        updates?.stop()
         stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil
         networkMonitor?.cancel(); networkMonitor = nil
         removeMouseMonitors()
@@ -410,3 +432,6 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         localMouseMonitor = nil; globalMouseMonitor = nil
     }
 }
+
+@MainActor
+final class QuotaSettingsDocumentView: NSView { override var isFlipped: Bool { true } }

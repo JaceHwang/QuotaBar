@@ -5,6 +5,7 @@ using Forms=System.Windows.Forms;
 namespace QuotaBar.Windows;
 internal sealed class Coordinator : IDisposable {
     readonly Application app;
+    public UpdateController Updates { get; }
     readonly string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"QuotaBar");
     readonly PreferencesStore store;
     readonly OwnedJob job=new();
@@ -28,8 +29,11 @@ internal sealed class Coordinator : IDisposable {
     public TokenUsage? Tokens { get; private set; }
     public AccountIdentity? Identity { get; private set; }
     public Copy Copy=>new(Preferences.Language);
-    public Coordinator(Application app) {
-        this.app=app; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
+    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null) {
+        this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
+        Updates=new(this,root,updatesTransport); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
+        tray.BalloonTipShown+=(_,_)=>Updates.ReminderShown();
+        tray.BalloonTipClicked+=(_,_)=>Updates.Open();
         floating.Primary+=()=> {
             if(Snapshot is null) { ShowSettings(); return; }
             detailFromFloating=true; trayDetail=false; trayLocked=false; interaction.TogglePinned(true); Render(); Refresh();
@@ -84,6 +88,7 @@ internal sealed class Coordinator : IDisposable {
     public void Save(Preferences prefs,bool rebuildSettings=true) {
         try { store.Save(prefs); Preferences=prefs.Validated(); }
         catch(Exception e) when(e is IOException or UnauthorizedAccessException) { MessageBox.Show(Copy.Text("Could not save preferences","无法保存设置","無法儲存設定")); return; }
+        Updates.PreferencesChanged();
         Render(); if(rebuildSettings) settings?.Build();
     }
     void SetFloating(bool enabled) {
@@ -100,6 +105,7 @@ internal sealed class Coordinator : IDisposable {
         yield return Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail);
         yield return Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
         var floatItem=Item(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕"),()=>SetFloating(!Preferences.FloatingEnabled)); floatItem.IsCheckable=true; floatItem.IsChecked=Preferences.FloatingEnabled; yield return floatItem;
+        yield return Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
         yield return Item(copy.Text("Settings…","设置…","設定…"),ShowSettings);
         yield return Item(copy.Text("Quit","退出","結束"),Quit);
     }
@@ -112,6 +118,7 @@ internal sealed class Coordinator : IDisposable {
         Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail); Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
         var floatItem=new Forms.ToolStripMenuItem(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕")) { Checked=Preferences.FloatingEnabled };
         floatItem.Click+=(_,_)=> { SetFloating(!Preferences.FloatingEnabled); floatItem.Checked=Preferences.FloatingEnabled; }; menu.Items.Add(floatItem);
+        Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
         Item(copy.Text("Settings…","设置…","設定…"),ShowSettings); Item(copy.Text("Quit","退出","結束"),Quit);
         menu.Closed+=(_,_)=>app.Dispatcher.BeginInvoke(()=> { if(!stopping && ReferenceEquals(tray.ContextMenuStrip,menu)) UpdateTray(); });
         var old=tray.ContextMenuStrip; tray.ContextMenuStrip=menu; old?.Dispose(); menuKey=key;
@@ -142,6 +149,10 @@ internal sealed class Coordinator : IDisposable {
         interaction.Reset(); pointer.Stop(); detailFromFloating=false; trayLocked=false;
         var p=Platform.Cursor; var screen=Platform.WorkArea(p); trayAnchor=new Rect(p.X,screen.Y+screen.Height,1,1);
         trayDetail=!trayDetail; Render(); Refresh();
+    }
+    internal bool ShowUpdateReminder(string version) {
+        try { tray.ShowBalloonTip(10000,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),Forms.ToolTipIcon.Info); return true; }
+        catch(InvalidOperationException) { return false; }
     }
     public void ShowSettings() {
         if(settings is null) { settings=new(this); settings.Closed+=(_,_)=>settings=null; }
@@ -187,17 +198,17 @@ internal sealed class Coordinator : IDisposable {
         try { File.WriteAllText(Path.Combine(root,"standalone-state.txt"),$"pid={Environment.ProcessId} mode=standalone phase={State.Phase} has_quota={Snapshot is not null} host_ui=false floating_visible={floating.IsVisible} floating_enabled={Preferences.FloatingEnabled} detail_visible={detail.IsVisible}\n"); }
         catch(IOException) { }
     }
-    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); } }); }
+    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
     void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); }); }
     void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(Render); }
-    void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(Refresh); }
+    void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(()=> { Refresh(); Updates.Check(); }); }
     public async void Quit() {
-        if(stopping) return; stopping=true; ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
+        if(stopping) return; stopping=true; Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
         ShutdownDiagnostic("runtime-disposing"); if(runtime is not null) await runtime.DisposeAsync(); ShutdownDiagnostic("runtime-disposed"); app.Shutdown();
     }
     void ShutdownDiagnostic(string stage) { try { File.WriteAllText(Path.Combine(root,"shutdown-state.txt"),$"pid={Environment.ProcessId} stage={stage}\n"); } catch(IOException) { } }
     public void Dispose() {
-        stopping=true; tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
+        stopping=true; Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
         SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
         System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged-=NetworkChanged;
     }

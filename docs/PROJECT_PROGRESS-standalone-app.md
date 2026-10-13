@@ -337,3 +337,21 @@ PR #32合并为dbecd098，Release Please生成PR #33，仅更新version.txt、ma
 本机安装结果：功能提交 cc3e660 已推送至 codex/feat/macos-tibo-footer，draft PR #35。最终候选 .dist/standalone-macos/candidate-20261013-144046 的来源是干净 cc3e660，版本仍为 0.7.0 开发候选；完整 Swift 测试、release 构建、严格签名和 DMG 校验通过。事务安装至用户 Applications/QuotaBar.app；安装件与候选可执行文件逐字节一致，来源提交/干净状态及严格签名复核通过。应用 pid=85476，phase=ready、has_quota=true、host_ui=false、floating_visible=true，现有账号可继续查询额度，回退备份和登录数据保留。首次候选标记提交前 dirty 来源，已由干净提交候选重新安装替换；不作为最终交付。
 
 未执行真实浏览器点击及新平台实机矩阵；draft PR 待 CI/审查，不合并、不公开发布。当前本机安装与提交推送目标完成，后续按用户授权处理审查或发布。
+
+
+### 跨平台远程更新通知分析（2026-10-13）
+
+用户要求分析 macOS/Windows 远程更新通知，没有授权实现或部署。已核对两端源码、发布工作流、v0.7.0/v0.6.0 公开资产及官方通知文档，方案见 docs/UPDATE_NOTIFICATIONS.zh-CN.md。推荐第一阶段平台清单＋低频检查＋本地通知，明确退出后不接收；实时 SSE/WebSocket 和 APNs/WNS 作为不同需求的选项。平台版本错位是必要边界：Windows latest 0.7.0 不得误报为 macOS 正式更新。规划需将候选/正式来源、通知权限、去重、失败回退和平台独立验证纳入。当前仅完成分析，未实现、未运行通知实机测试、未部署服务、未发布。下一步按用户选择细化实施范围与 UI，保持既有暂不发布要求。
+
+
+### GitHub Pages 更新通知实施（2026-10-13）
+
+用户授权按 GitHub Pages updates.json 方案开发，查看三种效果图后选 A。视觉决定：现有设置底部增加分隔线、原生复选框、当前/可用版本与状态、小按钮和同行操作；保留其他设置与图标，短屏滚动。默认自动检查开启、系统提醒关闭；macOS 用户开启提醒时请求权限。当前范围为功能开发、候选验证，不发布产品或启用远程 Pages。
+
+已实现：Swift/C# 平台清单解析、稳定版本数字比较/minOS/严格 HTTPS 发布页校验、去重/跳过/24h 稍后策略；两端独立异步请求、15–20 秒超时、256KiB 限制、ETag/304、6 小时带抖动检查、失败退避和手动节流；AppKit UserNotifications 与 NotifyIcon 显示事件确认；A 设置、手动菜单入口和可滚动布局。发布生成器遍历公开发布，按完整平台资产、来源提交/版本/tag/干净状态、摘要及 Windows 原生验证报告筛选，避免跨平台 latest 错位。Pages 工作流串行、固定 action SHA、执行默认分支代码，只在 QUOTABAR_UPDATE_FEED_ENABLED=true 时运行，当前未启用。
+
+审查修复：Windows 中断响应体 IOException 可恢复；macOS 通知提交完成保留新 snooze，并在请求权限/发送/退出时检查生命周期；Windows 退出立即取消更新且可重复 dispose，实际 BalloonTipShown 才标记已提醒，未显示保留 30 分钟重试资格。macOS 未打包宿主不调用需 app bundle 的通知 API，保留 UI 降级。短屏 document flipped 保证设置从顶部开始。
+
+证据：Swift 原生更新界面/并发检查失败恢复/完整短窗口可滚动并显示新版本操作测试通过；已查看浅深色更新区域与短屏可用更新截图。生成器 4 项测试通过，并从真实公开资产读取证明与摘要，得到 macOS 0.6.0、Windows 0.7.0。Windows Core 测试、应用/原生UI测试跨编译通过；新增原生测试覆盖中断响应流、显示设置和可用更新动作，待 Windows CI 实际执行。部分 GitHub metadata 请求遇 EOF，生成器有界重试成功；失败时不替换已部署清单。
+
+尚未启用 Pages、未真实发送系统通知、未安装本轮候选、未产品发布。下一步最终完整治理与候选验证、draft PR 原生 CI、实机通知权限/点击验收；远程清单启用需要单独确认，不以当前官方通知 API 及 mock 网络测试代替设备验收。

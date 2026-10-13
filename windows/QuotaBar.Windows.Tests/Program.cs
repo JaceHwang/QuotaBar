@@ -1,5 +1,9 @@
 using System;
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -51,6 +55,41 @@ internal static class Program {
                 var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(output,"detail-"+(dark?"dark":"light")+".png")); encoder.Save(file);
             }
             Check(File.ReadAllBytes(Path.Combine(output,"tray-light.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(output,"tray-dark.png"))),"same circular tray pixels across themes");
+            var updateRoot=Path.Combine(Path.GetTempPath(),"quotabar-update-ui-"+Guid.NewGuid());
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new InterruptedFeedHandler()))) {
+                owner.Updates.Check(true);
+                var deadline=DateTime.UtcNow.AddSeconds(5);
+                while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();
+                Check(!owner.Updates.Checking && owner.Updates.Status==owner.Copy.Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。"),"interrupted update stream is a recoverable check failure");
+                foreach(var dark in new[]{false,true}) {
+                    owner.Save(new Preferences { Theme=dark?"dark":"light",Language="zh-CN",AutomaticUpdates=false },false);
+                    var settings=new SettingsWindow(owner); settings.Show(); Pump();
+                    var controls=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().ToArray();
+                    Check(controls.Any(c=>c.Content?.ToString()=="自动检查更新" && c.IsChecked==false),"update opt-out visible");
+                    Check(controls.Any(c=>c.Content?.ToString()=="更新提醒" && c.IsChecked==false),"system reminders opt in");
+                    Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
+                    Check(settings.Content is ScrollViewer,"settings remain reachable on short screens");
+                    var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
+                    var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-updates-"+(dark?"dark":"light")+".png"))) encoder.Save(file);
+                    settings.Close();
+                }
+            }
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+                owner.Updates.Check(true); var deadline=DateTime.UtcNow.AddSeconds(5);
+                while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();
+                Check(owner.Updates.Available?.Version=="999.0.0","valid Windows release discovered");
+                foreach(var dark in new[]{false,true}) {
+                    owner.Save(new Preferences { Theme=dark?"dark":"light",Language="zh-CN",AutomaticUpdates=false },false);
+                    var settings=new SettingsWindow(owner); settings.Show(); Pump();
+                    Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="查看更新" && c.IsVisible),"discovered update actions visible");
+                    var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
+                    var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-update-available-"+(dark?"dark":"light")+".png"))) encoder.Save(file);
+                    settings.Close();
+                }
+                owner.Updates.Skip(); Check(File.ReadAllText(Path.Combine(updateRoot,"updates.json")).Contains("999.0.0"),"skip persisted");
+                owner.Updates.Dispose(); owner.Updates.Dispose(); owner.Updates.ReminderShown();
+            }
+            Directory.Delete(updateRoot,true);
             // A short saved viewport must keep all content reachable and survive repeated refresh.
             foreach(var language in new[]{"en","zh-TW"}) {
                 detail.Render(quota,tokens,new AccountIdentity("Example with a long account name",null,null),state,prefs with { DetailHeight=220 },new Copy(language),true,true,Platform.Bounds(button)); Pump();
@@ -67,4 +106,15 @@ internal static class Program {
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach(var node in Tree(child)) yield return node;
     }
     static void Check(bool b,string message) { if(!b) throw new Exception(message); }
+}
+
+internal sealed class InterruptedFeedHandler : HttpMessageHandler {
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content=new StreamContent(new InterruptedFeedStream()) });
+}
+internal sealed class InterruptedFeedStream : MemoryStream {
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer,CancellationToken token=default)=>ValueTask.FromException<int>(new IOException("Interrupted response body"));
+}
+
+internal sealed class AvailableFeedHandler : HttpMessageHandler {
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content=new StringContent("""{"schemaVersion":1,"stable":{"windows-x64":{"version":"999.0.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v999.0.0"}}}""") });
 }
