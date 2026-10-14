@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch the packaged App with an isolated home and no build-tree resource fallback."""
 import argparse
+import ctypes
 import os
 import pathlib
 import plistlib
@@ -19,12 +20,29 @@ def alive(pid):
         return False
 
 
+def process_snapshot():
+    # ps comm can use aliases or truncate long paths. Query kernel executable
+    # identity and canonicalize it before comparing ownership boundaries.
+    library = ctypes.CDLL('/usr/lib/libproc.dylib')
+    library.proc_pidpath.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    library.proc_pidpath.restype = ctypes.c_int
+    rows = subprocess.check_output(['ps', '-ww', '-axo', 'pid,ppid,stat'], text=True).splitlines()
+    result = {}
+    for row in rows:
+        parts = row.split()
+        if len(parts) != 3 or not parts[0].isdigit() or parts[2].startswith('Z'):
+            continue
+        pid = int(parts[0])
+        buffer = ctypes.create_string_buffer(4096)
+        if library.proc_pidpath(pid, buffer, len(buffer)) > 0:
+            result[pid] = (int(parts[1]), pathlib.Path(os.fsdecode(buffer.value)).resolve())
+    return result
+
+
 def owned_processes(app):
-    prefix = str(app.resolve() / 'Contents') + '/'
-    rows = subprocess.check_output(['ps', '-axo', 'pid,stat,comm'], text=True).splitlines()
-    return {int(parts[0]): '/Contents/MacOS/' in parts[2] for row in rows
-            if len(parts := row.strip().split(None, 2)) == 3 and not parts[1].startswith('Z')
-            and parts[2].startswith(prefix)}
+    contents = app.resolve() / 'Contents'
+    return {pid: path.is_relative_to(contents / 'MacOS')
+            for pid, (_, path) in process_snapshot().items() if path.is_relative_to(contents)}
 
 
 def stop_owned(app, grace=10):
@@ -93,10 +111,12 @@ def main():
                         pass
                     time.sleep(.2)
                 assert fields.get('phase') == 'needsLogin' and pid and alive(pid), 'No ready isolated runtime: ' + str(fields)
-                rows = subprocess.check_output(['ps', '-axo', 'pid,ppid,comm'], text=True).splitlines()
-                children = [int(parts[0]) for row in rows if len(parts := row.strip().split(None, 2)) == 3
-                            and parts[1] == str(pid) and parts[2].startswith(str(app / 'Contents/Helpers') + '/')]
-                assert children, 'No owned official runtime process'
+                processes = process_snapshot()
+                children = [child for child, (parent, path) in processes.items()
+                            if parent == pid and path.is_relative_to(app / 'Contents/Helpers')]
+                related = {child: (parent, str(path)) for child, (parent, path) in processes.items()
+                           if parent == pid or path.is_relative_to(app / 'Contents')}
+                assert children, 'No owned official runtime process: ' + str(related)
                 os.kill(pid, signal.SIGTERM)
                 assert launcher.wait(timeout=12) == 0, 'Application did not exit normally'
                 deadline = time.monotonic() + 5

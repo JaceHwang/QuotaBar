@@ -72,6 +72,22 @@ int main(int argc, char **argv) {
         self.assertEqual(process.wait(timeout=1), -signal.SIGTERM)
         self.assertFalse(startup.owned_processes(self.app))
 
+    def test_long_symlinked_bundle_path_retains_kernel_identity(self):
+        directory = self.root / ('long-path-' + 'x' * 150)
+        directory.mkdir()
+        relocated = directory / 'Fixture.app'
+        self.app.rename(relocated)
+        alias = self.root / 'alias.app'
+        alias.symlink_to(relocated, target_is_directory=True)
+        process = subprocess.Popen([str(alias / 'Contents/MacOS/Fixture')])
+        self.processes.append(process)
+        self.app = alias
+        self.wait_owned()
+        self.assertIn(process.pid, startup.owned_processes(relocated))
+        self.assertEqual(startup.process_snapshot()[process.pid][1], relocated / 'Contents/MacOS/Fixture')
+        startup.stop_owned(alias, grace=.3)
+        self.assertEqual(process.wait(timeout=1), -signal.SIGTERM)
+
     def test_helper_is_cleaned_even_when_app_already_exited(self):
         helper = subprocess.Popen([str(self.helper), 'child'], stdout=subprocess.PIPE, text=True)
         self.processes.append(helper)
