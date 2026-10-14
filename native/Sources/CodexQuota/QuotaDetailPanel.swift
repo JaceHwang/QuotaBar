@@ -1349,7 +1349,7 @@ final class QuotaThemeIconView: NSView {
 
     private func loadThemeIcon() {
         let asset = QuotaThemeIconAsset.forAppearance(effectiveAppearance)
-        let bundles = [Bundle.main, Bundle.module] + Bundle.allBundles + Bundle.allFrameworks
+        let bundles = [Bundle.main] + [QuotaResourceBundle.resolve()].compactMap { $0 } + Bundle.allBundles + Bundle.allFrameworks
         iconImage = bundles.lazy.compactMap { bundle in
             let candidateURLs = [
                 bundle.url(

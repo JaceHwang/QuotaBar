@@ -7,6 +7,7 @@ if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Develope
 fi
 xcrun swift test --package-path native
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-standalone-install.py
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-startup-cleanup.py
 bash tests/test-signing-identity.sh
 dotnet run --project windows/QuotaBar.Core.Tests --configuration Release
 dotnet build windows/QuotaBar.Windows --configuration Release

@@ -59,6 +59,10 @@ def generate(releases, load_proof):
             proof = load_proof(release, platform)
             if not (proof.get('kind') == 'release' and proof.get('version') == version and proof.get('releaseTag') == tag and proof.get('workingTreeDirty') is False):
                 continue
+            # Static signature/hash checks do not prove the packaged App can launch.
+            # Older macOS assets without this proof are no longer offered as updates.
+            if platform == 'macos-arm64' and proof.get('nativeMacOSStartupExit') is not True:
+                continue
             summary, notes = release_text(release.get('body'))
             feed['stable'][platform] = {
                 'summary': summary, 'releaseNotes': notes,
@@ -115,13 +119,15 @@ def main():
     raw = subprocess.check_output(['gh', 'api', '--paginate', '--slurp', f'repos/{REPO}/releases?per_page=100'], text=True)
     releases = [release for page in json.loads(raw) for release in page]
     feed = generate(releases, load_proof)
-    if not all(p in feed['stable'] for p in PLATFORMS):
-        raise ValueError('A stable platform release is missing; keep the previously deployed feed')
+    if 'windows-x64' not in feed['stable']:
+        raise ValueError('Verified Windows release is missing; keep the previously deployed feed')
+    # macOS may be intentionally omitted until a runtime-verified release exists.
+    # Clients already treat a missing platform entry as no available update.
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix('.tmp')
     temporary.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + '\n')
     temporary.replace(args.output)
-    print('Built stable feed: ' + ', '.join(p + '=' + feed['stable'][p]['version'] for p in PLATFORMS))
+    print('Built stable feed: ' + ', '.join(p + '=' + feed['stable'][p]['version'] for p in PLATFORMS if p in feed['stable']))
 
 if __name__ == '__main__':
     main()
