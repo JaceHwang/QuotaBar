@@ -15,6 +15,7 @@ info = json.loads((assets / 'CODEX-QUOTA-PROVENANCE.json').read_text())
 assert info['kind'] == 'release' and info['workingTreeDirty'] is False
 assert info['sourceCommit'] == commit and info['releaseTag'] == tag
 assert info['version'] == tag[1:] and info['runtimeVersion'] == 'codex-cli 0.144.1'
+assert info.get('nativeMacOSStartupExit') is True
 dmg = assets / f'codex-quota-{tag}-macos-arm64.dmg'
 subprocess.run(['hdiutil', 'verify', str(dmg)], check=True)
 mount = plistlib.loads(run('hdiutil', 'attach', '-readonly', '-nobrowse', '-plist', str(dmg)))
@@ -34,6 +35,7 @@ try:
     for name, expected in json.loads(snapshot.read_text()).items():
         data = run('git', '-C', str(root), 'show', f'{commit}:{name}')
         assert hashlib.sha256(data).hexdigest() == expected, name
-    print('Standalone release signature, version, runtime, source and digests verified.')
+    subprocess.run([sys.executable, str(root / 'scripts/test-macos-standalone-startup.py'), str(app), '--build-root', str(root / 'native/.build')], check=True)
+    print('Standalone release signature, version, runtime, source, digests and actual startup verified.')
 finally:
     subprocess.run(['hdiutil', 'detach', str(volume)], check=True)

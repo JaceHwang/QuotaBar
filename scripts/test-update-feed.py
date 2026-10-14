@@ -3,6 +3,9 @@ import json
 import hashlib
 import pathlib
 import unittest
+import sys
+import tempfile
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('update_feed', pathlib.Path(__file__).with_name('generate-update-feed.py'))
 module = importlib.util.module_from_spec(spec)
@@ -14,7 +17,7 @@ class FeedTests(unittest.TestCase):
         names=module.asset_names(platform, version)
         return {'tag_name':tag,'draft':draft,'prerelease':prerelease,'published_at':'2026-10-13T00:00:00Z','assets':[{'name':n,'size':100,'browser_download_url':f'https://github.com/JaceHwang/codex-usage-sidebar/releases/download/{tag}/{n}'} for n in names]}
     def proof(self, release, platform):
-        return {'kind':'release','version':release['tag_name'][1:],'releaseTag':release['tag_name'],'workingTreeDirty':False}
+        return {'kind':'release','version':release['tag_name'][1:],'releaseTag':release['tag_name'],'workingTreeDirty':False,'nativeMacOSStartupExit':True}
     def test_release_notes_are_embedded_as_plain_text(self):
         release=self.release('0.7.0','windows-x64')
         release['body']='## Changes\n- Fix quota refresh\n- Add update reminders'
@@ -29,6 +32,31 @@ class FeedTests(unittest.TestCase):
         summary, notes=module.release_text('- '+('中'*17000))
         self.assertEqual(len(summary),240)
         self.assertEqual(len(notes),16000)
+    def test_withdrawn_macos_release_does_not_hide_windows(self):
+        releases=[self.release('1.0.0','macos-arm64'),self.release('1.0.0','windows-x64'),self.release('0.6.0','macos-arm64')]
+        def proof(release,platform):
+            value=self.proof(release,platform)
+            if platform=='macos-arm64' and release['tag_name']=='v1.0.0': value['nativeMacOSStartupExit']=False
+            return value
+        feed=module.generate(releases,proof)['stable']
+        self.assertEqual(feed['macos-arm64']['version'],'0.6.0')
+        self.assertEqual(feed['windows-x64']['version'],'1.0.0')
+    def test_missing_native_macos_proof_omits_only_macos(self):
+        releases=[self.release('1.0.0','macos-arm64'),self.release('1.0.0','windows-x64')]
+        def proof(release,platform):
+            value=self.proof(release,platform); value.pop('nativeMacOSStartupExit',None); return value
+        feed=module.generate(releases,proof)['stable']
+        self.assertNotIn('macos-arm64',feed)
+        self.assertEqual(feed['windows-x64']['version'],'1.0.0')
+    def test_main_deploys_a_windows_only_feed_successfully(self):
+        releases=[self.release('1.0.0','macos-arm64'),self.release('1.0.0','windows-x64')]
+        def proof(release,platform):
+            value=self.proof(release,platform); value.pop('nativeMacOSStartupExit',None); return value
+        with tempfile.TemporaryDirectory() as temporary:
+            output=pathlib.Path(temporary)/'updates.json'
+            with patch.object(sys,'argv',['generate-update-feed.py','--output',str(output)]), patch.object(module.subprocess,'check_output',return_value=json.dumps([releases])), patch.object(module,'load_proof',side_effect=proof):
+                module.main()
+            self.assertEqual(list(json.loads(output.read_text())['stable']),['windows-x64'])
     def test_platform_skew_numeric_order_and_drafts(self):
         releases=[self.release('0.7.0','windows-x64'),self.release('0.6.0','macos-arm64'),self.release('0.10.0','windows-x64',draft=True),self.release('0.9.0','windows-x64')]
         result=module.generate(releases,self.proof)

@@ -38,7 +38,7 @@ import os
 release_tag=os.environ.get('CUS_RELEASE_TAG')
 provenance={'kind':'release' if release_tag else 'local-development-candidate','sourceCommit':subprocess.check_output(['git','-C',sys.argv[4],'rev-parse','HEAD'],text=True).strip(),'workingTreeDirty':bool(subprocess.check_output(['git','-C',sys.argv[4],'status','--porcelain','--untracked-files=no'],text=True).strip()),'version':sys.argv[2],'runtimeVersion':sys.argv[3],'runtimeSource':'https://github.com/openai/codex/releases/tag/rust-v0.144.1','runtimeUnsignedSha256':hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest(),'releaseTag':release_tag}
 repo=pathlib.Path(sys.argv[4])
-paths=[repo/'version.txt',repo/'native/Package.swift',repo/'scripts/build-macos-standalone.sh',repo/'scripts/install-macos-standalone.py']
+paths=[repo/'version.txt',repo/'native/Package.swift',repo/'scripts/build-macos-standalone.sh',repo/'scripts/install-macos-standalone.py',repo/'scripts/test-macos-standalone-startup.py']
 for folder in ['Sources','Tests']:
  paths.extend((repo/'native'/folder).rglob('*'))
 source_hashes={str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths) if p.is_file()}
@@ -68,6 +68,13 @@ info['applicationSignedSha256']=hashlib.sha256((app/'Contents/MacOS/CodexQuota')
 (root/'PROVENANCE.json').write_text(json.dumps(info,indent=2)+'\n')
 PY
 ln -s /Applications "$stage/Applications"
+python3 "$repo_root/scripts/test-macos-standalone-startup.py" "$candidate/QuotaBar.app" --build-root "$package_root/.build"
+python3 - "$candidate/PROVENANCE.json" <<'PY'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]);info=json.loads(path.read_text())
+info['nativeMacOSStartupExit']=True
+path.write_text(json.dumps(info,indent=2)+'\n')
+PY
 hdiutil create -quiet -volname 'QuotaBar' -srcfolder "$stage" -format UDZO "$candidate/Codex-Quota-macos-arm64.dmg"
 hdiutil verify "$candidate/Codex-Quota-macos-arm64.dmg"
 shasum -a 256 "$candidate/Codex-Quota-macos-arm64.dmg" > "$candidate/SHA256SUMS.txt"
