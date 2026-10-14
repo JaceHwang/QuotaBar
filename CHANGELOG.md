@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/JaceHwang/codex-usage-sidebar/compare/v1.0.0...v1.0.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **macos:** resolve packaged resources and verify real startup ([81564ea](https://github.com/JaceHwang/codex-usage-sidebar/commit/81564eacd552752369d7ea904b58aed2029fea35))
+
 ## [1.0.0](https://github.com/JaceHwang/codex-usage-sidebar/compare/v0.7.0...v1.0.0) (2026-10-13)
 
 
