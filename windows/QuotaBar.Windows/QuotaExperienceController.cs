@@ -52,7 +52,7 @@ internal sealed class QuotaExperienceController {
         var hints=new[]{copy.Text("Show the battery character for your current quota.","根据当前额度状态，显示对应的电池表情。","根據目前額度狀態，顯示對應的電池表情。"),copy.Text("A system notification after confirmed recovery.","额度确认恢复时，显示系统通知。","額度確認恢復時，顯示系統通知。"),copy.Text("A brief celebration with one recovery notification.","播放短暂庆祝，并同步一条恢复通知。","播放短暫慶祝，並同步一條恢復通知。"),copy.Text("Known credits only; never redeem automatically.","仅提醒已知权益，不会自动兑换。","僅提醒已知權益，不會自動兌換。")};
         var values=new[]{p.Moods,p.Recovery,p.Celebration,p.Bank};
         for(var i=0;i<4;i++) {
-            var index=i; var row=new Grid { Margin=new Thickness(0,14,0,14) }; row.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) }); row.ColumnDefinitions.Add(new() { Width=new GridLength(1.1,GridUnitType.Star) });
+            var index=i; var row=new Grid { Margin=new Thickness(0,10,0,10) }; row.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) }); row.ColumnDefinitions.Add(new() { Width=new GridLength(1.1,GridUnitType.Star) });
             var left=new StackPanel { VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,16,0) };
             left.Children.Add(SettingsVisual.Toggle(titles[i],values[i],fg,on=> {
                 var next=owner.Preferences.Experience;
@@ -81,7 +81,7 @@ internal sealed class QuotaExperienceController {
             } else {
                 var bank=new StackPanel { Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center }; bank.Children.Add(new SettingsIllustration { Bank=true,Dark=dark,Width=42,Height=42,Margin=new Thickness(0,0,12,0) }); bank.Children.Add(Ui.Text(copy.Text("72 hours / 24 hours before expiry","提前 72 小时 / 24 小时","提前 72 小時 / 24 小時"),12,fg)); right=bank;
             }
-            Grid.SetColumn(right,1); row.Children.Add(right); rows.Children.Add(row); if(i!=3) rows.Children.Add(Ui.Divider());
+            Grid.SetColumn(right,1); row.Children.Add(right); rows.Children.Add(row); if(i!=3) { var divider=Ui.Divider(); divider.Margin=new Thickness(0,5,0,5); rows.Children.Add(divider); }
         }
         stack.Children.Add(SettingsVisual.Card(rows,dark));
         var actions=new DockPanel(); var buttons=new StackPanel { Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right }; buttons.Children.Add(Ui.Button(copy.Text("Preview celebration","预览庆祝","預覽慶祝"),PreviewCelebration)); buttons.Children.Add(Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),TestNotification)); DockPanel.SetDock(buttons,Dock.Right); actions.Children.Add(buttons); actions.Children.Add(Ui.Text(copy.Text("Preview and test","预览与测试","預覽與測試"),12,fg)); stack.Children.Add(SettingsVisual.Card(actions,dark));

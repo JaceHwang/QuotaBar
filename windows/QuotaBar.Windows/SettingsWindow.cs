@@ -44,7 +44,7 @@ internal sealed class SettingsWindow : Window {
         var pages=new Grid { Margin=new Thickness(22,26,22,18) };
         var account=AccountView(dark); var display=DisplayView(dark); var moods=MoodsView(dark); var updates=UpdatesView(dark);
         foreach(var (key,page) in new[]{("account",account),("display",display),("moods",moods),("updates",updates)}) { var scroll=new ScrollViewer { Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Visibility=selectedPage==key?Visibility.Visible:Visibility.Collapsed }; pages.Children.Add(scroll); }
-        Grid.SetColumn(pages,1); shell.Children.Add(pages); UpdateStatus(); UpdateUpdateStatus();
+        Grid.SetColumn(pages,1); shell.Children.Add(pages); UpdateStatus(); UpdateUpdateStatus(); SettingsVisual.ApplyButtons(shell,dark);
     }
     StackPanel Page(string heading,string description,bool dark) {
         var panel=new StackPanel(); var title=Ui.Text(heading,22,Ui.Foreground(dark)); title.FontWeight=FontWeights.Bold; panel.Children.Add(title); var text=Ui.Text(description,12,SettingsVisual.Muted(dark)); text.Margin=new Thickness(0,8,0,18); panel.Children.Add(text); return panel;

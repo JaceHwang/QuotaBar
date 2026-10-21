@@ -1,6 +1,21 @@
 using System.Windows.Markup;
 namespace QuotaBar.Windows;
 internal static class SettingsVisual {
+    static readonly ControlTemplate RoundedButtonTemplate=(ControlTemplate)XamlReader.Parse("""
+<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button">
+ <Border x:Name="frame" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True"/></Border>
+ <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="frame" Property="BorderBrush" Value="#4488DD"/><Setter TargetName="frame" Property="BorderThickness" Value="2"/></Trigger></ControlTemplate.Triggers>
+</ControlTemplate>
+""");
+    public static void ApplyButtons(DependencyObject root,bool dark) {
+        if(root is Button button) {
+            button.Template=RoundedButtonTemplate; button.Foreground=Ui.Foreground(dark);
+            button.BorderBrush=new SolidColorBrush(Color.FromArgb(55,128,128,128));
+            if(button.ReadLocalValue(Control.BorderThicknessProperty)==DependencyProperty.UnsetValue) button.BorderThickness=new Thickness(1);
+            if(button.ReadLocalValue(Control.BackgroundProperty)==DependencyProperty.UnsetValue) button.Background=dark?new SolidColorBrush(Color.FromRgb(38,40,46)):Brushes.White;
+        }
+        foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) ApplyButtons(child,dark);
+    }
     public static Brush Muted(bool dark)=>new SolidColorBrush(dark?Color.FromRgb(170,175,187):Color.FromRgb(110,116,130));
     public static Border Card(UIElement child,bool dark,Thickness? padding=null)=>new() { Child=child,Background=Ui.Surface(dark),BorderBrush=new SolidColorBrush(Color.FromArgb(40,128,128,128)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=padding??new Thickness(16),Margin=new Thickness(0,0,0,10) };
     public static CheckBox Toggle(string title,bool value,Brush foreground,Action<bool> changed) {
