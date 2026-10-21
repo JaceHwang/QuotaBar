@@ -786,7 +786,7 @@ private final class QuotaResizeHintView: NSView {
 
 @MainActor
 private final class QuotaFooterView: NSView {
-    private static let projectURL = URL(string: "https://github.com/JaceHwang/codex-usage-sidebar")!
+    private static let projectURL = URL(string: "https://github.com/JaceHwang/QuotaBar")!
 
     init(
         frame frameRect: NSRect,

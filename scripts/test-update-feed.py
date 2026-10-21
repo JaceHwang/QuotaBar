@@ -15,9 +15,16 @@ class FeedTests(unittest.TestCase):
     def release(self, version, platform, draft=False, prerelease=False):
         tag='v'+version
         names=module.asset_names(platform, version)
-        return {'tag_name':tag,'draft':draft,'prerelease':prerelease,'published_at':'2026-10-13T00:00:00Z','assets':[{'name':n,'size':100,'browser_download_url':f'https://github.com/JaceHwang/codex-usage-sidebar/releases/download/{tag}/{n}'} for n in names]}
+        return {'tag_name':tag,'draft':draft,'prerelease':prerelease,'published_at':'2026-10-13T00:00:00Z','assets':[{'name':n,'size':100,'browser_download_url':f'https://github.com/JaceHwang/QuotaBar/releases/download/{tag}/{n}'} for n in names]}
     def proof(self, release, platform):
         return {'kind':'release','version':release['tag_name'][1:],'releaseTag':release['tag_name'],'workingTreeDirty':False,'nativeMacOSStartupExit':True}
+    def test_renamed_repository_assets_are_accepted(self):
+        release=self.release('1.1.0','windows-x64')
+        for asset in release['assets']:
+            asset['browser_download_url']=asset['browser_download_url'].replace('/codex-usage-sidebar/','/QuotaBar/')
+        self.assertEqual(module.generate([release],self.proof)['stable'].get('windows-x64',{}).get('version'),'1.1.0')
+        release['assets'][0]['browser_download_url']=release['assets'][0]['browser_download_url'].replace('/QuotaBar/','/QuotaBar-evil/')
+        self.assertEqual(module.generate([release],self.proof)['stable'],{})
     def test_release_notes_are_embedded_as_plain_text(self):
         release=self.release('0.7.0','windows-x64')
         release['body']='## Changes\n- Fix quota refresh\n- Add update reminders'

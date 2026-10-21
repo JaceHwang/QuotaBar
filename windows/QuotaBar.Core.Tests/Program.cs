@@ -9,6 +9,13 @@ if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_P
     return 0;
 }
 var tests = new (string Name, Action Run)[] {
+    ("renamed repository uses canonical update endpoint and release URL", () => {
+        Check(UpdateFeed.Endpoint.AbsoluteUri=="https://jacehwang.github.io/QuotaBar/updates.json","canonical update endpoint");
+        var feed="""{"schemaVersion":1,"stable":{"windows-x64":{"version":"1.1.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.1.0"}}}""";
+        Check(UpdateFeed.Available(feed,"windows-x64","1.0.1","11.0")?.Version=="1.1.0","canonical release accepted");
+        var rejected=false; try { UpdateFeed.Available(feed.Replace("/QuotaBar/","/QuotaBar-evil/"),"windows-x64","1.0.1","11.0"); } catch(FormatException) { rejected=true; }
+        Check(rejected,"lookalike repository remains rejected");
+    }),
     ("updates select platform and compare numeric stable versions", () => {
         var json="""{"schemaVersion":1,"stable":{"windows-x64":{"version":"0.10.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.10.0"},"macos-arm64":{"version":"9.0.0","minOS":"14.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v9.0.0"}}}""";
         Check(UpdateFeed.Available(json,"windows-x64","0.9.0","10.0")?.Version=="0.10.0","numeric ordering and platform filter");

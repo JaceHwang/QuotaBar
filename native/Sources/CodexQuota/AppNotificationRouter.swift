@@ -56,7 +56,7 @@ import QuotaCore
         let version = info["version"] as? String, kind = info["kind"] as? String
         Task { @MainActor [weak self] in
             if let version, (try? UpdateFeed.versionParts(version)) != nil,
-               let url = URL(string: "https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v\(version)") { NSWorkspace.shared.open(url) }
+               let url = URL(string: "https://github.com/JaceHwang/QuotaBar/releases/tag/v\(version)") { NSWorkspace.shared.open(url) }
             else if kind == "recovery" || kind == "bank" || kind == "test" { self?.openDetails?() }
         }
         completionHandler()

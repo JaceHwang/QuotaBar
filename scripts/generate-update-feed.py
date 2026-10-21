@@ -10,7 +10,7 @@ import time
 import urllib.error
 import urllib.request
 
-REPO = 'JaceHwang/codex-usage-sidebar'
+REPO = 'JaceHwang/QuotaBar'
 PLATFORMS = ('macos-arm64', 'windows-x64')
 
 def asset_names(platform, version):

@@ -7,7 +7,7 @@ public sealed record UpdateRelease(string Version,string MinOS,Uri ReleaseNotesU
     public string? NotificationSummary=>string.IsNullOrWhiteSpace(Summary)?null:Summary.Trim();
 }
 public static class UpdateFeed {
-    public static readonly Uri Endpoint=new("https://jacehwang.github.io/codex-usage-sidebar/updates.json");
+    public static readonly Uri Endpoint=new("https://jacehwang.github.io/QuotaBar/updates.json");
     static string? Text(JsonElement entry,string key,int limit) {
         if(!entry.TryGetProperty(key,out var value) || value.ValueKind==JsonValueKind.Null) return null;
         var text=value.GetString()!;
@@ -27,7 +27,7 @@ public static class UpdateFeed {
             if(!stable.TryGetProperty(platform,out var e)) return null;
             var version=e.GetProperty("version").GetString()!; var minimum=e.GetProperty("minOS").GetString()!;
             var parsed=ParseVersion(version); var link=e.GetProperty("releaseNotesURL").GetString();
-            if(link!=$"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v{version}") throw new FormatException("Unsafe release URL");
+            if(link is null || !new[]{"QuotaBar","codex-usage-sidebar"}.Any(repo=>link==$"https://github.com/JaceHwang/{repo}/releases/tag/v{version}")) throw new FormatException("Unsafe release URL");
             return ParseVersion(current)<parsed && ParseVersion(os,true)>=ParseVersion(minimum,true)?new(version,minimum,new Uri(link),Text(e,"summary",240),Text(e,"releaseNotes",16000)):null;
         } catch(Exception e) when(e is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException or OverflowException) { throw new FormatException("Invalid update feed",e); }
     }
