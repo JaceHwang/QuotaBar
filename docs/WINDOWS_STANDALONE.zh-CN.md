@@ -1,6 +1,6 @@
 # QuotaBar Windows 独立版
 
-Windows v0.7.0已正式发布，功能及最新UI已获用户Windows 11完整验收。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
+Windows与macOS共用统一版本；2026-10-21用户确认新版四功能与B侧栏设置的两端实机测试通过，具体设备矩阵以进度记录为准。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
 
 ## 安装、重开和恢复
 
@@ -37,3 +37,9 @@ Windows v0.7.0已正式发布，功能及最新UI已获用户Windows 11完整验
 - 退出后QuotaBar和它的codex子进程消失；升级、回退和卸载重装保留账号设置。
 
 不要粘贴认证文件、原始账号响应或OAuth回调URL作为反馈。可报告错误类别和不含账号内容的 `standalone-state.txt` 状态。
+
+## 额度表情与管理
+
+新版设置采用账户、显示、额度表情与管理、更新四个侧栏分区。四项体验默认开启并保留已有关闭选择。悬浮角色28px，恢复使用紫色星星眼，区别于充足。恢复提醒或庆祝任一开启，同次确认事件只通知一次；预览发送明确示例通知，不消耗Bank也不改变提醒记录。Bank仅对已知权益在72/24小时阶段提醒。
+
+浮窗右键立即隐藏详情（含锁定），菜单期间不重新弹出；离开再进入后恢复悬停。系统通知受Windows通知和勿扰设置影响。升级从完整解压目录运行setup即可保留账号和设置，不需要先手工删除旧版。

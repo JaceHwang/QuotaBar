@@ -13,6 +13,7 @@ public enum AppServerEvent: Equatable, Sendable {
     case loggedOut
     case accountCleared
     case quota(AllowanceSnapshot)
+    case quotaRead(AllowanceSnapshot, BankFieldState)
     case tokenUsage(TokenUsageSnapshot)
     case identity(AccountIdentity)
 }
@@ -391,6 +392,9 @@ public actor AppServerClient {
                 await restartAfterFailure()
             }
         case .readRateLimits:
+            if let raw = try? QuotaObservation.decode(Data(line.utf8), epoch: "transport", sequence: 0) {
+                eventContinuation.yield(.quotaRead(raw.quota, raw.bankFieldState))
+            }
             if let snapshot = try? RateLimitDecoder.decodeResponse(Data(line.utf8)) {
                 let value = rateLimitReadNeededAfterPending
                     ? (lastSnapshot?.mergingSupplementary(from: snapshot) ?? snapshot)

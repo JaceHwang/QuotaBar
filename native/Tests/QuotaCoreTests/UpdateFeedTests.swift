@@ -8,6 +8,12 @@ final class UpdateFeedTests: XCTestCase {
         {"schemaVersion":1,"stable":{"macos-arm64":{"version":"\(version)","minOS":"\(minOS)","releaseNotesURL":"\(link)"},"windows-x64":{"version":"9.0.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v9.0.0"}}}
         """.utf8)
     }
+    func testRenamedRepositoryUsesCanonicalEndpointAndAcceptsCanonicalRelease() throws {
+        XCTAssertEqual(UpdateFeed.endpoint.absoluteString, "https://jacehwang.github.io/QuotaBar/updates.json")
+        let data = feed(link: "https://github.com/JaceHwang/QuotaBar/releases/tag/v0.10.0")
+        XCTAssertEqual(try UpdateFeed.available(in: data, platform: "macos-arm64", current: "0.9.0", os: "14.0")?.version, "0.10.0")
+        XCTAssertThrowsError(try UpdateFeed.available(in: feed(link: "https://github.com/JaceHwang/QuotaBar-evil/releases/tag/v0.10.0"), platform: "macos-arm64", current: "0.9.0", os: "14.0"))
+    }
     func testEmbeddedNotesAndLegacyFeed() throws {
         var root = try JSONSerialization.jsonObject(with: feed()) as! [String: Any]
         var stable = root["stable"] as! [String: Any]

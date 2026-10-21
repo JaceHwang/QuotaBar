@@ -8,7 +8,7 @@ nonisolated(unsafe) private var standaloneSignalWriteFD: Int32 = -1
 @MainActor
 final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private let detail = QuotaDetailPanel()
-    private let floating = FloatingQuotaButton()
+    private let floating: FloatingQuotaButton
     private var detailFromFloating = false
     private var floatingInteraction = QuotaDetailInteractionState()
     private var floatingHoverTimer: Timer?
@@ -20,10 +20,16 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var snapshot: AllowanceSnapshot?
     private var tokens: TokenUsageSnapshot?
     private var identity: AccountIdentity?
+    private var experience: QuotaExperienceController?
     private var updates: QuotaUpdateController?
     private var settings: NSWindow?
     private var statusLabel: NSTextField?
+    private weak var summaryStatusLabel: NSTextField?
+    private weak var settingsShell: QuotaSettingsShellView?
     private var showingDetail = false
+    private var floatingMenuVisible = false
+    private var menuRequiresPointerExit = false
+    private var settingsPage = 2
     private var detailLocked = false
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
@@ -35,12 +41,15 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var signalReadFD: Int32 = -1
     private var networkMonitor: NWPathMonitor?
     private var startupNotice: String?
-    private let defaults = UserDefaults.standard
-    private let statusDisplay = StatusItemDisplayPreferences()
-    private let root = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/CodexUsageSidebar")
+    private let defaults: UserDefaults
+    private let statusDisplay: StatusItemDisplayPreferences
+    private let root: URL
 
-    init(updateController: QuotaUpdateController? = nil) { updates = updateController; super.init() }
+    init(updateController: QuotaUpdateController? = nil, experienceController: QuotaExperienceController? = nil, defaults: UserDefaults = .standard, root: URL? = nil) {
+        self.defaults = defaults; self.root = root ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexUsageSidebar")
+        floating = FloatingQuotaButton(preferences: FloatingQuotaPreferences(defaults: defaults)); statusDisplay = StatusItemDisplayPreferences(defaults: defaults)
+        updates = updateController; experience = experienceController; super.init()
+    }
 
     private var language: CodexDisplayLanguage {
         if let value = defaults.string(forKey: "standalone.language"), let language = CodexDisplayLanguage(rawValue: value) { return language }
@@ -127,6 +136,17 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if updates == nil {
             updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
         }
+        if experience == nil {
+            let experience = QuotaExperienceController(root: root, language: { [weak self] in self?.language ?? .english })
+            self.experience = experience
+            experience.onCelebrate = { [weak self] in self?.floating.celebrate() }
+            experience.onCancelCelebration = { [weak self] in self?.floating.cancelCelebration() }
+            experience.onChange = { [weak self] in self?.render() }
+        }
+        AppNotificationRouter.shared.openDetails = { [weak self] in
+            guard let self else { return }
+            if snapshot == nil { showSettings() } else { detailFromFloating = false; showingDetail = true; render(); refresh() }
+        }
         render()
         let refreshTimer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -162,10 +182,11 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         networkMonitor = monitor
     }
 
-    private func receive(_ event: AppServerEvent) {
+    func receive(_ event: AppServerEvent) {
         switch event {
         case .failure(let method, let message):
             state.receiveError(method: method, message: message)
+            if state.phase != .ready { experience?.resetBaseline() }
             if method == "account/login/start" { state.loginCompleted(success: false) }
             if method == "account/rateLimits/read" { requestInFlight = false }
         case .loginURL(let url): NSWorkspace.shared.open(url)
@@ -174,7 +195,9 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             snapshot = nil; tokens = nil; identity = nil
             state.loginCompleted(success: false)
         case .accountCleared:
+            experience?.accountCleared()
             snapshot = nil; tokens = nil; identity = nil; requestInFlight = false
+        case .quotaRead(let raw, let bank): experience?.receive(raw, bank: bank)
         case .quota(let value):
             snapshot = value; state.receivedQuota(at: Date()); requestInFlight = false
         case .tokenUsage(let value): tokens = value
@@ -213,7 +236,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func wake() { sleeping = false; refresh(); updates?.check() }
-    @objc private func sleep() { sleeping = true }
+    @objc private func sleep() { sleeping = true; experience?.resetBaseline() }
     private func dismissOutsideClick() {
         guard showingDetail || floatingInteraction.shouldShowDetail, !(detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked) else { return }
         let point = NSEvent.mouseLocation
@@ -274,7 +297,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusItem?.button?.toolTip = freshness + "\n" + updated
         statusItem?.button?.setAccessibilityLabel(text("Codex remaining quota", "Codex 剩余额度", "Codex 剩餘額度") + "\n" + indicatorText)
         statusLabel?.stringValue = freshness + "\n" + (identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號")) + "\n" + updated + (startupNotice.map { "\n" + $0 } ?? "")
+        summaryStatusLabel?.stringValue = identity?.preferredName ?? phaseText
+        synchronizeSettingsControls()
         updates?.onChange?()
+        floating.setExperience(mood: QuotaMood.resolve(snapshot, ready: state.phase == .ready, now: Date()), enabled: experience?.preferences.moods == true, description: ExperienceCopy(language).moodLabel(QuotaMood.resolve(snapshot, ready: state.phase == .ready, now: Date())))
         floating.show(summary: snapshot.map { ResetFormatter().indicatorSummary(snapshot: $0, language: language, timeZone: .autoupdatingCurrent, maxWidth: 236) }, theme: theme, tooltip: freshness + "\n" + updated, fallback: phaseText, dimmed: isStale || state.phase != .ready)
         let statusAnchor = statusItem?.button.flatMap { button in button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } }
         let anchor = detailFromFloating ? (floating.frame ?? statusAnchor) : statusAnchor
@@ -313,7 +339,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     @objc private func reloadClicked() {
         Task { [weak self] in
             guard let self else { return }
-            timer?.invalidate(); floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
+            experience?.resetBaseline(); timer?.invalidate(); floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
             networkMonitor?.cancel(); networkMonitor = nil
             for task in tasks { task.cancel() }
             tasks.removeAll()
@@ -333,51 +359,92 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
     }
     func makeSettingsWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 430), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定")
-        window.isReleasedWhenClosed = false
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 14
-        let label = NSTextField(wrappingLabelWithString: phaseText); statusLabel = label; stack.addArrangedSubview(label)
-        let buttons = NSStackView(); buttons.spacing = 8
-        for (title, selector) in [(text("Sign in", "登录", "登入"), #selector(loginClicked)), (text("Cancel", "取消"), #selector(cancelClicked)), (text("Sign out", "退出账号", "登出"), #selector(logoutClicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked))] {
-            buttons.addArrangedSubview(NSButton(title: title, target: self, action: selector))
-        }
-        stack.addArrangedSubview(buttons)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 700), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定"); window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 960, height: 440)
+        func column() -> NSStackView { QuotaSettingsStyle.column(14) }
+        func button(_ title: String, _ action: Selector) -> NSButton { NSButton(title: title, target: self, action: action) }
+        let account = column()
+        let label = QuotaSettingsStyle.label(phaseText, size: 14); statusLabel = label
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(label), in: account)
+        let auth = NSStackView(); auth.spacing = 8
+        for (title, selector) in [(text("Sign in", "登录", "登入"), #selector(loginClicked)), (text("Cancel", "取消"), #selector(cancelClicked)), (text("Sign out", "退出账号", "登出"), #selector(logoutClicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked))] { auth.addArrangedSubview(button(title, selector)) }
+        account.addArrangedSubview(auth)
         let actions = NSStackView(); actions.spacing = 8
-        actions.addArrangedSubview(NSButton(title: text("Quota details", "额度详情", "額度詳情"), target: self, action: #selector(statusDetailsClicked)))
-        actions.addArrangedSubview(NSButton(title: text("Reload runtime", "重新加载运行时", "重新載入執行環境"), target: self, action: #selector(reloadClicked)))
-        stack.addArrangedSubview(actions)
-        let theme = NSPopUpButton(); theme.addItems(withTitles: [text("System theme", "跟随系统主题", "跟隨系統主題"), text("Light", "浅色", "淺色"), text("Dark", "深色")]); theme.target = self; theme.action = #selector(themeChanged)
-        theme.selectItem(at: ["system", "light", "dark"].firstIndex(of: defaults.string(forKey: "standalone.theme") ?? "system") ?? 0); stack.addArrangedSubview(theme)
-        let language = NSPopUpButton(); language.addItems(withTitles: [text("System language", "跟随系统语言", "跟隨系統語言"), "简体中文", "繁體中文", "English"]); language.target = self; language.action = #selector(languageChanged)
-        language.selectItem(at: ["system", "simplifiedChinese", "traditionalChinese", "english"].firstIndex(of: defaults.string(forKey: "standalone.language") ?? "system") ?? 0); stack.addArrangedSubview(language)
-        let quotaToggle = NSButton(checkboxWithTitle: text("Show quota information in menu bar", "任务栏显示额度信息", "工作列顯示額度資訊"), target: self, action: #selector(statusDisplayChanged))
-        quotaToggle.state = statusDisplay.showsQuotaInformation ? .on : .off
-        stack.addArrangedSubview(quotaToggle)
-        let startup = NSButton(checkboxWithTitle: text("Launch at login", "登录时启动", "登入時啟動"), target: self, action: #selector(startupChanged)); startup.state = SMAppService.mainApp.status == .enabled ? .on : .off; stack.addArrangedSubview(startup)
-        stack.addArrangedSubview(NSTextField(wrappingLabelWithString: text("Quota is read by the bundled official runtime. Account credentials stay in the isolated local account directory.", "通过内嵌官方运行时读取额度，凭据保存在本机隔离账户目录。", "透過內嵌官方執行環境讀取額度，憑證儲存在本機隔離帳號目錄。")))
-        if let updates {
-            let updateView = updates.makeSettingsView(); stack.addArrangedSubview(updateView)
-            updateView.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        }
-        let document = QuotaSettingsDocumentView(frame: NSRect(x: 0, y: 0, width: 510, height: 730))
-        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false
-        document.addSubview(stack); stack.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24)])
-        document.layoutSubtreeIfNeeded(); stack.layoutSubtreeIfNeeded()
-        document.setFrameSize(NSSize(width: 510, height: max(430, ceil(stack.fittingSize.height) + 48)))
-        window.setContentSize(NSSize(width: 510, height: min(document.frame.height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
-        scroll.frame = window.contentView!.bounds; scroll.autoresizingMask = [.width, .height]; scroll.documentView = document
-        window.contentView?.addSubview(scroll)
-        updates?.onChange = { [weak stack, weak document, weak window] in
-            guard let stack, let document, let window, window.isVisible else { return }
-            document.layoutSubtreeIfNeeded(); stack.layoutSubtreeIfNeeded()
-            let height = max(430, ceil(stack.fittingSize.height) + 48)
-            if document.frame.height != height { document.setFrameSize(NSSize(width: 510, height: height)) }
-            let visibleHeight = min(height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)
-            if window.contentView?.bounds.height != visibleHeight { window.setContentSize(NSSize(width: 510, height: visibleHeight)) }
-        }
+        actions.addArrangedSubview(button(text("Quota details", "额度详情", "額度詳情"), #selector(statusDetailsClicked)))
+        actions.addArrangedSubview(button(text("Reload runtime", "重新加载运行时", "重新載入執行環境"), #selector(reloadClicked))); account.addArrangedSubview(actions)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Account credentials stay in the isolated local directory.", "凭据保存在本机隔离账户目录。", "憑證儲存在本機隔離帳號目錄。"), secondary: true), in: account)
+        let display = column()
+        let theme = makeThemePicker(), language = makeLanguagePicker()
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Theme", "主题", "主題"), control: theme), in: display)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Language", "语言", "語言"), control: language), in: display)
+        QuotaSettingsStyle.fill(makeGeneralSettings(), in: display)
+        let experiences = column()
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Manage quota moods, notifications and celebrations.", "管理额度相关的表情、提醒和互动效果。", "管理額度相關的表情、提醒和互動效果。"), secondary: true), in: experiences)
+        if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
+        let summary = NSStackView(); summary.spacing = 20; summary.alignment = .top; summary.distribution = .fillEqually
+        let accountSummary = column()
+        accountSummary.addArrangedSubview(QuotaSettingsStyle.label(text("Account status", "账户状态", "帳號狀態"), size: 12))
+        let summaryLabel = QuotaSettingsStyle.label(identity?.preferredName ?? phaseText, size: 11, secondary: true); summaryStatusLabel = summaryLabel; accountSummary.addArrangedSubview(summaryLabel)
+        let summaryActions = NSStackView(); summaryActions.spacing = 6
+        summaryActions.addArrangedSubview(button(text("Quota details", "额度详情", "額度詳情"), #selector(statusDetailsClicked)))
+        summaryActions.addArrangedSubview(button(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked))); accountSummary.addArrangedSubview(summaryActions)
+        summary.addArrangedSubview(accountSummary)
+        let appearanceSummary = column(); appearanceSummary.addArrangedSubview(QuotaSettingsStyle.label(text("Appearance and language", "外观与语言", "外觀與語言"), size: 12))
+        appearanceSummary.addArrangedSubview(makeThemePicker()); appearanceSummary.addArrangedSubview(makeLanguagePicker()); summary.addArrangedSubview(appearanceSummary)
+        let general = column(); general.addArrangedSubview(QuotaSettingsStyle.label(text("General", "通用", "一般"), size: 12))
+        general.addArrangedSubview(makeGeneralSettings()); summary.addArrangedSubview(general)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(summary), in: experiences)
+        let updatePage = column()
+        if let updates { QuotaSettingsStyle.fill(QuotaSettingsStyle.card(updates.makeSettingsView()), in: updatePage) }
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: QuotaSettingsStyle.card(display)), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage)]
+        let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
+        let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? "1.0.1", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
+        shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }
+        settingsShell = shell
+        shell.onSelection = { [weak self] in self?.settingsPage = $0; self?.synchronizeSettingsControls() }; shell.selectPage(settingsPage)
+        window.contentView = shell
+        window.setContentSize(NSSize(width: min(1040, (NSScreen.main?.visibleFrame.width ?? 1200) - 60), height: min(730, (NSScreen.main?.visibleFrame.height ?? 900) - 90)))
+        updates?.onChange = { [weak shell] in shell?.refreshDocumentSize() }
         return window
+    }
+    private func synchronizeSettingsControls() {
+        guard let shell = settingsShell else { return }
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let all = shell.pageContents.flatMap(descendants)
+        for control in all.compactMap({ $0 as? QuotaSettingsSwitch }) where control.identifier?.rawValue.hasPrefix("settings.general.") == true {
+            control.state = [floating.preferences.enabled, statusDisplay.showsQuotaInformation, SMAppService.mainApp.status == .enabled][control.tag] ? .on : .off
+        }
+        let selected = ["system", "light", "dark"].firstIndex(of: defaults.string(forKey: "standalone.theme") ?? "system") ?? 0
+        for control in all.compactMap({ $0 as? NSPopUpButton }) where control.identifier?.rawValue == "settings.theme" { control.selectItem(at: selected) }
+    }
+    private func makeThemePicker() -> NSPopUpButton {
+        let picker = NSPopUpButton(); picker.addItems(withTitles: [text("System theme", "跟随系统", "跟隨系統"), text("Light", "浅色", "淺色"), text("Dark", "深色")]); picker.target = self; picker.action = #selector(themeChanged)
+        picker.identifier = NSUserInterfaceItemIdentifier("settings.theme")
+        picker.selectItem(at: ["system", "light", "dark"].firstIndex(of: defaults.string(forKey: "standalone.theme") ?? "system") ?? 0); return picker
+    }
+    private func makeLanguagePicker() -> NSPopUpButton {
+        let picker = NSPopUpButton(); picker.addItems(withTitles: [text("System language", "跟随系统语言", "跟隨系統語言"), "简体中文", "繁體中文", "English"]); picker.target = self; picker.action = #selector(languageChanged)
+        picker.selectItem(at: ["system", "simplifiedChinese", "traditionalChinese", "english"].firstIndex(of: defaults.string(forKey: "standalone.language") ?? "system") ?? 0); return picker
+    }
+    private func makeGeneralSettings() -> NSView {
+        let stack = QuotaSettingsStyle.column(6)
+        let titles = [text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), text("Menu bar quota", "任务栏显示额度信息", "工作列顯示額度資訊"), text("Launch at login", "登录时启动", "登入時啟動")]
+        for i in 0..<3 {
+            let toggle = QuotaSettingsSwitch(); toggle.tag = i; toggle.identifier = NSUserInterfaceItemIdentifier("settings.general.\(i)")
+            toggle.state = [floating.preferences.enabled, statusDisplay.showsQuotaInformation, SMAppService.mainApp.status == .enabled][i] ? .on : .off
+            toggle.target = self; toggle.action = #selector(generalSettingChanged(_:)); toggle.setAccessibilityLabel(titles[i])
+            let row = NSStackView(); row.spacing = 5; row.addArrangedSubview(toggle); row.addArrangedSubview(QuotaSettingsStyle.label(titles[i], size: 11)); stack.addArrangedSubview(row)
+        }
+        return stack
+    }
+    @objc private func generalSettingChanged(_ sender: QuotaSettingsSwitch) {
+        switch sender.tag {
+        case 0: setFloatingEnabled(sender.state == .on)
+        case 1: statusDisplay.showsQuotaInformation = sender.state == .on; render()
+        default:
+            let proxy = NSButton(); proxy.state = sender.state; startupChanged(proxy); sender.state = proxy.state
+        }
     }
     @objc private func statusDisplayChanged(_ sender: NSButton) {
         statusDisplay.showsQuotaInformation = sender.state == .on; render()
@@ -395,7 +462,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         render()
     }
     private func floatingHoverChanged(_ entered: Bool) {
-        guard entered, !showingDetail else { return }
+        if !entered, menuRequiresPointerExit, !floatingMenuVisible {
+            floatingInteraction.updatePointerInside(false); menuRequiresPointerExit = false
+        }
+        guard entered, !showingDetail, !floatingMenuVisible else { return }
         floatingInteraction.updatePointerInside(true); detailFromFloating = true; render()
         floatingHoverTimer?.invalidate()
         let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
@@ -404,6 +474,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         floatingHoverTimer = timer; RunLoop.main.add(timer, forMode: .common)
     }
     private func updateFloatingHover() {
+        guard !floatingMenuVisible else { return }
         let point = NSEvent.mouseLocation
         let inside = floating.frame?.contains(point) == true || (detailFromFloating && detail.frame?.contains(point) == true)
         let previous = floatingInteraction
@@ -412,6 +483,13 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if previous != floatingInteraction { render() }
     }
     private func showFloatingMenu() {
+        floatingMenuVisible = true; menuRequiresPointerExit = true
+        floatingInteraction.dismissForContextMenu(); showingDetail = false; detailLocked = false
+        detail.hide(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
+        defer {
+            floatingMenuVisible = false
+            if floating.frame?.contains(NSEvent.mouseLocation) != true { floatingInteraction.updatePointerInside(false); menuRequiresPointerExit = false }
+        }
         let menu = NSMenu()
         for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
@@ -430,6 +508,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
+        experience?.stop()
         updates?.stop()
         stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil
         networkMonitor?.cancel(); networkMonitor = nil

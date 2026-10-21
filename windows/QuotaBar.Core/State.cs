@@ -28,6 +28,7 @@ public sealed class DetailInteractionState {
     public void TogglePinned(bool inside) { pointer=inside; IsPinned=!IsPinned; suppress=!IsPinned && inside; }
     public void ToggleLocked(bool inside) { pointer=inside; IsLocked=!IsLocked; if(IsLocked) IsPinned=false; suppress=false; }
     public void DismissOutside() { IsPinned=false; pointer=false; suppress=false; }
+    public void DismissForContextMenu() { IsPinned=false; IsLocked=false; pointer=true; suppress=true; }
     public void Reset() { IsPinned=false; IsLocked=false; pointer=false; suppress=false; }
 }
 

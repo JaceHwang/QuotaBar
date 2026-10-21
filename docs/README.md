@@ -1,6 +1,6 @@
 # QuotaBar 文档索引
 
-当前产品为双平台独立额度应用：macOS v0.6.0（native/），Windows v0.7.0（windows/）。Windows已获用户完整验收并正式发布，来源/原生CI/公开下载均已核验。文档更新日期：2026-10-13。
+当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。本轮准备v1.1.0额度表情、恢复提醒、庆祝、Bank提醒及B侧栏设置发布；两端原生CI和用户实机测试通过。实际公开状态以发布页和发布记录为准。文档更新日期：2026-10-21。
 
 | 文档 | 用途 |
 | --- | --- |
@@ -11,6 +11,8 @@
 | [故障处理](TROUBLESHOOTING.md) | 找不到应用、显示模式、登录、更新和退出 |
 | [仓库治理](GOVERNANCE.md) | 开发分支、检查、Release Please 和资产验证 |
 | [开发进度](PROJECT_PROGRESS-standalone-app.md) | 双平台全周期路线、当前功能详细基线、Windows W0–W6迁移/验收指南和里程碑证据 |
+| [额度体验验收](validation/quota-experiences.md) | 四功能、B界面、默认值、两端候选与用户设备反馈 |
+| [v1.1.0 发布记录](releases/quota-experiences-v1.1.0.md) | 本轮统一版本更新内容、准确tag与正式资产验收状态 |
 | [macOS 验收](validation/macos-standalone.md) | 本地/CI/设备/发布证据与未验证矩阵 |
 | [Windows v0.7.0 记录](releases/windows-standalone-v0.7.0.md) | 首个Windows独立版、圆形图标与详情优化、准确tag及公开资产验证 |
 | [v0.6.0 记录](releases/macos-standalone-v0.6.0.md) | QuotaBar 品牌、悬浮控制及菜单栏显示正式发行 |

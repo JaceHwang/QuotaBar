@@ -78,7 +78,7 @@ public sealed class ProcessTransport(string executable,string codexHome,Action<P
     }
 }
 
-public sealed record RuntimeEvent(string Kind,QuotaSnapshot? Quota=null,TokenUsage? Tokens=null,AccountIdentity? Account=null,string? Method=null,string? Message=null,Uri? LoginUrl=null,bool? Success=null,long? AccountEpoch=null);
+public sealed record RuntimeEvent(string Kind,QuotaSnapshot? Quota=null,TokenUsage? Tokens=null,AccountIdentity? Account=null,string? Method=null,string? Message=null,Uri? LoginUrl=null,bool? Success=null,long? AccountEpoch=null,QuotaObservation? Observation=null);
 
 public sealed class RuntimeSession(Func<ILineTransport> factory,TimeSpan? requestTimeout=null,IReadOnlyList<TimeSpan>? restartDelays=null) : IAsyncDisposable {
     private sealed record Pending(string Method,long Epoch,TaskCompletionSource<JsonElement> Completion);
@@ -134,6 +134,7 @@ public sealed class RuntimeSession(Func<ILineTransport> factory,TimeSpan? reques
             var snapshot=QuotaDecoder.Decode(result.GetRawText());
             lock(accountGate) {
                 if(current!=epoch || suppressAccount) return;
+                Emit(new("quotaRead",Observation:QuotaObservation.Decode(result.GetRawText(),"transport",0)));
                 if(notification!=quotaNotificationSerial && previous is not null) snapshot=previous.MergeSupplementary(snapshot);
                 previous=snapshot; Emit(new("quota",Quota:snapshot));
             }

@@ -148,7 +148,8 @@ public enum RateLimitDecoder {
                     grantedAt: date(detail["grantedAt"]),
                     expiresAt: date(detail["expiresAt"]),
                     title: detail["title"] as? String,
-                    description: detail["description"] as? String
+                    description: detail["description"] as? String,
+                    id: detail["id"] as? String, resetType: detail["resetType"] as? String
                 )
             }
         } else {

@@ -12,7 +12,7 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
     }
 }
 public enum UpdateFeed {
-    public static let endpoint = URL(string: "https://jacehwang.github.io/codex-usage-sidebar/updates.json")!
+    public static let endpoint = URL(string: "https://jacehwang.github.io/QuotaBar/updates.json")!
     private struct Feed: Decodable { let schemaVersion: Int; let stable: [String: UpdateRelease] }
     public static func versionParts(_ value: String, os: Bool = false) throws -> [Int] {
         let parts = value.split(separator: ".", omittingEmptySubsequences: false)
@@ -28,7 +28,7 @@ public enum UpdateFeed {
         guard let entry = feed.stable[platform] else { return nil }
         let version = try versionParts(entry.version)
         let url = entry.releaseNotesURL
-        guard url.absoluteString == "https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v\(entry.version)" else { throw CocoaError(.fileReadCorruptFile) }
+        guard ["QuotaBar", "codex-usage-sidebar"].contains(where: { url.absoluteString == "https://github.com/JaceHwang/\($0)/releases/tag/v\(entry.version)" }) else { throw CocoaError(.fileReadCorruptFile) }
         guard try versionParts(os, os: true).lexicographicallyPrecedes(versionParts(entry.minOS, os: true)) == false,
               try versionParts(current).lexicographicallyPrecedes(version) else { return nil }
         var result = entry
