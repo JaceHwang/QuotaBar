@@ -21,37 +21,37 @@ Four toggles default false. Preserve30pt floating interaction,20pt icon and bran
 
 ## Task 1: Contracts and persistence
 
-- [ ] Add failing Swift/C# contract tests for raw reads, Bank metadata and absent/null/value; run and observe missing behavior.
-- [ ] Add optional Bank id/resetType and raw-read event, maintaining display stream compatibility.
-- [ ] Implement versioned atomic store with epoch, bounded Bank receipts, corrupt-file suppression and write-failure handling; test temp directories.
-- [ ] Verify full protocol suites and commit feat: add quota experience observation contracts.
+- [x] Add failing Swift/C# contract tests for raw reads, Bank metadata and absent/null/value; run and observe missing behavior.
+- [x] Add optional Bank id/resetType and raw-read event, maintaining display stream compatibility.
+- [x] Implement versioned atomic store with epoch, bounded Bank receipts, corrupt-file suppression and write-failure handling; test temp directories.
+- [x] Verify full protocol suites and commit feat: add quota experience observation contracts.
 
 ## Task 2: Experience engine
 
-- [ ] Write failing shared-sequence tests for baseline,20%/rounded0%,15/120s confirmation, ordinary drops, plan/length/epoch/sequence changes, notifications and stale values.
-- [ ] Implement observe(QuotaObservation, now) -> ExperienceUpdate and explicit baseline reset on enabled-mode changes.
-- [ ] Add Bank stage/group/id/expiry/corruption/restart cases; implement receipt-before-delivery behavior.
-- [ ] Run Swift and Core suites; commit feat: detect confirmed recovery and bank expiry.
+- [x] Write failing shared-sequence tests for baseline,20%/rounded0%,15/120s confirmation, ordinary drops, plan/length/epoch/sequence changes, notifications and stale values.
+- [x] Implement observe(QuotaObservation, now) -> ExperienceUpdate and explicit baseline reset on enabled-mode changes.
+- [x] Add Bank stage/group/id/expiry/corruption/restart cases; implement receipt-before-delivery behavior.
+- [x] Run Swift and Core suites; commit feat: detect confirmed recovery and bank expiry.
 
 ## Task 3: Native notifications and settings
 
-- [ ] Add route/queue tests for update/recovery/bank/test, TTL, epoch cancellation and disabled toggles.
-- [ ] Implement one macOS delegate; Windows serial queue with shown/closed/clicked acknowledgement and bounded timeout.
-- [ ] Integrate four localized settings, permission handling and test actions; connect raw observations.
-- [ ] Run UI/protocol regression; commit feat: add opt-in quota experience reminders.
+- [x] Add route/queue tests for update/recovery/bank/test, TTL, epoch cancellation and disabled toggles.
+- [x] Implement one macOS delegate; Windows serial queue with shown/closed/clicked acknowledgement and bounded timeout.
+- [x] Integrate four localized settings, permission handling and test actions; connect raw observations.
+- [x] Run UI/protocol regression; commit feat: add opt-in quota experience reminders.
 
 ## Task 4: Mood and celebration
 
-- [ ] Add tests for independent toggles, visible-only celebration,2s expiry, drag/hide/logout cancellation and accessibility.
-- [ ] Draw approved rounded battery within20pt; local stars remain inside30pt floating area. Add reduced-motion support.
-- [ ] Render and inspect light/dark states; commit feat: add battery moods and recovery celebration.
+- [x] Add tests for independent toggles, visible-only celebration,2s expiry, drag/hide/logout cancellation and accessibility.
+- [x] Draw approved rounded battery within20pt; local stars remain inside30pt floating area. Add reduced-motion support.
+- [x] Render and inspect light/dark states; commit feat: add battery moods and recovery celebration.
 
 ## Task 5: Verification and candidate
 
-- [ ] Run governance check all and native Windows CI when authorized access permits; inspect actual PNGs.
-- [ ] Build macOS/Windows candidates with pinned official runtime and provenance; distinguish cross-build/native CI/device evidence.
-- [ ] Update README/privacy/troubleshooting/validation and roadmap/board after milestones; record unrun matrices.
-- [ ] Final independent review and test-first repair; no publish or merge.
+- [x] Run governance check all and native Windows CI when authorized access permits; inspect actual PNGs.
+- [x] Build macOS/Windows candidates with pinned official runtime and provenance; distinguish cross-build/native CI/device evidence.
+- [x] Update README/privacy/troubleshooting/validation and roadmap/board after milestones; record unrun matrices.
+- [x] Final independent review and test-first repair; no publish or merge.
 
 ## Commands
 
@@ -65,3 +65,17 @@ python3 scripts/build-windows-standalone.py
 ## Evidence
 
 Implementation progress and actual verification live in docs/PROJECT_PROGRESS-standalone-app.md and .project-board via project_board.py; baseline/full-suite outputs in the plan workspace.
+
+
+## Implementation status (2026-10-21)
+
+Implementation tasks above completed in commits67a4dcb,15b98ba,03a6954,82bd495,f821129. Native CI39544046401 passed both platforms at f821129; local188 Swift tests, C# regressions and cross-builds passed; final macOS candidate signed/DMG/isolated startup verification passed. Independent P2 findings were reproduced and repaired. See validation record for actual commands and scope.
+
+### Remaining manual acceptance (not certified by the completed automated tasks)
+
+- [ ] Real system notification permission and click behavior on devices.
+- [ ] Natural authenticated recovery and real Bank expiry delivery.
+- [ ] Windows100/150/200%DPI, multi-screen and sleep/resume device matrix.
+- [ ] Long-running CPU/memory comparison on both platforms.
+
+No public release, merge or installation replacing the current user app.

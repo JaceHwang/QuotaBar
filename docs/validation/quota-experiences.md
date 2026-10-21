@@ -29,3 +29,14 @@ Do not turn simulated recovery fixtures, component PNGs, cross-builds or existin
 Native CI39543546995 and39543627047 passed both platforms at82bd495, including Windows UI PNGs, complete package, owned runtime shutdown, and installation lifecycle. Windows dark/light mood and settings artifacts were visually inspected. Subsequent corrupt-state suppression regression passed locally; final-head CI remains separately tracked.
 
 First local packaged-startup invocation verified app/runtime startup and owned exit but failed cleanup due to incorrectly hiding native concurrently with Swift tests. Source was restored intact; this invocation is not counted as a passing script. Final validation uses native/.build serially.
+
+## Final implementation commit f821129
+
+- Native CI39544046401 passed both macOS and Windows at f82112909440633d28ad3ea929863f592e1180e7; all eight PR checks passed (push/PR runs included). Windows native UI, complete package verification, actual owned runtime startup/exit and concrete setup/upgrade/rollback/uninstall gates passed.
+- Local final candidate: `.dist/standalone-macos/candidate-20261021-122702/QuotaBar.app`, source f821129, clean build, local-development-candidate, version1.0.1, official runtime0.144.1. Complete app/DMG build and strict signing verified.
+- `python3 scripts/test-macos-standalone-startup.py .dist/standalone-macos/candidate-20261021-122702/QuotaBar.app --build-root native/.build` passed serially, including cleanup/restoration. Temporary source-hide directories absent afterwards.
+- Local final component render tests3/3 passed; regenerated dark-mode face contrast inspected. Windows native mood and settings PNGs inspected from successful CI.
+- Notification sound: the app plays no additional audio. macOS requests no sound; Windows tray notification audio follows OS configuration. OS notification settings were not modified.
+- Real notification delivery/click permissions, natural account/Bank events, DPI/multi-screen and long-running matrix remain pending as listed above. The candidate has not replaced the user's installed public version.
+
+Draft review: [PR43](https://github.com/JaceHwang/QuotaBar/pull/43). No merge or public release.
