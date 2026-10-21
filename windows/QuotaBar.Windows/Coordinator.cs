@@ -21,7 +21,7 @@ internal sealed class Coordinator : IDisposable {
     RuntimeSession? runtime;
     OutsideMouse? outside;
     SettingsWindow? settings;
-    bool trayDetail,trayLocked,detailFromFloating,sleeping,stopping,reloading;
+    bool trayDetail,trayLocked,detailFromFloating,sleeping,stopping,reloading,floatingMenuOpen;
     Icon? trayIcon;
     string? menuKey;
     Rect trayAnchor=Rect.Empty;
@@ -44,13 +44,16 @@ internal sealed class Coordinator : IDisposable {
             detailFromFloating=true; trayDetail=false; trayLocked=false; interaction.TogglePinned(true); Render(); Refresh();
         };
         floating.Entered+=()=> {
-            if(Snapshot is null || trayDetail) return;
+            if(Snapshot is null || trayDetail || floatingMenuOpen) return;
             detailFromFloating=true; interaction.UpdatePointer(true); Render(); pointer.Start();
         };
+        floating.Exited+=()=> { if(!floatingMenuOpen) interaction.UpdatePointer(false); };
         floating.CloseRequested+=()=>SetFloating(false);
         floating.PositionChanged+=p=>Save(Preferences with { FloatingX=p.X,FloatingY=p.Y },false);
         floating.Secondary+=()=> {
+            floatingMenuOpen=true; interaction.DismissForContextMenu(); trayDetail=false; trayLocked=false; detailFromFloating=false; pointer.Stop(); detail.Hide();
             var menu=new ContextMenu();
+            menu.Closed+=(_,_)=> { floatingMenuOpen=false; interaction.DismissForContextMenu(); if(!floating.IsMouseOver) interaction.UpdatePointer(false); };
             foreach(var item in MenuItems()) menu.Items.Add(item);
             floating.ContextMenu=menu; menu.IsOpen=true;
         };
@@ -65,7 +68,7 @@ internal sealed class Coordinator : IDisposable {
         };
         tick.Tick+=(_,_)=> { if(!sleeping && State.ShouldRefresh(DateTimeOffset.UtcNow)) Refresh(); Render(); };
         pointer.Tick+=(_,_)=> {
-            if(!detailFromFloating) { pointer.Stop(); return; }
+            if(floatingMenuOpen || !detailFromFloating) { pointer.Stop(); return; }
             var p=Platform.Cursor;
             var visible=interaction.ShouldShow;
             interaction.UpdatePointer(Platform.Bounds(floating).Contains(p) || Platform.Bounds(detail).Contains(p));
@@ -143,7 +146,7 @@ internal sealed class Coordinator : IDisposable {
         WriteDiagnostic();
     }
     void RenderDetail() {
-        if(Snapshot is null || !(trayDetail || interaction.ShouldShow)) { detail.Hide(); return; }
+        if(floatingMenuOpen || Snapshot is null || !(trayDetail || interaction.ShouldShow)) { detail.Hide(); return; }
         Rect anchor;
         if(detailFromFloating) anchor=Platform.Bounds(floating);
         else anchor=trayAnchor;

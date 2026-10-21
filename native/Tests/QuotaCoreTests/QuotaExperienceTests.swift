@@ -7,6 +7,11 @@ final class QuotaExperienceTests: XCTestCase {
     func quota(_ used: Double, reset: Double = 1000, bank: BankResetSummary? = nil) -> AllowanceSnapshot {
         AllowanceSnapshot(usedPercent: used, remainingPercent: Int((100-used).rounded()), resetsAt: now.addingTimeInterval(reset), receivedAt: now, windowDurationMins: 300, planType: "plus", bank: bank)
     }
+    func testCelebrationAlsoRequestsSingleRecoveryNotification() {
+        XCTAssertTrue(QuotaExperiencePreferences(moods: false, recovery: false, celebration: true, bank: false).recoveryNotificationEnabled)
+        XCTAssertTrue(QuotaExperiencePreferences().recoveryNotificationEnabled)
+        XCTAssertFalse(QuotaExperiencePreferences(moods: true, recovery: false, celebration: false, bank: true).recoveryNotificationEnabled)
+    }
     func testDefaultsAndRawBankMetadata() throws {
         XCTAssertEqual(QuotaExperiencePreferences(), QuotaExperiencePreferences(moods: true, recovery: true, celebration: true, bank: true))
         let decoder = JSONDecoder()

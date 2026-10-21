@@ -45,6 +45,11 @@ public struct QuotaDetailInteractionState: Equatable, Sendable {
         suppressHoverUntilExit = false
     }
 
+    public mutating func dismissForContextMenu() {
+        isPinned = false; isLockedOpen = false
+        isPointerInside = true; suppressHoverUntilExit = true
+    }
+
     public mutating func reset() {
         self = QuotaDetailInteractionState()
     }

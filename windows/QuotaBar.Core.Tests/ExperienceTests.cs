@@ -6,6 +6,10 @@ internal static class ExperienceTests {
         var now=DateTimeOffset.FromUnixTimeSeconds(1800000000);
         QuotaSnapshot Q(double used,double reset=1000,BankSummary? bank=null)=>new(new(used,(int)Math.Round(100-used),now.AddSeconds(reset),300),null,"plus",null,bank,now);
         Check(new QuotaExperiencePreferences()==new QuotaExperiencePreferences(true,true,true,true),"experience defaults on");
+        foreach(var (recovery,celebration,want) in new[]{(false,false,false),(true,false,true),(false,true,true),(true,true,true)}) {
+            var preferences=new QuotaExperiencePreferences(Recovery:recovery,Celebration:celebration);
+            Check(preferences.RecoveryNotificationsEnabled==want,"recovery notification follows either switch without requiring both");
+        }
         using var fixtures=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/experience/recovery-sequences.json")));
         foreach(var row in fixtures.RootElement.EnumerateArray()) {
             var engine=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); engine.Configure(new(false,true,false,false));

@@ -52,6 +52,8 @@ internal static class Program {
             }
             prefs=prefs with { Experience=new(Moods:true,Recovery:false,Celebration:false,Bank:false) }; button.Render(quota,state,prefs,copy,false); Pump();
             Check(button.Height==30,"mood keeps original floating height");
+            var floatingMood=Tree(button).OfType<QuotaMoodView>().Single();
+            Check(floatingMood.ActualWidth>=28 && floatingMood.ActualHeight>=28,"mood fills floating height without enlarging bar");
             Check(!prefs.Experience.Celebration,"preview test explicitly disables automatic celebration");
             button.Celebrate(); Check(button.IsCelebrating,"preview works independently of celebration toggle");
             button.HideFloat(); Check(!button.IsCelebrating,"hide cancels celebration");
@@ -86,7 +88,19 @@ internal static class Program {
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
                     var experienceToggles=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().Where(b=>new[]{"额度表情模式","额度恢复时提醒","额度恢复时播放小庆祝","Bank 到期提醒"}.Contains(b.Content?.ToString())).ToArray();
                     Check(experienceToggles.Length==4 && experienceToggles.All(b=>b.IsChecked==true),"four independent default-on controls present");
-                    Check(settings.Content is ScrollViewer,"settings remain reachable on short screens");
+                    Check(Tree(settings).OfType<ScrollViewer>().Any(),"settings remain reachable on short screens");
+                    Check(Tree(settings).OfType<QuotaMoodView>().Count()==6,"inline five mood states plus recovery illustration");
+                    var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
+                    Check(navigation.Length==4,"four sidebar pages");
+                    var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
+                    moodToggle.IsChecked=false; moodToggle.RaiseEvent(new RoutedEventArgs(CheckBox.ClickEvent));
+                    navigation.First(b=>b.Tag?.ToString()=="settings-nav-display").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    navigation.First(b=>b.Tag?.ToString()=="settings-nav-moods").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(!owner.Preferences.Experience.Moods && Tree(settings).OfType<CheckBox>().Any(b=>b.Content?.ToString()=="额度表情模式" && b.IsChecked==false),"navigation preserves explicit mood opt-out");
+                    owner.Save(owner.Preferences with { Experience=new() },false);
+                    settings.Build();
+                    navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
+                    navigation.First(b=>b.Tag?.ToString()=="settings-nav-updates").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
                     var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-updates-"+(dark?"dark":"light")+".png"))) encoder.Save(file);
                     settings.Close();
@@ -100,6 +114,7 @@ internal static class Program {
                 foreach(var dark in new[]{false,true}) {
                     owner.Save(new Preferences { Theme=dark?"dark":"light",Language="zh-CN",AutomaticUpdates=false },false);
                     var settings=new SettingsWindow(owner); settings.Show(); Pump();
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-updates").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<TextBlock>().Any(c=>c.Text.Contains("改善更新提醒")),"embedded release notes visible");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="查看更新" && c.IsVisible),"discovered update actions visible");
                     var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);

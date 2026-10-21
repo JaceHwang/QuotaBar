@@ -1,8 +1,8 @@
 namespace QuotaBar.Windows;
 internal sealed class FloatingWindow : Window {
     readonly Grid content=new();
-    readonly Grid iconHost=new() { Width=20,Height=20,VerticalAlignment=VerticalAlignment.Center };
-    readonly QuotaMoodView moodView=new();
+    readonly Grid iconHost=new() { Width=28,Height=28,VerticalAlignment=VerticalAlignment.Center };
+    readonly QuotaMoodView moodView=new() { Width=28,Height=28 };
     readonly RecoveryCelebrationController celebration=new();
     QuotaMood currentMood;
     internal bool IsCelebrating=>celebration.Active;
@@ -13,7 +13,7 @@ internal sealed class FloatingWindow : Window {
     internal Button CloseControl=>close;
     Point? down,origin;
     bool dragging;
-    public event Action? Primary,Secondary,Entered,CloseRequested;
+    public event Action? Primary,Secondary,Entered,Exited,CloseRequested;
     public event Action<Point>? PositionChanged;
     public FloatingWindow() {
         Title="QuotaBar"; Height=30; Width=320; WindowStyle=WindowStyle.None; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -23,12 +23,12 @@ internal sealed class FloatingWindow : Window {
         close=Ui.Button("×",()=>CloseRequested?.Invoke());
         close.FontSize=16; close.Padding=new Thickness(0); close.Margin=new Thickness(2,0,0,0); close.MinHeight=20; close.Height=20; close.Width=20;
         close.Background=Brushes.Transparent; close.BorderThickness=new Thickness(0); close.Visibility=Visibility.Hidden;
-        content.ColumnDefinitions.Add(new() { Width=new GridLength(26) });
+        content.ColumnDefinitions.Add(new() { Width=new GridLength(34) });
         content.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
         content.ColumnDefinitions.Add(new() { Width=new GridLength(24) });
         surface.Child=content; Content=surface;
         MouseEnter+=(_,_)=> { close.Visibility=Visibility.Visible; Entered?.Invoke(); };
-        MouseLeave+=(_,_)=>close.Visibility=Visibility.Hidden;
+        MouseLeave+=(_,_)=> { close.Visibility=Visibility.Hidden; Exited?.Invoke(); };
         MouseRightButtonUp+=(_,e)=> { e.Handled=true; Secondary?.Invoke(); };
         MouseLeftButtonDown+=(_,e)=> { down=Platform.Cursor; var b=Platform.Bounds(this); origin=b.Location; dragging=false; CaptureMouse(); e.Handled=true; };
         MouseMove+=(_,_)=> {
@@ -74,7 +74,7 @@ internal sealed class FloatingWindow : Window {
         }
         }
         Grid.SetColumn(rows,1); content.Children.Add(rows); Grid.SetColumn(close,2); if(!content.Children.Contains(close)) content.Children.Add(close);
-        rows.Measure(new Size(double.PositiveInfinity,30)); Width=Math.Min(440,Math.Max(220,rows.DesiredSize.Width+60));
+        rows.Measure(new Size(double.PositiveInfinity,30)); Width=Math.Min(440,Math.Max(220,rows.DesiredSize.Width+68));
         Opacity=currentMood==QuotaMood.Unavailable?.55:1;
         ToolTip=copy.Indicator(quota,state.Phase)+"\n"+copy.PhaseLabel(state.Phase)+(preferences.Experience.Moods?"\n"+new ExperienceCopy(preferences.Language).MoodLabel(currentMood):"");
         System.Windows.Automation.AutomationProperties.SetName(this,ToolTip.ToString());

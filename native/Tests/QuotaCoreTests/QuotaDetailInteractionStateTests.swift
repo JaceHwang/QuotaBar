@@ -2,6 +2,16 @@ import QuotaCore
 import XCTest
 
 final class QuotaDetailInteractionStateTests: XCTestCase {
+    func testContextMenuDismissesLockedDetailAndSuppressesHoverUntilExit() {
+        var state = QuotaDetailInteractionState()
+        state.toggleLockedOpen(pointerInside: true)
+        state.dismissForContextMenu()
+        XCTAssertFalse(state.shouldShowDetail)
+        state.updatePointerInside(true); XCTAssertFalse(state.shouldShowDetail)
+        state.updatePointerInside(false); state.updatePointerInside(true)
+        XCTAssertTrue(state.shouldShowDetail)
+    }
+
     func testHoverShowsOnEntryAndHidesOnExit() {
         var state = QuotaDetailInteractionState()
 

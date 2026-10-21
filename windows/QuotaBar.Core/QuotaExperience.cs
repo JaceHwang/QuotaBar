@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 
 namespace QuotaBar.Core;
-public sealed record QuotaExperiencePreferences(bool Moods=true,bool Recovery=true,bool Celebration=true,bool Bank=true);
+public sealed record QuotaExperiencePreferences(bool Moods=true,bool Recovery=true,bool Celebration=true,bool Bank=true) {
+    public bool RecoveryNotificationsEnabled=>Recovery || Celebration;
+}
 public enum QuotaMood { Good,Low,Exhausted,Unavailable,Recovered }
 public static class QuotaMoods {
     public static QuotaMood Resolve(QuotaSnapshot? q,bool ready,DateTimeOffset now) {

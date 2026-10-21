@@ -79,3 +79,7 @@ Implementation tasks above completed in commits67a4dcb,15b98ba,03a6954,82bd495,f
 - [ ] Long-running CPU/memory comparison on both platforms.
 
 No public release, merge or installation replacing the current user app.
+
+## Approved B follow-up
+
+The user selected concept B for the settings redesign on2026-10-21. Implement existing-flow changes inline: native sidebar and state legend;28pt mood, violet recovery, single recovery-or-celebration notification; context-menu dismissal; preference/identity synchronization; focused regression, full governance, native CI and candidate verification. Preserve all account/update actions and keep public release unauthorized.

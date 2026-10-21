@@ -48,3 +48,9 @@ The user changed all four defaults to enabled. Saved opt-outs remain unchanged; 
 - RED: Swift defaults/missing-field assertions and C# defaults assertion failed with the old implementation.
 - GREEN: local full governance passed: Swift Core142 + AppKit47, Windows Core behavior/protocol/install checks and native UI cross-build. Covers missing/partial preference fields, saved all-off, settings opt-out across restart, default reminder permission request and saved reminder opt-out without a request.
 - Native CI39548520391 at6b5786e passed both platforms, including Windows native UI, complete candidate payload, actual runtime startup/exit and setup/upgrade/rollback/uninstall. Updated macOS and Windows candidate artifacts are available in that run. Real notification/device matrix remains pending.
+
+## Approved B interface amendment (2026-10-21)
+
+User selected concept B for both native settings implementations. Source changes include sidebar navigation, inline five-state legend, visual reminder explanations,28pt floating mood, distinct violet recovery and celebration-linked notification. Preview uses sample notifications only. Context menus dismiss locked/pinned details and suppress stationary hover until pointer exit.
+
+Local full governance passed. Swift144 Core +53 AppKit tests passed, including three-language/light-dark settings renderings,28pt non-overlap, distinct recovered raster, context-menu suppression, sidebar persistence and both reviewed synchronization regressions. C#13/13 behavior plus protocol/install regressions passed; Windows app/Setup/UI test cross-build passed. Static review identified duplicated macOS controls and stale account summary; both produced failing behavioral tests before fixes and scoped re-review found no residual issue. Windows native execution/PNG inspection remains pending CI; cross-compilation alone does not certify native UI behavior.

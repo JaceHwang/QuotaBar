@@ -119,3 +119,5 @@ Before development, read the [roadmap](docs/PROJECT_PROGRESS-standalone-app.md) 
 The development branch adds four independent settings: a battery character in the floating indicator, confirmed recovery notifications, a brief local celebration, and Bank expiry reminders at 72/24 hours. All default on; saved opt-outs are preserved. On macOS, enabled reminders request notification permission when it has not yet been decided. Celebrations require a visible floating indicator; recovery requires two fresh reads. Unknown Bank expiry dates are not guessed, and credits are never redeemed automatically.
 
 These changes are not part of the published v1.0.1 packages. See the [progress log](docs/PROJECT_PROGRESS-standalone-app.md) for verification status.
+
+Settings use sidebar sections matching the quota detail card, with an inline five-state legend. Recovery celebrations use a distinct violet star-eyed battery and one accompanying recovery notification; previews send example notifications only. Right-clicking the floating indicator hides details before opening its menu.

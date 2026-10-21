@@ -165,9 +165,9 @@ final class FloatingQuotaButton: NSObject {
         let frame = preferences.frame(size: CGSize(width: width, height: 30), screens: NSScreen.screens.map(\.visibleFrame))
         panel.setFrame(frame, display: true); interaction.frame = CGRect(origin: .zero, size: frame.size)
         icon.frame = CGRect(x: 6, y: 5, width: 20, height: 20)
-        moodIcon.frame = icon.frame; moodIcon.dark = theme == .dark
+        moodIcon.frame = CGRect(x: 3, y: 1, width: 28, height: 28); moodIcon.dark = theme == .dark
         let height = min(label.intrinsicContentSize.height, 30)
-        label.frame = CGRect(x: 32, y: floor((30 - height) / 2), width: max(0, frame.width - 64), height: height)
+        label.frame = CGRect(x: 35, y: floor((30 - height) / 2), width: max(0, frame.width - 67), height: height)
         closeButton.frame = CGRect(x: frame.width - 24, y: 5, width: 20, height: 20)
         panel.alphaValue = dimmed ? 0.52 : 1
         interaction.toolTip = tooltip + (moodEnabled ? "\n" + experienceDescription : ""); interaction.setAccessibilityLabel(label.stringValue + (moodEnabled ? "\n" + experienceDescription : ""))

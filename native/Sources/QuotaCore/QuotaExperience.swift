@@ -5,6 +5,7 @@ public struct QuotaExperiencePreferences: Codable, Equatable, Sendable {
     public var moods: Bool
     public var recovery: Bool
     public var celebration: Bool
+    public var recoveryNotificationEnabled: Bool { recovery || celebration }
     public var bank: Bool
     public init(moods: Bool = true, recovery: Bool = true, celebration: Bool = true, bank: Bool = true) {
         self.moods = moods; self.recovery = recovery; self.celebration = celebration; self.bank = bank

@@ -126,7 +126,7 @@ final class QuotaUpdateViewTests: XCTestCase {
         window.contentView?.wantsLayer = true
         window.appearance?.performAsCurrentDrawingAppearance { window.contentView?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
         defer { window.close() }
-        window.orderFront(nil); window.contentView?.layoutSubtreeIfNeeded()
+        window.orderFront(nil); (window.contentView as? QuotaSettingsShellView)?.selectPage(3); window.contentView?.layoutSubtreeIfNeeded()
         let initialScroll = try XCTUnwrap(window.contentView?.subviews.compactMap { $0 as? NSScrollView }.first)
         let initialDocument = try XCTUnwrap(initialScroll.documentView)
         let accountStatus = try XCTUnwrap(descendants(initialDocument).compactMap { $0 as? NSTextField }.first)

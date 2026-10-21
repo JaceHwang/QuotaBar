@@ -88,6 +88,13 @@ var tests = new (string Name, Action Run)[] {
         Check(state.ShouldShow, "hover restores after exit"); state.ToggleLocked(true); state.DismissOutside();
         Check(state.ShouldShow, "outside does not unlock"); state.Reset(); Check(!state.ShouldShow, "close clears lock");
     }),
+    ("context-menu reset dismisses locked detail until fresh hover", () => {
+        var state=new DetailInteractionState(); state.UpdatePointer(true); state.ToggleLocked(true);
+        state.DismissForContextMenu(); state.UpdatePointer(true);
+        Check(!state.ShouldShow && !state.IsLocked && !state.IsPinned,"context menu reset suppresses stationary pointer and clears lock");
+        state.UpdatePointer(false); Check(!state.ShouldShow,"leaving stays hidden");
+        state.UpdatePointer(true); Check(state.ShouldShow,"fresh hover after exit reopens detail");
+    }),
     ("refresh timeout and bounded backoff", () => {
         var now = DateTimeOffset.Parse("2026-10-12T00:00:00Z"); var s = new RefreshState();
         s.Received(now); Check(!s.ShouldRefresh(now.AddSeconds(59)) && s.ShouldRefresh(now.AddSeconds(60)), "60 second interval");
