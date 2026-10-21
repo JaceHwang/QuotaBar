@@ -10,7 +10,7 @@ An independent quota app for macOS and Windows: glance at the menu bar, tray or 
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download the latest release](https://github.com/JaceHwang/QuotaBar/releases/latest) · [Installation](#installation) · [Documentation](docs/README.md)
+[Download v1.1.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.1.0) · [Installation](#installation) · [Documentation](docs/README.md)
 
 </div>
 
@@ -56,12 +56,12 @@ Check for updates from the menu or settings, view release notes, postpone a remi
 
 ## Installation
 
-Both platforms share one version. Download the package and checksum/supporting files from the [latest release](https://github.com/JaceHwang/QuotaBar/releases/latest), and verify the checksum before installing.
+Both platforms share **v1.1.0**. Download the package and checksum/supporting files from the [latest release](https://github.com/JaceHwang/QuotaBar/releases/latest), and verify the checksum before installing.
 
 | Platform | Download | Support and signing |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG](https://github.com/JaceHwang/QuotaBar/releases/download/v1.0.1/codex-quota-v1.0.1-macos-arm64.dmg) | macOS 14+ declared; device-tested on macOS 27.0. Locally signed, **not Developer ID notarized**. |
-| Windows x64 | [Installer ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.0.1/QuotaBar-1.0.1-windows-x64.zip) | Windows 11 x64. **Unsigned** package. |
+| macOS Apple Silicon | [DMG](https://github.com/JaceHwang/QuotaBar/releases/download/v1.1.0/codex-quota-v1.1.0-macos-arm64.dmg) | macOS 14+ declared; device-tested on macOS 27.0. Locally signed, **not Developer ID notarized**. |
+| Windows x64 | [Installer ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.1.0/QuotaBar-1.1.0-windows-x64.zip) | Windows 11 x64. **Unsigned** package. |
 
 ### macOS
 

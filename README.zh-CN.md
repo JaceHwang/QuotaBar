@@ -10,7 +10,7 @@
 
 [English](README.md) · **简体中文**
 
-[下载最新版本](https://github.com/JaceHwang/QuotaBar/releases/latest) · [安装说明](#安装) · [文档索引](docs/README.md)
+[下载 v1.1.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.1.0) · [安装说明](#安装) · [文档索引](docs/README.md)
 
 </div>
 
@@ -56,12 +56,12 @@ macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单�
 
 ## 安装
 
-两端共用统一版本。请从[最新版本发布页](https://github.com/JaceHwang/QuotaBar/releases/latest)下载安装包、校验文件及辅助文件，校验后再安装。
+两端共用统一版本 **v1.1.0**。请从[最新版本发布页](https://github.com/JaceHwang/QuotaBar/releases/latest)下载安装包、校验文件及辅助文件，校验后再安装。
 
 | 平台 | 下载 | 系统与签名 |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.0.1/codex-quota-v1.0.1-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
-| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.0.1/QuotaBar-1.0.1-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
+| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.1.0/codex-quota-v1.1.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
+| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.1.0/QuotaBar-1.1.0-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
 
 ### macOS
 
