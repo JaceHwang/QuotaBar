@@ -95,6 +95,12 @@ final class FloatingQuotaButton: NSObject {
     var onClose: (() -> Void)?
     private let label = NSTextField(labelWithString: "")
     private let icon = QuotaThemeIconView(frame: .zero)
+    private let moodIcon = QuotaMoodView(frame: .zero)
+    private let celebration = RecoveryCelebrationController()
+    private var experienceDescription = ""
+    private var currentMood: QuotaMood = .unavailable
+    private(set) var moodEnabled = false
+    var isCelebrating: Bool { celebration.active }
     private var dragOrigin: CGPoint?
     var onClick: (() -> Void)?
     var onMenu: (() -> Void)?
@@ -111,7 +117,13 @@ final class FloatingQuotaButton: NSObject {
         panel.contentView = interaction
         interaction.wantsLayer = true; interaction.layer?.cornerRadius = 10
         label.maximumNumberOfLines = 2; label.usesSingleLineMode = false; label.lineBreakMode = .byClipping
-        interaction.addSubview(icon); interaction.addSubview(label)
+        interaction.addSubview(icon); interaction.addSubview(moodIcon); interaction.addSubview(label)
+        moodIcon.isHidden = true
+        celebration.onChange = { [weak self] active, phase in
+            guard let self else { return }; moodIcon.stars = active; moodIcon.sparklePhase = phase
+            moodIcon.mood = active && moodEnabled ? .recovered : currentMood
+            moodIcon.isHidden = !moodEnabled && !active
+        }
         closeButton.isBordered = false
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close floating button")
         closeButton.imageScaling = .scaleProportionallyDown
@@ -133,7 +145,7 @@ final class FloatingQuotaButton: NSObject {
             }
             onHover?(value)
         }
-        interaction.onDragBegan = { [weak self] in self?.dragOrigin = self?.panel.frame.origin }
+        interaction.onDragBegan = { [weak self] in self?.celebration.cancel(); self?.dragOrigin = self?.panel.frame.origin }
         interaction.onDrag = { [weak self] delta in
             guard let self, let dragOrigin else { return }
             preferences.origin = CGPoint(x: dragOrigin.x + delta.x, y: dragOrigin.y + delta.y)
@@ -153,11 +165,12 @@ final class FloatingQuotaButton: NSObject {
         let frame = preferences.frame(size: CGSize(width: width, height: 30), screens: NSScreen.screens.map(\.visibleFrame))
         panel.setFrame(frame, display: true); interaction.frame = CGRect(origin: .zero, size: frame.size)
         icon.frame = CGRect(x: 6, y: 5, width: 20, height: 20)
+        moodIcon.frame = icon.frame; moodIcon.dark = theme == .dark
         let height = min(label.intrinsicContentSize.height, 30)
         label.frame = CGRect(x: 32, y: floor((30 - height) / 2), width: max(0, frame.width - 64), height: height)
         closeButton.frame = CGRect(x: frame.width - 24, y: 5, width: 20, height: 20)
         panel.alphaValue = dimmed ? 0.52 : 1
-        interaction.toolTip = tooltip; interaction.setAccessibilityLabel(label.stringValue)
+        interaction.toolTip = tooltip + (moodEnabled ? "\n" + experienceDescription : ""); interaction.setAccessibilityLabel(label.stringValue + (moodEnabled ? "\n" + experienceDescription : ""))
         panel.orderFrontRegardless()
     }
     @objc private func closeFloatingButton() {
@@ -165,7 +178,15 @@ final class FloatingQuotaButton: NSObject {
         hide()
         onClose?()
     }
-    func hide() { closeButton.isHidden = true; panel.orderOut(nil) }
+    func setExperience(mood: QuotaMood, enabled: Bool, description: String = "") {
+        experienceDescription = description; currentMood = mood; moodEnabled = enabled; moodIcon.showsCharacter = enabled
+        icon.isHidden = enabled; moodIcon.isHidden = !enabled && !celebration.active
+        if mood == .unavailable { celebration.cancel() }
+        moodIcon.mood = celebration.active && enabled ? .recovered : mood
+    }
+    func celebrate() { celebration.play(visible: panel.isVisible) }
+    func cancelCelebration() { celebration.cancel() }
+    func hide() { celebration.cancel(); closeButton.isHidden = true; panel.orderOut(nil) }
     func showMenu(_ menu: NSMenu) { guard let event = NSApp.currentEvent else { return }; NSMenu.popUpContextMenu(menu, with: event, for: interaction) }
 }
 

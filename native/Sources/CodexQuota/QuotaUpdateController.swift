@@ -3,7 +3,7 @@ import QuotaCore
 import UserNotifications
 
 @MainActor
-final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
+final class QuotaUpdateController: NSObject {
     private var notificationCenter: UNUserNotificationCenter?
     private let defaults: UserDefaults
     private let version: String
@@ -47,7 +47,7 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
         super.init()
         // UserNotifications requires an application bundle; CLI/test hosts have no bundle proxy.
         if Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil {
-            let center = UNUserNotificationCenter.current(); center.delegate = self; notificationCenter = center
+            notificationCenter = AppNotificationRouter.shared.center
         }
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.check(); self?.notifyIfNeeded() }
@@ -167,14 +167,4 @@ final class QuotaUpdateController: NSObject, UNUserNotificationCenterDelegate {
             } catch { status = text("System reminder unavailable; view update here", "系统提醒不可用，可在此查看更新", "系統提醒不可用，可在此查看更新"); refreshView() }
         }
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        let version = response.notification.request.content.userInfo["version"] as? String
-        Task { @MainActor in
-            guard let version, (try? UpdateFeed.versionParts(version)) != nil,
-                  let url = URL(string: "https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v\(version)") else { return }
-            NSWorkspace.shared.open(url)
-        }
-        completionHandler()
-    }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) { completionHandler([.banner, .list]) }
 }

@@ -43,6 +43,7 @@ internal sealed class SettingsWindow : Window {
         quota.Click+=(_,_)=>owner.Save(owner.Preferences with { ShowsQuotaInformation=quota.IsChecked==true },false); stack.Children.Add(quota);
         var startup=new CheckBox { Content=copy.Text("Launch at login","登录时启动","登入時啟動"),IsChecked=Platform.StartupEnabled,Margin=new Thickness(0,5,0,10),Foreground=fg };
         startup.Click+=(_,_)=> { try { Platform.SetStartup(startup.IsChecked==true); } catch(Exception e) when(e is UnauthorizedAccessException or IOException) { startup.IsChecked=Platform.StartupEnabled; MessageBox.Show(copy.Text("Startup registration failed","启动项设置失败","啟動項設定失敗")); } }; stack.Children.Add(startup);
+        stack.Children.Add(owner.Experience.MakeSettingsView());
         stack.Children.Add(new Separator { Margin=new Thickness(0,12,0,8) });
         stack.Children.Add(Ui.Text(copy.Text("Software update","软件更新","軟體更新"),13,fg));
         var automatic=new CheckBox { Content=copy.Text("Automatically check for updates","自动检查更新","自動檢查更新"),IsChecked=p.AutomaticUpdates,Foreground=fg,Margin=new Thickness(0,8,0,5) };

@@ -93,7 +93,8 @@ internal sealed class UpdateController : IDisposable {
         pendingReminder=release.Version; retryReminder=DateTimeOffset.UtcNow.AddMinutes(30);
         owner.ShowUpdateReminder(release.Version,release.NotificationSummary);
     }
-    public void ReminderShown() {
+    public void ReminderShown(string? expectedVersion=null) {
+        if(expectedVersion is not null && pendingReminder!=expectedVersion) return;
         if(stopped) return;
         if(pendingReminder is { } version && owner.Preferences.UpdateReminders && Available?.Version==version && state.Policy.ShouldNotify(version,DateTimeOffset.UtcNow)) {
             state=state with { Policy=state.Policy with { NotifiedVersion=version,SnoozeUntil=null } }; Persist();

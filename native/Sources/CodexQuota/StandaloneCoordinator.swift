@@ -20,6 +20,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var snapshot: AllowanceSnapshot?
     private var tokens: TokenUsageSnapshot?
     private var identity: AccountIdentity?
+    private var experience: QuotaExperienceController?
     private var updates: QuotaUpdateController?
     private var settings: NSWindow?
     private var statusLabel: NSTextField?
@@ -127,6 +128,17 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if updates == nil {
             updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
         }
+        if experience == nil {
+            let experience = QuotaExperienceController(root: root, language: { [weak self] in self?.language ?? .english })
+            self.experience = experience
+            experience.onCelebrate = { [weak self] in self?.floating.celebrate() }
+            experience.onCancelCelebration = { [weak self] in self?.floating.cancelCelebration() }
+            experience.onChange = { [weak self] in self?.render() }
+        }
+        AppNotificationRouter.shared.openDetails = { [weak self] in
+            guard let self else { return }
+            if snapshot == nil { showSettings() } else { detailFromFloating = false; showingDetail = true; render(); refresh() }
+        }
         render()
         let refreshTimer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -166,6 +178,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         switch event {
         case .failure(let method, let message):
             state.receiveError(method: method, message: message)
+            if state.phase != .ready { experience?.resetBaseline() }
             if method == "account/login/start" { state.loginCompleted(success: false) }
             if method == "account/rateLimits/read" { requestInFlight = false }
         case .loginURL(let url): NSWorkspace.shared.open(url)
@@ -174,7 +187,9 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             snapshot = nil; tokens = nil; identity = nil
             state.loginCompleted(success: false)
         case .accountCleared:
+            experience?.accountCleared()
             snapshot = nil; tokens = nil; identity = nil; requestInFlight = false
+        case .quotaRead(let raw, let bank): experience?.receive(raw, bank: bank)
         case .quota(let value):
             snapshot = value; state.receivedQuota(at: Date()); requestInFlight = false
         case .tokenUsage(let value): tokens = value
@@ -213,7 +228,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func wake() { sleeping = false; refresh(); updates?.check() }
-    @objc private func sleep() { sleeping = true }
+    @objc private func sleep() { sleeping = true; experience?.resetBaseline() }
     private func dismissOutsideClick() {
         guard showingDetail || floatingInteraction.shouldShowDetail, !(detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked) else { return }
         let point = NSEvent.mouseLocation
@@ -275,6 +290,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         statusItem?.button?.setAccessibilityLabel(text("Codex remaining quota", "Codex 剩余额度", "Codex 剩餘額度") + "\n" + indicatorText)
         statusLabel?.stringValue = freshness + "\n" + (identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號")) + "\n" + updated + (startupNotice.map { "\n" + $0 } ?? "")
         updates?.onChange?()
+        floating.setExperience(mood: QuotaMood.resolve(snapshot, ready: state.phase == .ready, now: Date()), enabled: experience?.preferences.moods == true, description: ExperienceCopy(language).moodLabel(QuotaMood.resolve(snapshot, ready: state.phase == .ready, now: Date())))
         floating.show(summary: snapshot.map { ResetFormatter().indicatorSummary(snapshot: $0, language: language, timeZone: .autoupdatingCurrent, maxWidth: 236) }, theme: theme, tooltip: freshness + "\n" + updated, fallback: phaseText, dimmed: isStale || state.phase != .ready)
         let statusAnchor = statusItem?.button.flatMap { button in button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } }
         let anchor = detailFromFloating ? (floating.frame ?? statusAnchor) : statusAnchor
@@ -313,7 +329,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     @objc private func reloadClicked() {
         Task { [weak self] in
             guard let self else { return }
-            timer?.invalidate(); floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
+            experience?.resetBaseline(); timer?.invalidate(); floating.hide(); floatingInteraction.reset(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
             networkMonitor?.cancel(); networkMonitor = nil
             for task in tasks { task.cancel() }
             tasks.removeAll()
@@ -356,6 +372,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(quotaToggle)
         let startup = NSButton(checkboxWithTitle: text("Launch at login", "登录时启动", "登入時啟動"), target: self, action: #selector(startupChanged)); startup.state = SMAppService.mainApp.status == .enabled ? .on : .off; stack.addArrangedSubview(startup)
         stack.addArrangedSubview(NSTextField(wrappingLabelWithString: text("Quota is read by the bundled official runtime. Account credentials stay in the isolated local account directory.", "通过内嵌官方运行时读取额度，凭据保存在本机隔离账户目录。", "透過內嵌官方執行環境讀取額度，憑證儲存在本機隔離帳號目錄。")))
+        if let experience {
+            let view = experience.makeSettingsView(); stack.addArrangedSubview(view)
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
         if let updates {
             let updateView = updates.makeSettingsView(); stack.addArrangedSubview(updateView)
             updateView.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -430,6 +450,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
+        experience?.stop()
         updates?.stop()
         stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil
         networkMonitor?.cancel(); networkMonitor = nil

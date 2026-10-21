@@ -40,6 +40,8 @@ internal sealed class DetailWindow : Window {
                 Row(rows,$"Bank {++index}",credit.ExpiresAt is { } reset?Countdown(reset,copy,p,accent):Value(copy.NoData,p),p);
             }
         }
+        if(quota.Bank is { AvailableCount:>0 } b && (b.Credits?.Count(c=>c.ExpiresAt is not null)??0)<b.AvailableCount)
+            Row(rows,copy.Text("Bank details","Bank 详情","Bank 詳情"),Value(copy.Text("Some credits have no expiry details","部分权益未提供到期时间","部分權益未提供到期時間"),p),p);
         Row(rows,"Credits",Value(quota.Credits is { } balance?balance.Unlimited?copy.Text("Unlimited","无限","無限"):balance.HasCredits?balance.Balance??copy.Text("Available","可用"):copy.Text("None","无","無"):copy.NoData,p),p);
         Row(rows,copy.Text("Updated","更新时间","更新時間"),Value(copy.PhaseLabel(state.Phase)+" · "+quota.ReceivedAt.ToLocalTime().ToString("HH:mm:ss"),p),p);
         var footer=Footer(identity,copy,p); var bottom=new StackPanel();

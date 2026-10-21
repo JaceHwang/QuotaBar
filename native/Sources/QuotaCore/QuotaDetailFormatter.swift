@@ -217,8 +217,9 @@ public struct QuotaDetailFormatter: Sendable {
                     )
                 )
             }
-            if credits.isEmpty, bank.availableCount > 0 {
-                rows.append(.init(label: copy.bankDetails, value: copy.noData))
+            if credits.filter({ $0.element.expiresAt != nil }).count < bank.availableCount {
+                let note = ExperienceCopy(language).text("Some credits have no expiry details", "部分权益未提供到期时间", "部分權益未提供到期時間")
+                rows.append(.init(label: copy.bankDetails, value: note))
             }
         } else {
             rows.append(.init(label: copy.bankAvailable, value: copy.noData))

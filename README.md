@@ -57,3 +57,9 @@ Windows source/tests are in `windows/`; formal publishing additionally runs nati
 Read [progress](docs/PROJECT_PROGRESS-standalone-app.md) before each development session and update the project board after milestones. See [architecture](docs/ARCHITECTURE.md), [privacy](docs/PRIVACY.md), [validation](docs/validation/macos-standalone.md), and [governance](docs/GOVERNANCE.md).
 
 Windows v0.7.0 and all five public assets passed complete download verification. macOS remains at v0.6.0, which includes QuotaBar branding and floating/menu bar controls. All five public assets passed complete download verification. Earlier v0.5.1 used the previous Codex Quota name. Historical code and immutable assets remain in Git history and earlier GitHub releases.
+
+## In development: quota moods and reminders
+
+The development branch adds four independent opt-in settings: a battery character in the floating indicator, confirmed recovery notifications, a brief local celebration, and Bank expiry reminders at 72/24 hours. All default off. Celebrations require a visible floating indicator; recovery requires two fresh reads. Unknown Bank expiry dates are not guessed, and credits are never redeemed automatically.
+
+These changes are not part of the published v1.0.1 packages. See the [progress log](docs/PROJECT_PROGRESS-standalone-app.md) for verification status.

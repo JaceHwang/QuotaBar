@@ -1,0 +1,9 @@
+[
+ {"name":"confirmed reset","used":[80,0,1],"reset":[1000,2000,2000],"seconds":[0,60,120],"events":[0,0,1]},
+ {"name":"exhausted recovery","used":[100,90,89],"reset":[1000,1000,1000],"seconds":[0,60,120],"events":[0,0,1]},
+ {"name":"ordinary variation","used":[80,78,77],"reset":[1000,1000,1000],"seconds":[0,60,120],"events":[0,0,0]},
+ {"name":"same boundary refill","used":[30,0,1],"reset":[1000,1000,1000],"seconds":[0,60,120],"events":[0,0,1]},
+ {"name":"too early confirmation","used":[80,0,1,1],"reset":[1000,2000,2000,2000],"seconds":[0,60,65,120],"events":[0,0,0,1]},
+ {"name":"expired candidate","used":[80,0,1],"reset":[1000,2000,2000],"seconds":[0,60,181],"events":[0,0,0]},
+ {"name":"failed confirmation","used":[80,0,79],"reset":[1000,2000,2000],"seconds":[0,60,120],"events":[0,0,0]}
+]

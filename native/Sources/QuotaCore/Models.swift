@@ -13,6 +13,8 @@ public struct CreditBalance: Equatable, Sendable {
 }
 
 public struct BankResetCredit: Equatable, Sendable {
+    public let id: String?
+    public let resetType: String?
     public let status: String?
     public let grantedAt: Date?
     public let expiresAt: Date?
@@ -24,8 +26,11 @@ public struct BankResetCredit: Equatable, Sendable {
         grantedAt: Date?,
         expiresAt: Date?,
         title: String?,
-        description: String?
+        description: String?,
+        id: String? = nil, resetType: String? = nil
     ) {
+        self.id = id
+        self.resetType = resetType
         self.status = status
         self.grantedAt = grantedAt
         self.expiresAt = expiresAt

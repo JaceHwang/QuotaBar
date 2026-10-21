@@ -5,7 +5,7 @@ namespace QuotaBar.Core;
 
 public sealed record QuotaWindow(double UsedPercent, int RemainingPercent, DateTimeOffset ResetsAt, int? WindowMinutes);
 public sealed record CreditBalance(bool HasCredits, bool Unlimited, string? Balance);
-public sealed record BankCredit(string? Status, DateTimeOffset? GrantedAt, DateTimeOffset? ExpiresAt, string? Title, string? Description);
+public sealed record BankCredit(string? Status, DateTimeOffset? GrantedAt, DateTimeOffset? ExpiresAt, string? Title, string? Description, string? Id=null, string? ResetType=null);
 public sealed record BankSummary(int AvailableCount, IReadOnlyList<BankCredit>? Credits);
 public sealed record QuotaSnapshot(QuotaWindow Primary, QuotaWindow? Secondary, string? Plan, CreditBalance? Credits, BankSummary? Bank, DateTimeOffset ReceivedAt) {
     public QuotaSnapshot MergeSupplementary(QuotaSnapshot? old) => this with {
@@ -56,7 +56,7 @@ public static class QuotaDecoder {
             var bank=container.Get("rateLimitResetCredits"); BankSummary? summary=null;
             if(bank.Get("availableCount").Integer() is long count && count<=int.MaxValue) {
                 var list=bank.Get("credits");
-                summary=new((int)Math.Max(0,count),list.ValueKind==JsonValueKind.Array ? list.EnumerateArray().Where(x=>x.ValueKind==JsonValueKind.Object).Select(x=>new BankCredit(x.Get("status").String(),x.Get("grantedAt").Timestamp(),x.Get("expiresAt").Timestamp(),x.Get("title").String(),x.Get("description").String())).ToArray() : null);
+                summary=new((int)Math.Max(0,count),list.ValueKind==JsonValueKind.Array ? list.EnumerateArray().Where(x=>x.ValueKind==JsonValueKind.Object).Select(x=>new BankCredit(x.Get("status").String(),x.Get("grantedAt").Timestamp(),x.Get("expiresAt").Timestamp(),x.Get("title").String(),x.Get("description").String(),x.Get("id").String(),x.Get("resetType").String())).ToArray() : null);
             }
             return new(primary,secondary,bucket.Get("planType").String(),balance,summary,receivedAt??DateTimeOffset.UtcNow);
         } catch(JsonException e) { throw new FormatException("Invalid quota JSON",e); }

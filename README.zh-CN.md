@@ -55,3 +55,9 @@ python scripts/build-windows-standalone.py
 每次开发前读取[详细进度](docs/PROJECT_PROGRESS-standalone-app.md)并恢复看板，里程碑后更新。其他说明：[安装](docs/MACOS_STANDALONE.zh-CN.md)、[架构](docs/ARCHITECTURE.md)、[隐私](docs/PRIVACY.md)、[验收](docs/validation/macos-standalone.md)、[治理](docs/GOVERNANCE.md)。
 
 Windows v0.7.0已发布，正式ZIP及四项辅助资产均已下载完整验证。macOS仍为v0.6.0，包含 QuotaBar 品牌和菜单栏/悬浮功能，五项公开资产已下载并完整验证。历史 v0.5.1 使用旧名称。历史代码及既有安装包保留在 Git 历史和 GitHub 历史发布中。
+
+## 开发中的额度表情与提醒
+
+当前源码新增四项独立可选功能：悬浮按钮电池表情、确认恢复提醒、局部小庆祝和 Bank 到期提醒（72／24 小时）。全部默认关闭，在“额度表情与提醒”设置中开启。小庆祝仅在悬浮按钮可见时播放；恢复需两次新鲜查询确认；Bank 日期缺失时不会猜测提醒，也不会自动兑换权益。
+
+这是开发分支功能，不代表公开 v1.0.1 已包含。验证进度见[路线图](docs/PROJECT_PROGRESS-standalone-app.md)。

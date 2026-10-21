@@ -146,7 +146,7 @@ final class QuotaDetailFormatterTests: XCTestCase {
         XCTAssertTrue(bankRows(in: empty).isEmpty)
         XCTAssertTrue(
             countWithoutDetails.rows.contains(
-                .init(label: "Bank 明细", value: "暂无数据")
+                .init(label: "Bank 明细", value: "部分权益未提供到期时间")
             )
         )
     }

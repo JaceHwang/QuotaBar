@@ -6,6 +6,8 @@ namespace QuotaBar.Windows;
 internal sealed class Coordinator : IDisposable {
     readonly Application app;
     public UpdateController Updates { get; }
+    internal AppNotificationRouter Notifications { get; }
+    internal QuotaExperienceController Experience { get; }
     readonly string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"QuotaBar");
     readonly PreferencesStore store;
     readonly OwnedJob job=new();
@@ -32,8 +34,11 @@ internal sealed class Coordinator : IDisposable {
     public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null) {
         this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
         Updates=new(this,root,updatesTransport); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
-        tray.BalloonTipShown+=(_,_)=>Updates.ReminderShown();
-        tray.BalloonTipClicked+=(_,_)=>Updates.Open();
+        Notifications=new(tray,
+            m=>m.Kind==ExperienceNotificationKind.Update ? Preferences.UpdateReminders && Updates.Available is { } r && m.Id=="update-"+r.Version : Experience?.Valid(m)==true,
+            m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Open(); else OpenExperienceDetail(); },
+            m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.ReminderShown(m.Id[7..]); });
+        Experience=new(this,root); Notifications.Failed=Experience.NotificationFailed;
         floating.Primary+=()=> {
             if(Snapshot is null) { ShowSettings(); return; }
             detailFromFloating=true; trayDetail=false; trayLocked=false; interaction.TogglePinned(true); Render(); Refresh();
@@ -88,6 +93,7 @@ internal sealed class Coordinator : IDisposable {
     public void Save(Preferences prefs,bool rebuildSettings=true) {
         try { store.Save(prefs); Preferences=prefs.Validated(); }
         catch(Exception e) when(e is IOException or UnauthorizedAccessException) { MessageBox.Show(Copy.Text("Could not save preferences","无法保存设置","無法儲存設定")); return; }
+        Experience.Configure();
         Updates.PreferencesChanged();
         Render(); if(rebuildSettings) settings?.Build();
     }
@@ -150,9 +156,15 @@ internal sealed class Coordinator : IDisposable {
         var p=Platform.Cursor; var screen=Platform.WorkArea(p); trayAnchor=new Rect(p.X,screen.Y+screen.Height,1,1);
         trayDetail=!trayDetail; Render(); Refresh();
     }
+    internal void PreviewCelebration()=>floating.Celebrate();
+    internal void CancelCelebration()=>floating.CancelCelebration();
+    void OpenExperienceDetail() {
+        if(Snapshot is null) { ShowSettings(); return; }
+        var p=Platform.Cursor; var screen=Platform.WorkArea(p); trayAnchor=new Rect(p.X,screen.Y+screen.Height,1,1);
+        detailFromFloating=false; trayDetail=true; Render(); Refresh();
+    }
     internal bool ShowUpdateReminder(string version,string? summary=null) {
-        try { tray.ShowBalloonTip(10000,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),Forms.ToolTipIcon.Info); return true; }
-        catch(InvalidOperationException) { return false; }
+        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow)); return true;
     }
     public void ShowSettings() {
         if(settings is null) { settings=new(this); settings.Closed+=(_,_)=>settings=null; }
@@ -170,7 +182,7 @@ internal sealed class Coordinator : IDisposable {
         if(stopping || reloading) return; reloading=true;
         try {
             if(runtime is not null) await runtime.DisposeAsync();
-            State=new(); Snapshot=null; Tokens=null; Identity=null;
+            Experience.ResetBaseline(); State=new(); Snapshot=null; Tokens=null; Identity=null;
             var executable=Path.Combine(AppContext.BaseDirectory,"runtime","codex.exe");
             if(!File.Exists(executable)) { State.Error("initialize","Runtime unavailable"); ShowSettings(); Render(); return; }
             var current=new RuntimeSession(()=>new ProcessTransport(executable,Path.Combine(root,"CodexHome"),job.Add,ShutdownDiagnostic)); runtime=current;
@@ -182,15 +194,16 @@ internal sealed class Coordinator : IDisposable {
     void Receive(RuntimeEvent e) {
         if(runtime is not null && !runtime.IsCurrentEvent(e)) return;
         switch(e.Kind) {
+            case "quotaRead": if(e.Observation is { } raw) Experience.Receive(raw); break;
             case "quota": Snapshot=e.Quota; State.Received(DateTimeOffset.UtcNow); break;
             case "tokens": Tokens=e.Tokens; break;
             case "tokensUnavailable": Tokens=null; break;
             case "account": Identity=e.Account; break;
-            case "cleared": Snapshot=null; Tokens=null; Identity=null; break;
+            case "cleared": Experience.ClearAccount(); Snapshot=null; Tokens=null; Identity=null; break;
             case "loggedOut": State.LoginCompleted(false); break;
             case "loginCompleted": State.LoginCompleted(e.Success==true); break;
             case "loginUrl": if(e.LoginUrl is not null) Platform.OpenUrl(e.LoginUrl.AbsoluteUri); break;
-            case "failure": State.Error(e.Method??"initialize",e.Message??"Request failed"); if(e.Method=="account/login/start") State.LoginCompleted(false); break;
+            case "failure": State.Error(e.Method??"initialize",e.Message??"Request failed"); if(State.Phase!=Phase.Ready) Experience.ResetBaseline(); if(e.Method=="account/login/start") State.LoginCompleted(false); break;
         }
         Render(); if(State.Phase==Phase.NeedsLogin) ShowSettings();
     }
@@ -198,17 +211,17 @@ internal sealed class Coordinator : IDisposable {
         try { File.WriteAllText(Path.Combine(root,"standalone-state.txt"),$"pid={Environment.ProcessId} mode=standalone phase={State.Phase} has_quota={Snapshot is not null} host_ui=false floating_visible={floating.IsVisible} floating_enabled={Preferences.FloatingEnabled} detail_visible={detail.IsVisible}\n"); }
         catch(IOException) { }
     }
-    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
+    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) Experience.ResetBaseline(); if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
     void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); }); }
     void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(Render); }
     void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(()=> { Refresh(); Updates.Check(); }); }
     public async void Quit() {
-        if(stopping) return; stopping=true; Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
+        if(stopping) return; stopping=true; Experience.Stop(); Notifications.Dispose(); Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
         ShutdownDiagnostic("runtime-disposing"); if(runtime is not null) await runtime.DisposeAsync(); ShutdownDiagnostic("runtime-disposed"); app.Shutdown();
     }
     void ShutdownDiagnostic(string stage) { try { File.WriteAllText(Path.Combine(root,"shutdown-state.txt"),$"pid={Environment.ProcessId} stage={stage}\n"); } catch(IOException) { } }
-    public void Dispose() {
-        stopping=true; Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
+    public void Dispose() { Experience.Stop(); Notifications.Dispose();
+        stopping=true; Experience.Stop(); Notifications.Dispose(); Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
         SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
         System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged-=NetworkChanged;
     }
