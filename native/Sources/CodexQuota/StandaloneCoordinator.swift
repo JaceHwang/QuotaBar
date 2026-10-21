@@ -397,7 +397,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         QuotaSettingsStyle.fill(QuotaSettingsStyle.card(summary), in: experiences)
         let updatePage = column()
         if let updates { QuotaSettingsStyle.fill(QuotaSettingsStyle.card(updates.makeSettingsView()), in: updatePage) }
-        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: QuotaSettingsStyle.card(display)), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage)]
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: QuotaSettingsStyle.card(display)), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage)]
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
         let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? "1.0.1", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }

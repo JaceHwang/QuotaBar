@@ -4,6 +4,7 @@ import AppKit
     let title: String
     let symbol: String
     let content: NSView
+    var navigationTitle: String? = nil
 }
 
 /// Native settings navigation, retaining page controls when changing sections.
@@ -30,7 +31,8 @@ import AppKit
         let mark = QuotaThemeIconView(frame: NSRect(x: 20, y: 15, width: 38, height: 38)); sidebar.addSubview(mark)
         brand.font = .systemFont(ofSize: 20, weight: .bold); versionLabel.font = .systemFont(ofSize: 11); versionLabel.textColor = .secondaryLabelColor
         for (index, page) in pages.enumerated() {
-            let button = NSButton(title: page.title, target: self, action: #selector(navigate(_:)))
+            let button = NSButton(title: page.navigationTitle ?? page.title, target: self, action: #selector(navigate(_:)))
+            button.toolTip = page.title
             button.tag = index; button.identifier = NSUserInterfaceItemIdentifier("settings.nav.\(index)")
             button.isBordered = false; button.alignment = .left; button.font = .systemFont(ofSize: 13, weight: .medium)
             button.image = NSImage(systemSymbolName: page.symbol, accessibilityDescription: nil); button.imagePosition = .imageLeading

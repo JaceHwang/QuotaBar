@@ -69,7 +69,7 @@ import QuotaCore
         let labels = [copy.text("Quota mood mode", "额度表情模式", "額度表情模式"), copy.text("Notify when quota is restored", "额度恢复时提醒", "額度恢復時提醒"), copy.text("Celebrate quota recovery", "额度恢复时播放小庆祝", "額度恢復時播放小慶祝"), copy.text("Bank expiry reminders", "Bank 到期提醒", "Bank 到期提醒")]
         let hints = [copy.text("Show the battery character for your current quota.", "根据当前额度状态，显示对应的电池表情。", "根據目前額度狀態，顯示對應的電池表情。"), copy.text("A system notification after confirmed recovery.", "额度确认恢复时，显示系统通知。", "額度確認恢復時，顯示系統通知。"), copy.text("A brief celebration with one recovery notification.", "播放短暂庆祝，并同步一条恢复通知。", "播放短暫慶祝，並同步一條恢復通知。"), copy.text("Known credits only; never redeem automatically.", "仅提醒已知权益，不会自动兑换。", "僅提醒已知權益，不會自動兌換。")]
         for i in 0..<4 {
-            let row = NSStackView(); row.spacing = 20; row.alignment = .centerY; row.edgeInsets = NSEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
+            let row = NSStackView(); row.spacing = 20; row.alignment = .centerY; row.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
             let left = QuotaSettingsStyle.column(10)
             let title = NSStackView(); title.spacing = 12
             let name = QuotaSettingsStyle.label(labels[i], size: 13); name.font = .systemFont(ofSize: 13, weight: .semibold)
