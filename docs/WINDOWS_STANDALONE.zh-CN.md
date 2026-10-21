@@ -1,6 +1,6 @@
 # QuotaBar Windows 独立版
 
-Windows与macOS共用统一版本；2026-10-21用户确认新版四功能与B侧栏设置的两端实机测试通过，具体设备矩阵以进度记录为准。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
+Windows与macOS共用统一版本v1.1.0，已正式发布；2026-10-21用户确认新版四功能与B侧栏设置的两端实机测试通过，具体设备矩阵以进度记录为准。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/QuotaBar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
 
 ## 安装、重开和恢复
 

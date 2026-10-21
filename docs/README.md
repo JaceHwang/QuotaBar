@@ -1,6 +1,6 @@
 # QuotaBar 文档索引
 
-当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。本轮准备v1.1.0额度表情、恢复提醒、庆祝、Bank提醒及B侧栏设置发布；两端原生CI和用户实机测试通过。实际公开状态以发布页和发布记录为准。文档更新日期：2026-10-21。
+当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。v1.1.0已发布额度表情、恢复提醒、庆祝、Bank提醒及B侧栏设置；两端原生CI、用户实机反馈、公开资产与更新清单核验记录齐全。文档更新日期：2026-10-21。
 
 | 文档 | 用途 |
 | --- | --- |
@@ -19,4 +19,4 @@
 | [v0.5.0 记录](releases/macos-standalone-v0.5.0.md) | 旧名称首个独立版的历史发布事实 |
 | [v0.5.1 记录](releases/macos-standalone-v0.5.1.md) | 清理重构版的历史发布事实 |
 
-历史文档标明当时版本，不将新功能回写成旧版本已拥有。发布结果以 [GitHub Releases](https://github.com/JaceHwang/codex-usage-sidebar/releases/latest) 为准；待发布内容与已经发布的安装包分别记录。
+历史文档标明当时版本，不将新功能回写成旧版本已拥有。发布结果以 [GitHub Releases](https://github.com/JaceHwang/QuotaBar/releases/latest) 为准；待发布内容与已经发布的安装包分别记录。
