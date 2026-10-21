@@ -38,6 +38,19 @@ internal static class ExperienceTests {
         queue.Enqueue(new("update",ExperienceNotificationKind.Update,null,"","",now)); queue.Enqueue(new("bank",ExperienceNotificationKind.Bank,"a","","",now));
         Check(queue.Next(now)?.Id=="bank" && queue.Next(now)?.Id=="update","queue priority");
         queue.Enqueue(new("stale",ExperienceNotificationKind.Recovery,"a","","",now.AddSeconds(-301))); Check(queue.Next(now) is null,"recovery TTL");
+        var reduced=observation with { Quota=Q(0,bank:new BankSummary(1,[credit,credit with { Id="credit2" }])) };
+        var multiEngine=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); multiEngine.Configure(new(Bank:true));
+        var multi=reduced with { Quota=Q(0,bank:reduced.Quota.Bank! with { AvailableCount=2 }) };
+        var multiple=multiEngine.Observe(multi,now).Bank;
+        Check(!multiEngine.BankEventsAreCurrent(multiple,reduced,now),"queued Bank must recheck inventory count");
+        foreach(var variant in new[]{0,1,2}) {
+            var e=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); e.Configure(new(Recovery:true));
+            for(var i=0;i<3;i++) {
+                var q=Q(i==0?100:0); var at=now.AddSeconds(i*60);
+                q=variant switch { 0=>q with { Plan=null },1=>q with { Primary=q.Primary with { WindowMinutes=null } },_=>q with { Secondary=q.Primary with { WindowMinutes=null } } };
+                Check(e.Observe(new("a",i+1,at,q),at).Recoveries.Count==0,"missing recovery metadata cannot certify same quota");
+            }
+        }
         var dir=Path.Combine(Path.GetTempPath(),"experience-"+Guid.NewGuid());
         try {
             var path=Path.Combine(dir,"state.json"); var store=new QuotaExperienceStore(path); store.Save(bankEngine.State); var loaded=store.Load();

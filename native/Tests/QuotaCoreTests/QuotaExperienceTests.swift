@@ -88,4 +88,27 @@ final class QuotaExperienceTests: XCTestCase {
         XCTAssertTrue(e.observe(QuotaObservation(epoch: "a", sequence: 2, receivedAt: now, quota: o.quota, bankFieldState: .value), now: now).bank.isEmpty)
     }
 
+    func testQueuedBankRejectsReducedAvailableCount() {
+        let c = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil)
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(bank: true))
+        let q = quota(0, bank: BankResetSummary(availableCount: 2, credits: [c,c]))
+        let o = QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: q, bankFieldState: .value)
+        let events = e.observe(o, now: now).bank
+        let changed = QuotaObservation(epoch: "a", sequence: 2, receivedAt: now, quota: quota(0, bank: BankResetSummary(availableCount: 1, credits: [c,c])), bankFieldState: .value)
+        XCTAssertFalse(e.bankEventsAreCurrent(events, observation: changed, now: now))
+    }
+    func testMissingPlanOrWindowLengthNeverCertifiesRecovery() {
+        for variant in 0..<3 {
+            var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(recovery: true))
+            for i in 0..<3 {
+                let used = i == 0 ? 100.0 : 0.0
+                let at = now.addingTimeInterval(Double(i)*60)
+                let primary = QuotaWindowSnapshot(usedPercent: used, remainingPercent: Int(100-used), resetsAt: now.addingTimeInterval(1000), windowDurationMins: variant == 1 ? nil : 300)
+                let secondary = variant == 2 ? QuotaWindowSnapshot(usedPercent: used, remainingPercent: Int(100-used), resetsAt: now.addingTimeInterval(2000), windowDurationMins: nil) : nil
+                let q = AllowanceSnapshot(primary: primary, secondary: secondary, receivedAt: at, planType: variant == 0 ? nil : "plus")
+                XCTAssertTrue(e.observe(QuotaObservation(epoch: "a", sequence: i+1, receivedAt: at, quota: q), now: at).recoveries.isEmpty)
+            }
+        }
+    }
+
 }

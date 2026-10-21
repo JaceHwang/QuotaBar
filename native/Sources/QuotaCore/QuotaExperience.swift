@@ -86,7 +86,8 @@ public struct QuotaExperienceEngine: Sendable {
         let valid = [q.primary, q.secondary].compactMap { $0 }.allSatisfy { $0.usedPercent.isFinite && (0...100).contains($0.usedPercent) }
         guard valid else { resetBaseline(); return output }
         if preferences.recovery || preferences.celebration {
-            let compatible = baseline.map { $0.planType == q.planType && $0.primary.windowDurationMins == q.primary.windowDurationMins && $0.secondary?.windowDurationMins == q.secondary?.windowDurationMins && ($0.secondary != nil) == (q.secondary != nil) } ?? false
+            let metadataKnown = q.planType?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && (q.primary.windowDurationMins ?? 0) > 0 && (q.secondary == nil || (q.secondary?.windowDurationMins ?? 0) > 0)
+            let compatible = metadataKnown && (baseline.map { $0.planType == q.planType && $0.primary.windowDurationMins == q.primary.windowDurationMins && $0.secondary?.windowDurationMins == q.secondary?.windowDurationMins && ($0.secondary != nil) == (q.secondary != nil) } ?? false)
             if compatible, let previous = baseline {
                 for (name, old, current) in [("primary", previous.primary, q.primary), ("secondary", previous.secondary, q.secondary)] {
                     guard let old, let current else { continue }
@@ -124,6 +125,13 @@ public struct QuotaExperienceEngine: Sendable {
         guard !events.isEmpty, observation.epoch == state.epoch, observation.source == .fullRead, observation.bankFieldState == .value,
               now.timeIntervalSince(observation.receivedAt) >= -5, now.timeIntervalSince(observation.receivedAt) <= 120,
               let bank = observation.quota.bank, bank.availableCount > 0, let credits = bank.credits else { return false }
+        var inventory: [String: Int] = [:]
+        for credit in credits where credit.status == "available" {
+            guard let expires = credit.expiresAt, expires > now, expires <= now.addingTimeInterval(72*3600) else { continue }
+            let key = bankKey(credit)
+            inventory[key] = credit.id == nil ? (inventory[key] ?? 0)+1 : 1
+        }
+        guard inventory.values.reduce(0, +) <= bank.availableCount, events.reduce(0, { $0+$1.count }) <= bank.availableCount else { return false }
         return events.allSatisfy { event in
             let matched = credits.filter { $0.status == "available" && bankKey($0) == event.key }
             let count = matched.first?.id == nil ? matched.count : min(1, matched.count)

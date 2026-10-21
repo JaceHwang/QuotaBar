@@ -50,7 +50,8 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         sequence=o.Sequence; var q=o.Quota;
         if(new[]{q.Primary,q.Secondary}.OfType<QuotaWindow>().Any(w=>!double.IsFinite(w.UsedPercent) || w.UsedPercent is <0 or >100)) { ResetBaseline(); return new(recovery,bank); }
         if(Preferences.Recovery || Preferences.Celebration) {
-            var compatible=baseline is not null && baseline.Plan==q.Plan && baseline.Primary.WindowMinutes==q.Primary.WindowMinutes && baseline.Secondary?.WindowMinutes==q.Secondary?.WindowMinutes && (baseline.Secondary is null)==(q.Secondary is null);
+            var metadataKnown=!string.IsNullOrWhiteSpace(q.Plan) && q.Primary.WindowMinutes>0 && (q.Secondary is null || q.Secondary.WindowMinutes>0);
+            var compatible=metadataKnown && baseline is not null && baseline.Plan==q.Plan && baseline.Primary.WindowMinutes==q.Primary.WindowMinutes && baseline.Secondary?.WindowMinutes==q.Secondary?.WindowMinutes && (baseline.Secondary is null)==(q.Secondary is null);
             if(compatible) {
                 foreach(var (name,old,current) in new[]{("primary",baseline!.Primary,q.Primary),("secondary",baseline!.Secondary,q.Secondary)}) {
                     if(old is null || current is null) continue;
@@ -81,6 +82,11 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
     }
     public bool BankEventsAreCurrent(IReadOnlyList<BankExpiryEvent> events,QuotaObservation observation,DateTimeOffset now) {
         if(events.Count==0 || observation.Epoch!=State.Epoch || observation.Source!=ObservationSource.FullRead || observation.BankFieldState!=BankFieldState.Value || (now-observation.ReceivedAt).TotalSeconds is >120 or < -5 || observation.Quota.Bank is not { AvailableCount:>0,Credits:not null } bank) return false;
+        var inventory=new Dictionary<string,int>();
+        foreach(var c in bank.Credits.Where(c=>c.Status=="available" && c.ExpiresAt>now && c.ExpiresAt<=now.AddHours(72))) {
+            var key=BankKey(c); inventory.TryGetValue(key,out var count); inventory[key]=c.Id is null?count+1:1;
+        }
+        if(inventory.Values.Sum()>bank.AvailableCount || events.Sum(e=>e.Count)>bank.AvailableCount) return false;
         return events.All(e=> {
             var matches=bank.Credits.Where(c=>c.Status=="available" && BankKey(c)==e.Key).ToArray();
             var count=matches.FirstOrDefault()?.Id is null?matches.Length:Math.Min(1,matches.Length);
