@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/JaceHwang/QuotaBar/compare/v1.0.1...v1.1.0) (2026-10-21)
+
+
+### Features
+
+* add quota moods, recovery alerts and sidebar settings ([#43](https://github.com/JaceHwang/QuotaBar/issues/43)) ([d36fe5f](https://github.com/JaceHwang/QuotaBar/commit/d36fe5f77f1dd3ae72b7564a790fbf83720ac4bb))
+
 ## [1.0.1](https://github.com/JaceHwang/codex-usage-sidebar/compare/v1.0.0...v1.0.1) (2026-10-14)
 
 
