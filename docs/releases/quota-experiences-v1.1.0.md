@@ -1,6 +1,6 @@
 # QuotaBar v1.1.0：额度表情与提醒
 
-状态：发布准备。版本由Release Please正式计算；预计1.1.0，合并版本PR前必须与本文件及README核对。两端候选已获用户实机测试通过反馈。
+状态：2026-10-21双平台正式发布，公开下载与更新清单复核通过。[发布页](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.1.0)。版本由Release Please PR #44生成；两端候选已获用户实机测试通过反馈。
 
 ## 更新内容
 
@@ -18,6 +18,10 @@
 
 ## 验证与发布记录
 
-- 198项Swift测试、Windows13/13核心行为与协议/安装回归、两端原生CI通过；1920c64原生CI39563449006具备候选、真实运行时启动退出及Windows安装升级回退卸载证据。
+- 最终更新地址补丁：199项Swift测试、Windows14/14核心行为与协议/安装回归、10项清单测试及完整治理通过。功能源6614e9f的两轮原生CI与治理8项检查全部成功；版本PR原生CI39573032930及治理39573032869通过。
 - 2026-10-21用户确认macOS与Windows实机测试通过，不推断未提供的逐项DPI/自然事件/VoiceOver/长期矩阵。
-- 准确tag、正式资产、公开下载摘要与来源、两端版本、更新清单：待实际发布后记录。
+- 准确tag：`v1.1.0` → `6b511f4f83e244af43b842cab8ebe028af79a996`，共享version.txt与manifest均1.1.0；功能PR #43、版本PR #44已合并。
+- [macOS发布39574187572](https://github.com/JaceHwang/QuotaBar/actions/runs/39574187572)与[Windows发布39574723747](https://github.com/JaceHwang/QuotaBar/actions/runs/39574723747)成功，两平台availability均available，10项正式资产公开。
+- 公开DMG下载后通过摘要、严格签名、包内版本、完整源码快照/运行时及隔离构建目录后的真实启动退出验证。Windows公开ZIP通过完整载荷/PE x64、版本/源码/摘要、原生启动退出和安装升级回退卸载证明复核；此Mac主机未执行Windows程序。
+- [Pages39575070102](https://github.com/JaceHwang/QuotaBar/actions/runs/39575070102)成功；[公网更新清单](https://jacehwang.github.io/QuotaBar/updates.json)已GET确认两端1.1.0、准确发布链接及摘要/更新说明。旧v1.0.1所有资产ID、大小、摘要不变。
+- 公开包验证命令：`python3 scripts/verify-macos-standalone-release.py v1.1.0 <assets>`、`python3 scripts/verify-windows-standalone-release.py v1.1.0 <assets>`，均在准确tag HEAD运行且成功。本次公开包隔离启动不改变用户已安装候选或账户。

@@ -1,6 +1,6 @@
 # Quota experiences candidate acceptance
 
-Date: 2026-10-21. Branch: codex/feat/quota-moods-reminders. No public release authorization.
+Date: 2026-10-21. Current status: v1.1.0 published for both platforms following explicit user authorization. The chronological candidate records below retain their original evidence and superseded boundaries.
 
 ## Automated evidence
 
@@ -68,3 +68,11 @@ Local full governance passed. Swift144 Core +53 AppKit tests passed, including t
 ## User device acceptance and release authorization (2026-10-21)
 
 The user explicitly confirmed both macOS and Windows device testing passed and authorized version updates, documentation, push and public release. This is user-reported acceptance of the current candidate; it does not supply individual DPI/OS/VoiceOver/natural-event/long-running results. Earlier no-release statements above are historical and superseded by this authorization. Release Please versions, exact-tag assets, downloaded-payload verification and public feed checks remain required publication gates.
+
+## Published v1.1.0 verification (2026-10-21)
+
+- Release Please PR44 merged as6b511f4f83e244af43b842cab8ebe028af79a996; immutable tagv1.1.0 points to that commit and shared product version1.1.0.
+- Exact release-PR CI39573032930 and governance39573032869 passed. Updated source checks include199 Swift tests,14/14 Windows core behavior scenarios plus protocol/install regressions,10 feed tests and native Windows UI/package/runtime/install checks.
+- macOS publish39574187572 and Windows publish39574723747 succeeded; all10 assets publicly available. Both public packages were downloaded and verified against the tag. macOS verified signature, complete hashes, source, runtime, bundle version and actual isolated startup/exit without build resources. Windows verified full ZIP/PE x64, runtime/version/source hashes and embedded native startup/install lifecycle evidence; it was not executed on this macOS host.
+- Pages39575070102 succeeded; public HTTPS feed reports1.1.0 for both platforms with valid notes and summary. All10 v1.0.1 asset IDs, sizes and hashes remained unchanged.
+- Remaining individual device scenarios listed above are still unverified unless separately evidenced. Public release status does not convert sample notifications into natural-account event evidence.
