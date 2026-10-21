@@ -8,7 +8,13 @@ final class QuotaExperienceTests: XCTestCase {
         AllowanceSnapshot(usedPercent: used, remainingPercent: Int((100-used).rounded()), resetsAt: now.addingTimeInterval(reset), receivedAt: now, windowDurationMins: 300, planType: "plus", bank: bank)
     }
     func testDefaultsAndRawBankMetadata() throws {
-        XCTAssertEqual(QuotaExperiencePreferences(), QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false))
+        XCTAssertEqual(QuotaExperiencePreferences(), QuotaExperiencePreferences(moods: true, recovery: true, celebration: true, bank: true))
+        let decoder = JSONDecoder()
+        XCTAssertEqual(try decoder.decode(QuotaExperiencePreferences.self, from: Data("{}".utf8)), QuotaExperiencePreferences())
+        let partial = try decoder.decode(QuotaExperiencePreferences.self, from: Data(#"{"moods":false}"#.utf8))
+        XCTAssertEqual(partial, QuotaExperiencePreferences(moods: false))
+        let disabled = QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false)
+        XCTAssertEqual(try decoder.decode(QuotaExperiencePreferences.self, from: JSONEncoder().encode(disabled)), disabled)
         let data = Data(#"{"result":{"rateLimits":{"primary":{"usedPercent":5,"resetsAt":1800001000}},"rateLimitResetCredits":{"availableCount":1,"credits":[{"id":"credit1","resetType":"codex","status":"available","expiresAt":1800086400}]}}}"#.utf8)
         let observation = try QuotaObservation.decode(data, epoch: "a", sequence: 1, receivedAt: now)
         XCTAssertEqual(observation.bankFieldState, .value)
@@ -20,7 +26,7 @@ final class QuotaExperienceTests: XCTestCase {
         let rows = try JSONSerialization.jsonObject(with: Data(contentsOf: path)) as! [[String: Any]]
         for row in rows {
             var engine = QuotaExperienceEngine(state: ExperienceState(epoch: "a"))
-            engine.configure(QuotaExperiencePreferences(recovery: true))
+            engine.configure(QuotaExperiencePreferences(moods: false, recovery: true, celebration: false, bank: false))
             let used = row["used"] as! [Double], resets = row["reset"] as! [Double], seconds = row["seconds"] as! [Double], events = row["events"] as! [Int]
             for i in used.indices {
                 let at = now.addingTimeInterval(seconds[i])
@@ -38,11 +44,11 @@ final class QuotaExperienceTests: XCTestCase {
     func testBankStagesPersistAndDoNotUseMissingData() {
         let credit = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(72*3600), title: nil, description: nil, id: "one")
         let bank = BankResetSummary(availableCount: 1, credits: [credit])
-        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(bank: true))
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: true))
         XCTAssertEqual(e.observe(QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: quota(0, bank: bank), bankFieldState: .omitted), now: now).bank.count, 0)
         let o = QuotaObservation(epoch: "a", sequence: 2, receivedAt: now, quota: quota(0, bank: bank), bankFieldState: .value)
         XCTAssertEqual(e.observe(o, now: now).bank.first?.stage, 72)
-        var restored = QuotaExperienceEngine(state: e.state); restored.configure(QuotaExperiencePreferences(bank: true))
+        var restored = QuotaExperienceEngine(state: e.state); restored.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: true))
         XCTAssertTrue(restored.observe(o, now: now).bank.isEmpty)
         let later = now.addingTimeInterval(48*3600)
         XCTAssertEqual(restored.observe(QuotaObservation(epoch: "a", sequence: 3, receivedAt: later, quota: quota(0, bank: bank), bankFieldState: .value), now: later).bank.first?.stage, 24)
@@ -50,7 +56,7 @@ final class QuotaExperienceTests: XCTestCase {
     func testBankQueuedMessageRejectsReplacedInventory() {
         let c = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil, id: "old")
         let b = BankResetSummary(availableCount: 1, credits: [c])
-        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(bank: true))
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: true))
         let o = QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: quota(0, bank: b), bankFieldState: .value)
         let events = e.observe(o, now: now).bank
         XCTAssertTrue(e.bankEventsAreCurrent(events, observation: o, now: now))
@@ -65,10 +71,10 @@ final class QuotaExperienceTests: XCTestCase {
 
     func testAuthenticationPlanDurationAndEnableChangesDoNotRestore() {
         for variant in 0..<5 {
-            var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(recovery: true))
+            var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(moods: false, recovery: true, celebration: false, bank: false))
             _ = e.observe(QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: quota(80)), now: now)
             var q = quota(0, reset: 2000)
-            if variant == 0 { e.configure(QuotaExperiencePreferences()); e.configure(QuotaExperiencePreferences(recovery: true)) }
+            if variant == 0 { e.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false)); e.configure(QuotaExperiencePreferences(moods: false, recovery: true, celebration: false, bank: false)) }
             if variant == 1 { q = AllowanceSnapshot(usedPercent: 0, remainingPercent: 100, resetsAt: now.addingTimeInterval(2000), receivedAt: now, windowDurationMins: 300, planType: "pro") }
             if variant == 2 { q = AllowanceSnapshot(usedPercent: 0, remainingPercent: 100, resetsAt: now.addingTimeInterval(2000), receivedAt: now, windowDurationMins: 600, planType: "plus") }
             for index in 2...3 {
@@ -81,7 +87,7 @@ final class QuotaExperienceTests: XCTestCase {
     func testFirstLateBankOnlyEmits24AndUnknownDatesDoNotInventEvents() {
         let c = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(10*3600), title: nil, description: nil)
         let b = BankResetSummary(availableCount: 3, credits: [c, c, BankResetCredit(status: "available", grantedAt: nil, expiresAt: nil, title: nil, description: nil)])
-        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(bank: true))
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: true))
         let o = QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: quota(0, bank: b), bankFieldState: .value)
         let events = e.observe(o, now: now).bank
         XCTAssertEqual(events.count, 1); XCTAssertEqual(events.first?.stage, 24); XCTAssertEqual(events.first?.count, 2)
@@ -90,7 +96,7 @@ final class QuotaExperienceTests: XCTestCase {
 
     func testQueuedBankRejectsReducedAvailableCount() {
         let c = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil)
-        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(bank: true))
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: true))
         let q = quota(0, bank: BankResetSummary(availableCount: 2, credits: [c,c]))
         let o = QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: q, bankFieldState: .value)
         let events = e.observe(o, now: now).bank
@@ -99,7 +105,7 @@ final class QuotaExperienceTests: XCTestCase {
     }
     func testMissingPlanOrWindowLengthNeverCertifiesRecovery() {
         for variant in 0..<3 {
-            var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(recovery: true))
+            var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a")); e.configure(QuotaExperiencePreferences(moods: false, recovery: true, celebration: false, bank: false))
             for i in 0..<3 {
                 let used = i == 0 ? 100.0 : 0.0
                 let at = now.addingTimeInterval(Double(i)*60)
@@ -112,7 +118,7 @@ final class QuotaExperienceTests: XCTestCase {
     }
 
     func testCorruptStoreWaitsForKnownBankDetailsBeforeSuppressingBaseline() {
-        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a"), suppressFirstBank: true); e.configure(QuotaExperiencePreferences(bank: true))
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a"), suppressFirstBank: true); e.configure(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: true))
         let unknown = quota(0, bank: BankResetSummary(availableCount: 1, credits: nil))
         _ = e.observe(QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: unknown, bankFieldState: .value), now: now)
         let c = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil)

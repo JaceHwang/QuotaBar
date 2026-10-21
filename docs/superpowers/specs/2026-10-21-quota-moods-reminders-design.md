@@ -4,7 +4,7 @@
 
 ## 产品与视觉决定
 
-四项独立开关默认全部关闭：额度表情、恢复通知、小庆祝、Bank到期通知。
+四项独立开关默认全部开启（2026-10-21用户调整；保留已保存的关闭选择）：额度表情、恢复通知、小庆祝、Bank到期通知。
 采用用户选定B「软萌电池」，仅替换30pt悬浮按钮的20pt图标，保持双行数字、拖动、关闭与详情交互。图标为圆润电池；数字优先，无新增进度条。图标与应用/菜单栏/托盘品牌图标独立。
 B概念图仅作角色方向参考，通知外壳由系统控制。两主题同一轮廓，读屏包含周期/剩余/状态；静态角色没有常驻动画。
 
@@ -29,7 +29,7 @@ B概念图仅作角色方向参考，通知外壳由系统控制。两主题同�
 ## 内部接口与生命周期
 
 QuotaObservation包含authenticationEpoch、递增sequence、receivedAt、source(fullRead/notification)、原始quota、bankFieldState(omitted/null/value)。UI仍用既有合并快照，事件只消费原始完整观测。
-QuotaExperienceEngine.observe返回mood/confirmedRecoveries/bankExpiryCandidates。QuotaExperiencePreferences四bool默认false。QuotaExperienceStore原子保存版本化epoch和Bank收据，容量2048、保留最多30天或到期后一日。
+QuotaExperienceEngine.observe返回mood/confirmedRecoveries/bankExpiryCandidates。QuotaExperiencePreferences四bool默认true；缺失字段默认开启，显式false保持关闭。QuotaExperienceStore原子保存版本化epoch和Bank收据，容量2048、保留最多30天或到期后一日。
 本地随机epoch在登录/退出时轮换，进程重启/运行时重载保持；恢复基线不落盘。认证改变取消待发通知/动画，不记录邮箱或凭据。坏状态文件保留为.corrupt，Bank第一次快照建立抑制基线；保存失败不发送新通知。先持久化消费状态再发送，避免重启重复，崩溃边界允许漏报。
 macOS唯一UNUserNotificationCenterDelegate路由update/recovery/bank/test。Windows串行通知队列优先recovery/bank/update，恢复5分钟过期，Bank发送前再次核验epoch/新鲜度/权益。更新策略保留。失败不阻塞额度查询、不自动循环重试。
 

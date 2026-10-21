@@ -37,18 +37,34 @@ import QuotaCore
             }
         }
     }
-    func testSettingsStartDisabledAndMoodsPersistIndependently() throws {
+    func testDefaultRemindersRequestPermissionButSavedOptOutDoesNot() throws {
+        let name = "QuotaExperiencePermission.\(UUID())"
+        let defaults = UserDefaults(suiteName: name)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        defer { defaults.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: root) }
+        var requests = 0
+        let request: (@escaping (String) -> Void) -> Void = { completion in requests += 1; completion("denied") }
+        let fresh = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: request)
+        XCTAssertEqual(requests, 1)
+        let view = fresh.makeSettingsView() as! NSStackView
+        XCTAssertTrue(view.arrangedSubviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Notifications unavailable") })
+        defaults.set(try JSONEncoder().encode(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false)), forKey: "experience.preferences")
+        let saved = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: request)
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(saved.preferences, QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false))
+    }
+    func testSettingsStartEnabledAndOptOutPersistsIndependently() throws {
         let name = "QuotaExperienceSettings.\(UUID())", defaults = UserDefaults(suiteName: "QuotaExperienceSettings.temporary")!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         defer { defaults.removePersistentDomain(forName: "QuotaExperienceSettings.temporary"); try? FileManager.default.removeItem(at: root) }
         let c = QuotaExperienceController(root: root, defaults: defaults, language: { .simplifiedChinese })
         let view = c.makeSettingsView() as! NSStackView
         let buttons = view.arrangedSubviews.compactMap { $0 as? NSButton }
-        XCTAssertEqual(buttons.count, 4); XCTAssertTrue(buttons.allSatisfy { $0.state == .off })
+        XCTAssertEqual(buttons.count, 4); XCTAssertTrue(buttons.allSatisfy { $0.state == .on })
         buttons[0].performClick(nil)
-        XCTAssertTrue(c.preferences.moods); XCTAssertFalse(c.preferences.recovery); XCTAssertFalse(c.preferences.celebration); XCTAssertFalse(c.preferences.bank)
+        XCTAssertFalse(c.preferences.moods); XCTAssertTrue(c.preferences.recovery); XCTAssertTrue(c.preferences.celebration); XCTAssertTrue(c.preferences.bank)
         let reopened = QuotaExperienceController(root: root, defaults: defaults, language: { .english })
-        XCTAssertTrue(reopened.preferences.moods)
+        XCTAssertFalse(reopened.preferences.moods)
     }
 
 }

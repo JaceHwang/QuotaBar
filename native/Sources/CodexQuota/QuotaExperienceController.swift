@@ -11,16 +11,20 @@ import QuotaCore
     private let router = AppNotificationRouter.shared
     private weak var statusLabel: NSTextField?
     private var storageReady = true
+    private var notificationStatus = ""
+    private let requestNotificationPermission: (@escaping (String) -> Void) -> Void
     var onChange: (() -> Void)?
     var onCelebrate: (() -> Void)?
     var onCancelCelebration: (() -> Void)?
     var preferences: QuotaExperiencePreferences { engine.preferences }
-    init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage) {
+    init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil) {
+        self.requestNotificationPermission = requestPermission ?? { AppNotificationRouter.shared.requestPermission(completion: $0) }
         self.defaults = defaults; self.language = language; store = QuotaExperienceStore(url: root.appendingPathComponent("experience-state.json"))
         let state = store.load(); engine = QuotaExperienceEngine(state: state, suppressFirstBank: store.corrupted)
         super.init()
         let prefs = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
         engine.configure(prefs); persist()
+        if prefs.recovery || prefs.bank { permission() }
     }
     private var copy: ExperienceCopy { ExperienceCopy(language()) }
     @discardableResult private func persist() -> Bool {
@@ -71,7 +75,7 @@ import QuotaCore
         let note = NSTextField(wrappingLabelWithString: copy.text("Bank: 72 and 24 hours before expiry. Celebrations play only while the floating button is visible.", "Bank 提前72小时和24小时提醒，同批合并。小庆祝仅在悬浮按钮可见时播放。", "Bank 提前72小時和24小時提醒，同批合併。小慶祝僅在懸浮按鈕可見時播放。")); note.font = .systemFont(ofSize: 11); stack.addArrangedSubview(note)
         let row = NSStackView(); row.addArrangedSubview(NSButton(title: copy.text("Preview celebration", "预览庆祝", "預覽慶祝"), target: self, action: #selector(preview)))
         row.addArrangedSubview(NSButton(title: copy.text("Send test notification", "发送测试通知", "傳送測試通知"), target: self, action: #selector(testNotification))); stack.addArrangedSubview(row)
-        let status = NSTextField(wrappingLabelWithString: ""); status.font = .systemFont(ofSize: 11); stack.addArrangedSubview(status); statusLabel = status
+        let status = NSTextField(wrappingLabelWithString: notificationStatus); status.font = .systemFont(ofSize: 11); stack.addArrangedSubview(status); statusLabel = status
         return stack
     }
     @objc private func changed(_ sender: NSButton) {
@@ -82,8 +86,8 @@ import QuotaCore
         if on && (sender.tag == 1 || sender.tag == 3) { permission() }
         onChange?()
     }
-    private func permission() { router.requestPermission { [weak self] result in
-        guard let self else { return }; statusLabel?.stringValue = result.isEmpty ? "" : copy.text("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知")
+    private func permission() { requestNotificationPermission { [weak self] result in
+        guard let self else { return }; notificationStatus = result.isEmpty ? "" : copy.text("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知"); statusLabel?.stringValue = notificationStatus
     } }
     @objc private func preview() { onCelebrate?() }
     @objc private func testNotification() {

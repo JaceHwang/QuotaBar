@@ -42,7 +42,7 @@ internal static class Program {
             prefs=prefs with { FloatingEnabled=true }; button.Render(quota,state,prefs,copy,false); Pump();
             Check(button.IsVisible && button.CloseControl.Visibility==Visibility.Hidden,"restore floating hidden close");
             var output=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(output);
-            Check(!prefs.Experience.Moods && !prefs.Experience.Recovery && !prefs.Experience.Celebration && !prefs.Experience.Bank,"all four default off");
+            Check(prefs.Experience.Moods && prefs.Experience.Recovery && prefs.Experience.Celebration && prefs.Experience.Bank,"all four default on");
             foreach(var mood in Enum.GetValues<QuotaMood>()) foreach(var dark in new[]{false,true}) {
                 var view=new QuotaMoodView { Width=80,Height=80,Mood=mood,Dark=dark,Stars=mood==QuotaMood.Recovered };
                 Check(!view.IsHitTestVisible,"character is decorative and never intercepts clicks");
@@ -50,8 +50,9 @@ internal static class Program {
                 var bitmap=new RenderTargetBitmap(80,80,96,96,PixelFormats.Pbgra32); bitmap.Render(view);
                 var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(output,$"mood-{dark}-{mood}.png")); encoder.Save(file);
             }
-            prefs=prefs with { Experience=new(Moods:true) }; button.Render(quota,state,prefs,copy,false); Pump();
+            prefs=prefs with { Experience=new(Moods:true,Recovery:false,Celebration:false,Bank:false) }; button.Render(quota,state,prefs,copy,false); Pump();
             Check(button.Height==30,"mood keeps original floating height");
+            Check(!prefs.Experience.Celebration,"preview test explicitly disables automatic celebration");
             button.Celebrate(); Check(button.IsCelebrating,"preview works independently of celebration toggle");
             button.HideFloat(); Check(!button.IsCelebrating,"hide cancels celebration");
             button.Celebrate(); Check(!button.IsCelebrating,"hidden float never celebrates");
@@ -84,7 +85,7 @@ internal static class Program {
                     Check(controls.Any(c=>c.Content?.ToString()=="更新提醒" && c.IsChecked==false),"system reminders opt in");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
                     var experienceToggles=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().Where(b=>new[]{"额度表情模式","额度恢复时提醒","额度恢复时播放小庆祝","Bank 到期提醒"}.Contains(b.Content?.ToString())).ToArray();
-                    Check(experienceToggles.Length==4 && experienceToggles.All(b=>b.IsChecked==false),"four independent opt-in controls present");
+                    Check(experienceToggles.Length==4 && experienceToggles.All(b=>b.IsChecked==true),"four independent default-on controls present");
                     Check(settings.Content is ScrollViewer,"settings remain reachable on short screens");
                     var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
                     var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-updates-"+(dark?"dark":"light")+".png"))) encoder.Save(file);

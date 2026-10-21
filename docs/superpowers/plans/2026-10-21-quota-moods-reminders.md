@@ -9,7 +9,7 @@
 
 ## Global Constraints
 
-Four toggles default false. Preserve30pt floating interaction,20pt icon and brand icons. Recovery confirmation15–120s; freshness120s; Bank72/24h. No redemption or public release. Use codex/feat/quota-moods-reminders; no product version edits.
+Four toggles default true (user amendment, 2026-10-21); missing settings/fields enable features, saved false values remain disabled. macOS checks permission for enabled reminder settings and requests only when undecided. Preserve30pt floating interaction,20pt icon and brand icons. Recovery confirmation15–120s; freshness120s; Bank72/24h. No redemption or public release. Use codex/feat/quota-moods-reminders; no product version edits.
 
 ## Review Focus
 

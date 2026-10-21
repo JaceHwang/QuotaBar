@@ -6,8 +6,15 @@ public struct QuotaExperiencePreferences: Codable, Equatable, Sendable {
     public var recovery: Bool
     public var celebration: Bool
     public var bank: Bool
-    public init(moods: Bool = false, recovery: Bool = false, celebration: Bool = false, bank: Bool = false) {
+    public init(moods: Bool = true, recovery: Bool = true, celebration: Bool = true, bank: Bool = true) {
         self.moods = moods; self.recovery = recovery; self.celebration = celebration; self.bank = bank
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        moods = try values.decodeIfPresent(Bool.self, forKey: .moods) ?? true
+        recovery = try values.decodeIfPresent(Bool.self, forKey: .recovery) ?? true
+        celebration = try values.decodeIfPresent(Bool.self, forKey: .celebration) ?? true
+        bank = try values.decodeIfPresent(Bool.self, forKey: .bank) ?? true
     }
 }
 public enum QuotaMood: String, Sendable {

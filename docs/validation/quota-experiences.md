@@ -40,3 +40,11 @@ First local packaged-startup invocation verified app/runtime startup and owned e
 - Real notification delivery/click permissions, natural account/Bank events, DPI/multi-screen and long-running matrix remain pending as listed above. The candidate has not replaced the user's installed public version.
 
 Draft review: [PR43](https://github.com/JaceHwang/QuotaBar/pull/43). No merge or public release.
+
+## Default-on amendment (2026-10-21)
+
+The user changed all four defaults to enabled. Saved opt-outs remain unchanged; missing configuration or individual fields now enable the corresponding feature. macOS checks notification authorization for enabled reminder settings and requests it only while undecided. The earlier f821129 candidates above retain the previous defaults and are superseded for this requirement.
+
+- RED: Swift defaults/missing-field assertions and C# defaults assertion failed with the old implementation.
+- GREEN: local full governance passed: Swift Core142 + AppKit47, Windows Core behavior/protocol/install checks and native UI cross-build. Covers missing/partial preference fields, saved all-off, settings opt-out across restart, default reminder permission request and saved reminder opt-out without a request.
+- Updated native CI and candidate evidence will be recorded separately. Real notification/device matrix remains pending.

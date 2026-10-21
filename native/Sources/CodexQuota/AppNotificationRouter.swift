@@ -15,6 +15,12 @@ import QuotaCore
     func requestPermission(completion: @escaping (String) -> Void) {
         Task {
             guard let center else { completion("unavailable"); return }
+            let settings = await center.notificationSettings()
+            switch settings.authorizationStatus {
+            case .authorized, .provisional: completion(""); return
+            case .notDetermined: break
+            default: completion("denied"); return
+            }
             do { completion(try await center.requestAuthorization(options: [.alert]) ? "" : "denied") }
             catch { completion("unavailable") }
         }
