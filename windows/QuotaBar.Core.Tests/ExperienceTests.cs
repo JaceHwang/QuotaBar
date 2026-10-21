@@ -38,6 +38,9 @@ internal static class ExperienceTests {
         queue.Enqueue(new("update",ExperienceNotificationKind.Update,null,"","",now)); queue.Enqueue(new("bank",ExperienceNotificationKind.Bank,"a","","",now));
         Check(queue.Next(now)?.Id=="bank" && queue.Next(now)?.Id=="update","queue priority");
         queue.Enqueue(new("stale",ExperienceNotificationKind.Recovery,"a","","",now.AddSeconds(-301))); Check(queue.Next(now) is null,"recovery TTL");
+        var corruptUnknown=new QuotaExperienceEngine(new ExperienceState { Epoch="a" },true); corruptUnknown.Configure(new(Bank:true));
+        corruptUnknown.Observe(observation with { Quota=Q(0,bank:new BankSummary(1,null)) },now);
+        Check(corruptUnknown.Observe(observation with { Sequence=2 },now).Bank.Count==0,"corrupt suppression waits for expiry details");
         var reduced=observation with { Quota=Q(0,bank:new BankSummary(1,[credit,credit with { Id="credit2" }])) };
         var multiEngine=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); multiEngine.Configure(new(Bank:true));
         var multi=reduced with { Quota=Q(0,bank:reduced.Quota.Bank! with { AvailableCount=2 }) };

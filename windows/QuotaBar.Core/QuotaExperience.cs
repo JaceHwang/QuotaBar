@@ -66,7 +66,7 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         }
         if(Preferences.Bank && o.BankFieldState==BankFieldState.Value && q.Bank is { } inventory) {
             bank=BankEvents(inventory,now);
-            if(suppressBank) { bank.Clear(); suppressBank=false; }
+            if(suppressBank) { bank.Clear(); if(inventory.AvailableCount==0 || inventory.Credits?.Any(c=>c.Status=="available" && c.ExpiresAt is not null)==true) suppressBank=false; }
         }
         State=State with { Receipts=State.Receipts.Where(p=>p.Value.ExpiresAt>now.AddDays(-1) && p.Value.ExpiresAt<now.AddDays(30)).ToDictionary() };
         if(State.Receipts.Count>2048) { State=State with { Receipts=State.Receipts.OrderBy(p=>p.Key,StringComparer.Ordinal).Take(2048).ToDictionary() }; bank.Clear(); }

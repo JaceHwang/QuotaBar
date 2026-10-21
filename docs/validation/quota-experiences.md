@@ -4,7 +4,7 @@ Date: 2026-10-21. Branch: codex/feat/quota-moods-reminders. No public release au
 
 ## Automated evidence
 
-- Local governance: Swift Core141 + AppKit46 tests passed, C# core/shared-contract/protocol/login/install tests passed, Windows application/setup/native-test cross-builds zero warnings/errors.
+- Local governance: Swift Core142 + AppKit46 tests passed, C# core/shared-contract/protocol/login/install tests passed, Windows application/setup/native-test cross-builds zero warnings/errors.
 - Initial missing-interface tests failed before core/UI implementation.
 - Review regressions reproduced Bank inventory-count and missing recovery-metadata failures, then both implementations passed after fixes.
 - Approved B concept is in the design document. Actual native AppKit mood PNGs were generated from the drawing code and inspected; dark-mode face contrast corrected before final verification.
@@ -23,3 +23,9 @@ Date: 2026-10-21. Branch: codex/feat/quota-moods-reminders. No public release au
 - Both-platform long-running CPU/memory comparison and OS Focus settings.
 
 Do not turn simulated recovery fixtures, component PNGs, cross-builds or existing-version acceptance into proof of these scenarios. Preview/test actions never consume reset credits.
+
+## Additional evidence
+
+Native CI39543546995 and39543627047 passed both platforms at82bd495, including Windows UI PNGs, complete package, owned runtime shutdown, and installation lifecycle. Windows dark/light mood and settings artifacts were visually inspected. Subsequent corrupt-state suppression regression passed locally; final-head CI remains separately tracked.
+
+First local packaged-startup invocation verified app/runtime startup and owned exit but failed cleanup due to incorrectly hiding native concurrently with Swift tests. Source was restored intact; this invocation is not counted as a passing script. Final validation uses native/.build serially.

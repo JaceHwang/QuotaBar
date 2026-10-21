@@ -102,7 +102,10 @@ public struct QuotaExperienceEngine: Sendable {
         }
         if preferences.bank, o.bankFieldState == .value, let bank = q.bank {
             output.bank = bankEvents(bank, now: now)
-            if suppressFirstBank { output.bank = []; suppressFirstBank = false }
+            if suppressFirstBank {
+                output.bank = []
+                if bank.availableCount == 0 || bank.credits?.contains(where: { $0.status == "available" && $0.expiresAt != nil }) == true { suppressFirstBank = false }
+            }
         }
         state.receipts = state.receipts.filter { $0.value.expiresAt > now.addingTimeInterval(-86400) && $0.value.expiresAt < now.addingTimeInterval(30*86400) }
         if state.receipts.count > 2048 {

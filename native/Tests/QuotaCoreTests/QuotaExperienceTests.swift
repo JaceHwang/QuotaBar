@@ -111,4 +111,13 @@ final class QuotaExperienceTests: XCTestCase {
         }
     }
 
+    func testCorruptStoreWaitsForKnownBankDetailsBeforeSuppressingBaseline() {
+        var e = QuotaExperienceEngine(state: ExperienceState(epoch: "a"), suppressFirstBank: true); e.configure(QuotaExperiencePreferences(bank: true))
+        let unknown = quota(0, bank: BankResetSummary(availableCount: 1, credits: nil))
+        _ = e.observe(QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: unknown, bankFieldState: .value), now: now)
+        let c = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil)
+        let known = quota(0, bank: BankResetSummary(availableCount: 1, credits: [c]))
+        XCTAssertTrue(e.observe(QuotaObservation(epoch: "a", sequence: 2, receivedAt: now, quota: known, bankFieldState: .value), now: now).bank.isEmpty)
+    }
+
 }

@@ -220,7 +220,7 @@ internal sealed class Coordinator : IDisposable {
         ShutdownDiagnostic("runtime-disposing"); if(runtime is not null) await runtime.DisposeAsync(); ShutdownDiagnostic("runtime-disposed"); app.Shutdown();
     }
     void ShutdownDiagnostic(string stage) { try { File.WriteAllText(Path.Combine(root,"shutdown-state.txt"),$"pid={Environment.ProcessId} stage={stage}\n"); } catch(IOException) { } }
-    public void Dispose() { Experience.Stop(); Notifications.Dispose();
+    public void Dispose() {
         stopping=true; Experience.Stop(); Notifications.Dispose(); Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
         SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
         System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged-=NetworkChanged;
