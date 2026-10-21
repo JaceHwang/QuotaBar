@@ -47,4 +47,4 @@ The user changed all four defaults to enabled. Saved opt-outs remain unchanged; 
 
 - RED: Swift defaults/missing-field assertions and C# defaults assertion failed with the old implementation.
 - GREEN: local full governance passed: Swift Core142 + AppKit47, Windows Core behavior/protocol/install checks and native UI cross-build. Covers missing/partial preference fields, saved all-off, settings opt-out across restart, default reminder permission request and saved reminder opt-out without a request.
-- Updated native CI and candidate evidence will be recorded separately. Real notification/device matrix remains pending.
+- Native CI39548520391 at6b5786e passed both platforms, including Windows native UI, complete candidate payload, actual runtime startup/exit and setup/upgrade/rollback/uninstall. Updated macOS and Windows candidate artifacts are available in that run. Real notification/device matrix remains pending.
