@@ -60,3 +60,5 @@ Local full governance passed. Swift144 Core +53 AppKit tests passed, including t
 
 - Final source312a84d: nativeCI39562702421 succeeded on macOS and Windows. Windows UI/candidate integrity/runtime/setup/upgrade/rollback/uninstall passed. Final Windows B dark/light artifacts downloaded; rounded controls and theme contrast inspected. macOS source is unchanged from the installeda9cdb65 candidate. Actual installed macOS sidebar navigation Display→Quota management was exercised and returned to quota management.
 - VoiceOver spoken output, physical keyboard-only traversal, actual notification clicks/natural account events, Windows DPI/multi-monitor and long-running matrices are not certified by these checks and remain pending. No merge/public release.
+
+- Final macOS error-status follow-up: a test notification failure after opening settings was reproduced as a hidden label, then corrected by updating status text and visibility together. Swift suite now144 Core +54 AppKit; updated local candidate/install evidence follows.

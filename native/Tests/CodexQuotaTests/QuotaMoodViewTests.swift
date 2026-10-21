@@ -147,5 +147,17 @@ import QuotaCore
         coordinator.receive(.loggedOut)
         XCTAssertFalse(descendants(content).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Example account") })
     }
+    func testTestNotificationFailureBecomesVisibleAfterSettingsOpened() async throws {
+        let suite = "QuotaNotificationFailure.\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { $0("") })
+        let view = controller.makeSettingsView()
+        let button = try XCTUnwrap(descendants(view).compactMap { $0 as? NSButton }.first { $0.title == "Send test notification" })
+        button.performClick(nil)
+        for _ in 0..<20 { await Task.yield() }
+        let status = try XCTUnwrap(descendants(view).compactMap { $0 as? NSTextField }.first { $0.stringValue == "System notifications unavailable" })
+        XCTAssertFalse(status.isHidden)
+    }
     private func descendants(_ view: NSView) -> [NSView] { view.subviews + view.subviews.flatMap(descendants) }
 }
