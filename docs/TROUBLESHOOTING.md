@@ -21,7 +21,7 @@ Updated: 2026-10-12.
 
 Include app version, macOS version/architecture and reproduction. Omit credentials, personal account details and unrelated screenshots. See [installation](MACOS_STANDALONE.zh-CN.md) and [validation](validation/macos-standalone.md).
 
-## Optional quota experiences (development branch)
+## Quota moods and reminders
 
 All four controls default on under Quota moods and reminders; saved off choices remain off. macOS requests notification permission if undecided and either reminder is enabled; denied permission must be changed in system settings. A mood is based on unrounded usage; displayed 0% can mean a fraction remains. Gray/question-mark means data is unavailable or stale, not depleted. Recovery takes a second fresh read (15–120 seconds) to confirm; a countdown reaching zero alone never notifies. A still-depleted second window remains a limit.
 

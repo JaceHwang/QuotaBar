@@ -64,3 +64,7 @@ Local full governance passed. Swift144 Core +53 AppKit tests passed, including t
 - Final macOS error-status follow-up: a test notification failure after opening settings was reproduced as a hidden label, then corrected by updating status text and visibility together. Swift suite now144 Core +54 AppKit; updated local candidate/install evidence follows.
 
 - Notification-status follow-up1920c64 local clean candidate `candidate-20261021-153943`:198 Swift tests passed, complete signing/DMG/isolated runtime startup-exit passed; transactionally installed and running from~/Applications/QuotaBar.app. NativeCI39563449006 passed both macOS and Windows, including final candidates, runtime lifecycle and Windows installation gates. Windows sources unchanged from passed312a84d.
+
+## User device acceptance and release authorization (2026-10-21)
+
+The user explicitly confirmed both macOS and Windows device testing passed and authorized version updates, documentation, push and public release. This is user-reported acceptance of the current candidate; it does not supply individual DPI/OS/VoiceOver/natural-event/long-running results. Earlier no-release statements above are historical and superseded by this authorization. Release Please versions, exact-tag assets, downloaded-payload verification and public feed checks remain required publication gates.

@@ -10,7 +10,7 @@
 
 [English](README.md) · **简体中文**
 
-[下载 v1.0.1](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v1.0.1) · [安装说明](#安装) · [文档索引](docs/README.md)
+[下载最新版本](https://github.com/JaceHwang/QuotaBar/releases/latest) · [安装说明](#安装) · [文档索引](docs/README.md)
 
 </div>
 
@@ -18,7 +18,7 @@
 
 QuotaBar 内嵌官方 Codex 0.144.1 运行时，通过隔离账户读取额度。使用官方浏览器流程登录后，即使关闭 Codex 桌面版，也能继续查询；无需单独安装 CLI 或旧插件。
 
-以下为 **QuotaBar v1.0.1 在 macOS 上实际运行的截图**，界面语言为简体中文。设置和详情截图已裁去账户信息区域。Windows 功能以文字说明，配图不代表 Windows 界面。
+浮窗、菜单栏、详情和更新配图来自 macOS v1.0.1；新版侧栏设置图为已验证开发候选的原生界面渲染，使用示例数据。配图不包含凭据，也不代表 Windows 界面。
 
 ### 额度，随时可见
 
@@ -42,9 +42,9 @@ macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单�
 
 ### 独立账户，熟悉的原生设置
 
-在原生设置中登录、登出、刷新额度或重新加载运行时。外观支持跟随系统、浅色和深色；语言支持跟随系统、简体中文、繁体中文和英文，还可选择登录电脑后自动启动。
+设置分为“账户”“显示”“额度表情与管理”“更新”四个侧栏页面。在账户页登录、登出、刷新额度或重新加载运行时。外观支持跟随系统、浅色和深色；语言支持跟随系统、简体中文、繁体中文和英文，还可选择登录电脑后自动启动。
 
-<img src="docs/images/macos-settings-zh.png" alt="macOS 原生设置实机截图：登录、刷新、主题、语言和登录启动；已裁去账户区域" width="510" />
+<img src="docs/images/quota-settings-sidebar-zh.png" alt="macOS 新版侧栏设置原生渲染：五种表情图例、恢复提醒、小庆祝和 Bank 提醒，使用示例数据" width="900" />
 
 应用账户与 Codex 桌面版隔离，不扫描宿主窗口，也不需要辅助功能权限。正常情况下约每 60 秒刷新额度，失败后退避重试。数据处理方式见[隐私说明](docs/PRIVACY.md)。
 
@@ -56,12 +56,12 @@ macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单�
 
 ## 安装
 
-两端均已发布 **v1.0.1**。请从[同一版本发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v1.0.1)下载安装包、校验文件及辅助文件，校验后再安装。
+两端共用统一版本。请从[最新版本发布页](https://github.com/JaceHwang/QuotaBar/releases/latest)下载安装包、校验文件及辅助文件，校验后再安装。
 
 | 平台 | 下载 | 系统与签名 |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v1.0.1/codex-quota-v1.0.1-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
-| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v1.0.1/QuotaBar-1.0.1-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
+| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.0.1/codex-quota-v1.0.1-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
+| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.0.1/QuotaBar-1.0.1-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
 
 ### macOS
 
@@ -89,7 +89,7 @@ QuotaBar/setup/QuotaBar.Setup.exe
 
 ### 验证范围
 
-双平台 v1.0.1 公开包均已通过下载、来源及原生启动退出验证；macOS 正式版已本机安装并读取真实额度。Windows 11 功能及界面验收来自用户对早期独立版的反馈，v1.0.1 未新增 Windows 功能改动，也不代表新增人工实机覆盖。最低系统、多屏及长期运行矩阵仍待补齐，详见[进度记录](docs/PROJECT_PROGRESS-standalone-app.md)。
+新版额度体验和侧栏设置已通过双端原生 CI，包含打包、自有运行时启动退出及 Windows 安装生命周期检查。2026-10-21 用户确认 macOS 和 Windows 本地实机测试通过；该反馈不代表最低系统、全部 DPI、多屏、无障碍及长期矩阵均有逐项证据，详见[进度记录](docs/PROJECT_PROGRESS-standalone-app.md)。
 
 ## 开发
 
@@ -114,10 +114,13 @@ macOS 源码和测试位于 `native/`，Windows 位于 `windows/`；安装、打
 
 [架构](docs/ARCHITECTURE.md) · [隐私](docs/PRIVACY.md) · [macOS 验收](docs/validation/macos-standalone.md) · [故障排查](docs/TROUBLESHOOTING.md) · [仓库治理](docs/GOVERNANCE.md)
 
-## 开发中的额度表情与提醒
+## 额度表情与提醒
 
-当前源码新增四项独立可选功能：悬浮按钮电池表情、确认恢复提醒、局部小庆祝和 Bank 到期提醒（72／24 小时）。全部默认开启，可在“额度表情与提醒”设置中分别关闭；已保存的关闭选择会保留。macOS 首次需要通知时请求系统权限。小庆祝仅在悬浮按钮可见时播放；恢复需两次新鲜查询确认；Bank 日期缺失时不会猜测提醒，也不会自动兑换权益。
+四项默认开启，已保存的关闭选择继续保留：
 
-这是开发分支功能，不代表公开 v1.0.1 已包含。验证进度见[路线图](docs/PROJECT_PROGRESS-standalone-app.md)。
+- **额度表情模式**：放大的电池角色展示充足、偏低、耗尽、不可用、恢复五种状态，数字仍是主要信息。
+- **恢复提醒**：两次新鲜查询确认恢复后通知，同次多个周期合并一条。
+- **恢复小庆祝**：紫色星星眼角色和短暂局部星光，同步一条恢复通知。隐藏浮窗不主动显示；预览只发送明确的示例通知。
+- **Bank 到期提醒**：提前72／24小时，按已知可用权益合并；缺少日期不猜测，也不自动兑换。
 
-设置页采用与详情卡一致的侧栏分区，额度管理行内展示五种状态图例。恢复小庆祝使用紫色星星眼角色，并同步一条恢复通知；预览只发送示例通知。悬浮按钮右键会隐藏额度详情，再显示选项菜单。
+恢复提醒或小庆祝任一开启，同次确认恢复只发一条通知。macOS在权限尚未决定时请求授权，遵循系统通知和勿扰设置。浮窗右键先隐藏详情，再显示选项。详见[隐私](docs/PRIVACY.md)与[故障排查](docs/TROUBLESHOOTING.md)。

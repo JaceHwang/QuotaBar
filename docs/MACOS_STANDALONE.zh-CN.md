@@ -51,3 +51,9 @@ python3 scripts/install-macos-standalone.py uninstall
 本地签名和 DMG 校验通过，不等于 Developer ID 公证通过。发布版本仅由 Release Please 生成，正式资产从对应版本 tag 构建。Developer ID 公证、干净设备、最低支持系统和长期兼容矩阵尚未完整验收。无多账号同时监控、历史趋势、自动更新安装或自动兑换 Bank。
 
 详细状态和待验证项见[开发进度](PROJECT_PROGRESS-standalone-app.md)及[实机验收记录](validation/macos-standalone.md)。
+
+## 额度表情与管理
+
+设置现为账户、显示、额度表情与管理、更新四个侧栏页面。四项体验默认开启，已保存的关闭选择保持。悬浮角色28pt，恢复为紫色星星眼及局部星光；恢复提醒或庆祝任一开启，同次事件只发一条系统通知。预览同步示例通知，不改真实基线。浮窗右键隐藏包含锁定状态的详情，移出再进入后恢复悬停。
+
+2026-10-21用户确认macOS及Windows实机测试通过；该反馈不代替最低系统、VoiceOver、自然账户事件及长期设备矩阵的逐项证据。
