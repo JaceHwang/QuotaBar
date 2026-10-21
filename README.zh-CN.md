@@ -1,39 +1,99 @@
-# QuotaBar 独立额度应用
+<div align="center">
 
-独立运行的 macOS/Windows 额度应用，提供菜单栏/托盘及悬浮入口。通过内嵌官方 Codex 0.144.1 运行时和隔离账户读取额度，不需要打开 Codex 桌面版或安装旧插件。
+<img src="native/Sources/CodexQuota/Resources/quota-icon-light.png" alt="QuotaBar 图标" width="80" />
 
-[最新发布 v0.7.0（Windows）](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.7.0) · [Windows安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.7.0/QuotaBar-0.7.0-windows-x64.zip) · [Apple Silicon 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v0.6.0/codex-quota-v0.6.0-macos-arm64.dmg) · [English](README.md) · [文档索引](docs/README.md)
+# QuotaBar
 
-## 功能
+**Codex 还剩多少额度，抬眼就能看见。**
 
-- macOS菜单栏：两行剩余额度和重置日期，或透明单色图标。设置中的“任务栏显示额度信息”控制两种模式，选择会保存。
-- 悬浮按钮：默认开启，自由拖动并记住位置。菜单栏右键菜单的“显示悬浮按钮”独立控制显示，不在设置中。 macOS当前本地开发候选在右侧增加悬停时显示的关闭按钮；关闭会保存隐藏状态，可由菜单栏右键重新开启。
-- Windows托盘：所有主题固定圆形彩色图标；设置中的额度信息开关控制悬停提示。Windows正式版悬浮按钮已包含悬停关闭功能，可从托盘恢复。
-- 原额度详情卡：悬停预览，点击固定，未锁定时再次点击收起；锁按钮控制保持打开，未锁定时外部点击收起。
-- 原生设置：官方浏览器登录、登出、刷新、重新加载运行时、系统/浅色/深色主题、系统/简中/繁中/英文语言及登录启动。
-- macOS安装迁移：旧名 Codex Quota.app 升级为 QuotaBar.app，保留账号和偏好，支持事务恢复、回退和卸载。
+独立运行的 macOS / Windows 额度应用。在菜单栏、托盘或悬浮按钮查看额度，需要时再展开详情。
 
-## macOS安装和重新开启
+[English](README.md) · **简体中文**
 
-从同一 Release 下载 DMG、安装脚本、说明、来源记录及 SHA256 文件。发行文件仍名为 `codex-quota-vX.Y.Z-macos-arm64.dmg`，当前包内应用名为 **QuotaBar.app**。校验后，升级或迁移建议使用附带脚本：
+[下载 v1.0.1](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v1.0.1) · [安装说明](#安装) · [文档索引](docs/README.md)
+
+</div>
+
+## 认识 QuotaBar
+
+QuotaBar 内嵌官方 Codex 0.144.1 运行时，通过隔离账户读取额度。使用官方浏览器流程登录后，即使关闭 Codex 桌面版，也能继续查询；无需单独安装 CLI 或旧插件。
+
+以下为 **QuotaBar v1.0.1 在 macOS 上实际运行的截图**，界面语言为简体中文。设置和详情截图已裁去账户信息区域。Windows 功能以文字说明，配图不代表 Windows 界面。
+
+### 额度，随时可见
+
+macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单色图标。Windows 使用圆形彩色托盘图标，悬停即可查看额度提示。两端都提供可自由拖动、记住位置的悬浮按钮。
+
+<img src="docs/images/macos-floating-zh.png" alt="macOS 实际运行截图：悬浮按钮显示剩余额度和重置时间" width="476" />
+
+悬浮按钮默认开启，悬停时出现关闭按钮；关闭后，可在菜单栏或托盘菜单中选择“显示悬浮按钮”恢复。设置中的额度信息开关，在 macOS 控制菜单栏文字，在 Windows 控制托盘提示中的额度。
+
+**macOS 菜单栏两行额度显示**
+
+<img src="docs/images/macos-menubar-zh.png" alt="macOS 菜单栏实际运行截图：两行显示剩余额度与重置日期" width="300" />
+
+### 展开，了解每个额度周期
+
+悬停悬浮按钮预览详情卡，点击固定，再次点击收起；使用锁按钮可保持打开。未锁定时，点击外部会收起详情。
+
+<img src="docs/images/macos-details-zh.png" alt="中文额度详情卡实际运行截图：双周期额度、Token 用量、重置时间与 Bank 信息；已裁去账户底栏" width="360" />
+
+查看剩余额度、重置倒计时和本地重置时间，以及数据可用时的账户、套餐、Token 用量和 Bank 信息。缺失字段不会被当成零。**周期额度不是 API 现金余额**，Bank 信息仅供查看。
+
+### 独立账户，熟悉的原生设置
+
+在原生设置中登录、登出、刷新额度或重新加载运行时。外观支持跟随系统、浅色和深色；语言支持跟随系统、简体中文、繁体中文和英文，还可选择登录电脑后自动启动。
+
+<img src="docs/images/macos-settings-zh.png" alt="macOS 原生设置实机截图：登录、刷新、主题、语言和登录启动；已裁去账户区域" width="510" />
+
+应用账户与 Codex 桌面版隔离，不扫描宿主窗口，也不需要辅助功能权限。正常情况下约每 60 秒刷新额度，失败后退避重试。数据处理方式见[隐私说明](docs/PRIVACY.md)。
+
+### 更新提醒，按自己的节奏处理
+
+从菜单或设置检查更新、阅读更新内容，也可稍后提醒或跳过某个版本。自动检查默认开启，系统提醒默认关闭；每次启动约 30 秒后检查，成功后每 24 小时检查一次。更新入口打开发布页，由你手动下载和安装，详见[更新行为说明](docs/UPDATE_FEED_OPERATIONS.zh-CN.md)。
+
+<img src="docs/images/macos-updates-zh.png" alt="macOS 更新设置实机截图：当前版本 1.0.1 及更新检查选项" width="510" />
+
+## 安装
+
+两端均已发布 **v1.0.1**。请从[同一版本发布页](https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v1.0.1)下载安装包、校验文件及辅助文件，校验后再安装。
+
+| 平台 | 下载 | 系统与签名 |
+| --- | --- | --- |
+| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v1.0.1/codex-quota-v1.0.1-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
+| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/codex-usage-sidebar/releases/download/v1.0.1/QuotaBar-1.0.1-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
+
+### macOS
+
+校验 `CODEX-QUOTA-SHA256SUMS.txt`，打开 DMG；升级或迁移时使用附带的安装器：
 
 ```bash
 python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/QuotaBar.app'
 ```
 
-安装器默认放在 **`~/Applications/QuotaBar.app`**。Finder 侧栏“应用程序”通常打开 `/Applications`，因此看不到用户级安装。退出后按 **⌘⇧G**，输入 `~/Applications`，双击 QuotaBar.app 即可重新开启；重复打开已运行的应用会显示设置。关闭设置继续常驻，退出或 ⌘Q 会清理内嵌采集进程。
+默认安装位置为 **`~/Applications/QuotaBar.app`**。退出后，在 Finder 按 **⌘⇧G**，输入 `~/Applications`，双击 QuotaBar 即可重开；重复打开正在运行的应用会显示设置。首次启动可能需要在系统“隐私与安全性”中批准。
 
-声明支持 macOS 14+ Apple Silicon，已在 macOS 27.0 实测。安装包为本地签名，**未完成 Developer ID 公证**；首次打开可能需要在系统“隐私与安全性”批准。周期额度不是 API 现金余额。
+安装器保留隔离账户与偏好，支持事务恢复和回退，也支持从旧名 `Codex Quota.app` 迁移。详见 [macOS 安装说明](docs/MACOS_STANDALONE.zh-CN.md)。
 
-## Windows安装和重新开启
+### Windows
 
-Windows 11 x64 独立版已正式发布v0.7.0，全部功能及最新UI由用户验收，原生CI和公开下载包核验通过；托盘/程序统一圆形图标，额度放在提示及浮窗，见[Windows安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
+校验 `QUOTABAR-WINDOWS-SHA256SUMS.txt`，**完整解压 ZIP**，然后运行：
 
-从同一发布下载ZIP和QUOTABAR-WINDOWS-SHA256SUMS.txt并校验，完整解压后运行 `QuotaBar/setup/QuotaBar.Setup.exe`。退出后从开始菜单搜索QuotaBar重开。Windows安装包未签名，升级和回退保留账号及设置。
+```text
+QuotaBar/setup/QuotaBar.Setup.exe
+```
 
-## 开发与验证
+退出后可从开始菜单搜索 QuotaBar 重开。升级和回退保留账户及设置，详见 [Windows 安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
 
-macOS构建（需要Xcode）：
+两端关闭设置窗口后都会继续常驻；选择“退出”才会停止 QuotaBar 及其内嵌运行时。
+
+### 验证范围
+
+双平台 v1.0.1 公开包均已通过下载、来源及原生启动退出验证；macOS 正式版已本机安装并读取真实额度。Windows 11 功能及界面验收来自用户对早期独立版的反馈，v1.0.1 未新增 Windows 功能改动，也不代表新增人工实机覆盖。最低系统、多屏及长期运行矩阵仍待补齐，详见[进度记录](docs/PROJECT_PROGRESS-standalone-app.md)。
+
+## 开发
+
+macOS 打包需要 Xcode 和固定的官方 `codex-cli 0.144.1` 二进制：
 
 ```bash
 ./governance doctor
@@ -41,20 +101,18 @@ macOS构建（需要Xcode）：
 CUS_RUNTIME_BINARY=/path/to/codex bash scripts/build-macos-standalone.sh
 ```
 
-macOS源码、资源和测试在 `native/`，Windows实现和测试在 `windows/`，安装、打包和来源验证工具在 `scripts/`。macOS打包需要 Xcode 和固定官方 `codex-cli 0.144.1`；版本仅由 Release Please 管理，禁止覆盖已发布资产。
-
-Windows构建需要.NET 10 SDK和Python，不需要Xcode：
+Windows 需要 .NET 10 SDK 和 Python：
 
 ```sh
 dotnet run --project windows/QuotaBar.Core.Tests
 python scripts/build-windows-standalone.py
 ```
 
-正式发布额外在Windows执行原生启动退出和安装检查。
+macOS 源码和测试位于 `native/`，Windows 位于 `windows/`；安装、打包与来源验证工具位于 `scripts/`。正式发布还需在目标平台执行原生启动退出与安装检查。产品版本由 Release Please 管理，已发布资产不可覆盖。
 
-每次开发前读取[详细进度](docs/PROJECT_PROGRESS-standalone-app.md)并恢复看板，里程碑后更新。其他说明：[安装](docs/MACOS_STANDALONE.zh-CN.md)、[架构](docs/ARCHITECTURE.md)、[隐私](docs/PRIVACY.md)、[验收](docs/validation/macos-standalone.md)、[治理](docs/GOVERNANCE.md)。
+开发前读取[详细路线](docs/PROJECT_PROGRESS-standalone-app.md)并恢复项目看板。请勿提交运行时二进制、凭据或私人设备截图。
 
-Windows v0.7.0已发布，正式ZIP及四项辅助资产均已下载完整验证。macOS仍为v0.6.0，包含 QuotaBar 品牌和菜单栏/悬浮功能，五项公开资产已下载并完整验证。历史 v0.5.1 使用旧名称。历史代码及既有安装包保留在 Git 历史和 GitHub 历史发布中。
+[架构](docs/ARCHITECTURE.md) · [隐私](docs/PRIVACY.md) · [macOS 验收](docs/validation/macos-standalone.md) · [故障排查](docs/TROUBLESHOOTING.md) · [仓库治理](docs/GOVERNANCE.md)
 
 ## 开发中的额度表情与提醒
 
