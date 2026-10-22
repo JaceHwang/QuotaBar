@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/JaceHwang/QuotaBar/compare/v1.1.0...v1.2.0) (2026-10-22)
+
+
+### Features
+
+* refine native settings layouts and account actions ([#46](https://github.com/JaceHwang/QuotaBar/issues/46)) ([8f40cb8](https://github.com/JaceHwang/QuotaBar/commit/8f40cb86927e6b3d49596d3f896cf74bc9d46026))
+
 ## [1.1.0](https://github.com/JaceHwang/QuotaBar/compare/v1.0.1...v1.1.0) (2026-10-21)
 
 
