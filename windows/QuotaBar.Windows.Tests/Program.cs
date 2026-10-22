@@ -56,12 +56,12 @@ internal static class Program {
             using(var bubble = new CharacterNotificationBubble()) {
                 var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
                 foreach(var dark in new[]{false,true}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
-                    bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(368,180)); bubble.Arrange(new Rect(0,0,368,180));
+                    bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(368,CharacterNotificationBubble.ContentHeight)); bubble.Arrange(new Rect(0,0,368,CharacterNotificationBubble.ContentHeight));
                     var fourLines="72 hours: 2 credits\n24 hours: 1 credit\nEarliest expiry:\n2026/10/23 14:00";
                     bubble.Build(m with { Body=fourLines },dark,new Copy(language));
                     var bodyText=Tree(bubble).OfType<TextBlock>().Single(t=>t.Text==fourLines);
                     var formatted=new FormattedText(fourLines,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(bodyText.FontFamily,bodyText.FontStyle,bodyText.FontWeight,bodyText.FontStretch),bodyText.FontSize,Brushes.Black,1);
-                    Check(bodyText.Height>=Math.Ceiling(formatted.Height),"four-line body fits without clipping");
+                    Check(bodyText.Height>=Math.Ceiling(formatted.Height),$"four-line body fits without clipping: allocated={bodyText.Height}, needed={formatted.Height}");
                     var copyForBubble=new Copy(language);
                     m=m with { Title=copyForBubble.Text("Bank credits expiring","Bank 权益即将到期","Bank 權益即將到期"), Body=copyForBubble.Text("72 hours: 2 credits; 24 hours: 1 credit. Earliest expiry: 2026/10/23 14:00","72 小时内 2 次；24 小时内 1 次。最近到期：2026/10/23 14:00","72 小時內 2 次；24 小時內 1 次。最近到期：2026/10/23 14:00") };
                     bubble.Build(m,dark,copyForBubble);
@@ -70,8 +70,12 @@ internal static class Program {
                     Check(Tree(bubble).OfType<QuotaMoodView>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
                     var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
                     foreach(var scale in new[]{1d,1.5d,2d}) {
-                        var content=(FrameworkElement)bubble.Content; bubble.Content=null; content.Measure(new Size(368,180)); content.Arrange(new Rect(0,0,368,180)); content.UpdateLayout();
-                        var bitmap=new RenderTargetBitmap((int)(368*scale),(int)(180*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
+                        var content=(FrameworkElement)bubble.Content; bubble.Content=null; content.Measure(new Size(368,CharacterNotificationBubble.ContentHeight)); content.Arrange(new Rect(0,0,368,CharacterNotificationBubble.ContentHeight)); content.UpdateLayout();
+                        foreach(var action in Tree(content).OfType<Button>()) {
+                            var bounds=action.TransformToAncestor(content).TransformBounds(new Rect(0,0,action.ActualWidth,action.ActualHeight));
+                            Check(new Rect(0,0,content.ActualWidth,content.ActualHeight).Contains(bounds),"bubble actions stay inside card");
+                        }
+                        var bitmap=new RenderTargetBitmap((int)(368*scale),(int)(CharacterNotificationBubble.ContentHeight*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
                         var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4]; bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
                         Check(Enumerable.Range(0,pixels.Length/4).Count(i=>pixels[i*4+3]>0)>pixels.Length/16,"bubble screenshot contains visible content");
                         var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-{language}-{dark}-{scale}.png")); encoder.Save(file); bubble.Content=content;
