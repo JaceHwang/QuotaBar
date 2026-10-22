@@ -33,11 +33,12 @@ internal sealed class SettingsWindow : Window {
     }
     public void Build() {
         var copy=owner.Copy; var p=owner.Preferences; var dark=Platform.IsDark(p); var fg=Ui.Foreground(dark); var muted=SettingsVisual.Muted(dark);
+        SettingsVisual.ApplyScrollbars(this,dark);
         Background=Ui.Surface(dark); Foreground=fg; shell.Children.Clear(); shell.ColumnDefinitions.Clear(); shell.ColumnDefinitions.Add(new() { Width=new GridLength(202) }); shell.ColumnDefinitions.Add(new());
         Title="QuotaBar — "+copy.Text("Settings","设置","設定");
         var sidebar=new DockPanel { Margin=new Thickness(12,22,12,16) };
         var brand=new StackPanel { Margin=new Thickness(8,6,0,28) }; var brandRow=new StackPanel { Orientation=Orientation.Horizontal }; brandRow.Children.Add(Ui.ApplicationLogo(42));
-        var brandText=new StackPanel { Margin=new Thickness(10,0,0,0) }; var brandName=Ui.Text("QuotaBar",19,fg); brandName.FontWeight=FontWeights.Bold; brandText.Children.Add(brandName); brandText.Children.Add(Ui.Text("v"+owner.Updates.DisplayVersion,12,muted)); brandRow.Children.Add(brandText); brand.Children.Add(brandRow); DockPanel.SetDock(brand,Dock.Top); sidebar.Children.Add(brand);
+        var brandText=new StackPanel { Margin=new Thickness(10,0,0,0) }; var brandName=Ui.Text("QuotaBar",19,fg); brandName.FontWeight=FontWeights.Bold; brandText.Children.Add(brandName); var version=Ui.Text("v"+owner.Updates.Version,12,muted); version.ToolTip=owner.Updates.DisplayVersion; brandText.Children.Add(version); brandRow.Children.Add(brandText); brand.Children.Add(brandRow); DockPanel.SetDock(brand,Dock.Top); sidebar.Children.Add(brand);
         var navigation=new StackPanel(); var labels=new[]{copy.Text("Account","账户","帳戶"),copy.Text("Display","显示","顯示"),copy.Text("Quota experience","额度表情与管理","額度表情與管理"),copy.Text("Updates","更新","更新")}; var keys=new[]{"account","display","moods","updates"};
         for(var i=0;i<keys.Length;i++) {
             var key=keys[i]; var button=Ui.Button(labels[i],()=> { selectedPage=key; Build(); }); button.Tag="settings-nav-"+key; button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Padding=new Thickness(10,8,6,8); button.BorderThickness=new Thickness(0); button.FontSize=13;
@@ -92,7 +93,8 @@ internal sealed class SettingsWindow : Window {
     }
     StackPanel UpdatesView(bool dark) {
         var c=owner.Copy; var p=owner.Preferences; var fg=Ui.Foreground(dark); var page=Page(c.Text("Updates","更新","更新"),c.Text("Keep QuotaBar up to date.","保持 QuotaBar 为最新版本。","保持 QuotaBar 為最新版本。"),dark); var panel=new StackPanel();
-        updateStatus=Ui.Text("",12,fg); panel.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); panel.Children.Add(updateCheck);
+        var brand=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,10) }; brand.Children.Add(Ui.ApplicationLogo(32)); var name=Ui.Text("QuotaBar",16,fg); name.FontWeight=FontWeights.SemiBold; name.VerticalAlignment=VerticalAlignment.Center; name.Margin=new Thickness(10,0,0,0); brand.Children.Add(name); panel.Children.Add(brand);
+        updateStatus=Ui.Text("",12,fg); panel.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); updateCheck.HorizontalAlignment=HorizontalAlignment.Left; panel.Children.Add(updateCheck);
         updateProgress=new ProgressBar { IsIndeterminate=true,Height=3,Margin=new Thickness(0,8,0,8),Visibility=Visibility.Collapsed }; panel.Children.Add(updateProgress);
         updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; updateActions.Children.Add(Ui.Button(c.Text("View update","查看更新","查看更新"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); page.Children.Add(SettingsVisual.Card(panel,dark));
         var options=new StackPanel();

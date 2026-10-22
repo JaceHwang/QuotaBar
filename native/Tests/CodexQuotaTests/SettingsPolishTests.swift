@@ -102,5 +102,19 @@ import XCTest
             }
         }
     }
+    func testSystemSwitchAccessibilityPressPersistsPreference() throws {
+        let suite = "SettingsAccessible.\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { $0("") })
+        let content = experience.makeSettingsView()
+        let toggle = try XCTUnwrap(tree(content).compactMap { $0 as? QuotaSettingsSwitch }.first)
+        XCTAssertNotNil(toggle.accessibilityRole())
+        XCTAssertFalse(toggle.accessibilityLabel()?.isEmpty ?? true)
+        _ = toggle.accessibilityPerformPress()
+        XCTAssertFalse(experience.preferences.moods)
+        _ = toggle.accessibilityPerformPress()
+        XCTAssertTrue(experience.preferences.moods)
+    }
     private func tree(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(tree) }
 }

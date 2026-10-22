@@ -19,7 +19,9 @@ internal sealed class UpdateController : IDisposable {
     string? cache,etag;
     UpdateState state=new();
     public UpdateRelease? Available { get; private set; }
-    public string Status { get; private set; }="";
+    (string English,string Chinese,string Traditional)? statusMessage;
+    public string Status=>statusMessage is { } message?Text(message.English,message.Chinese,message.Traditional):"";
+    void SetStatus(string english,string chinese,string traditional) { statusMessage=(english,chinese,traditional); }
     public bool Checking=>inFlight;
     public string Version=>typeof(UpdateController).Assembly.GetName().Version?.ToString(3)??"0.0.0";
     public string DisplayVersion {
@@ -52,7 +54,7 @@ internal sealed class UpdateController : IDisposable {
         var now=this.now();
         if(stopped || inFlight || (manual?now-lastManual<TimeSpan.FromSeconds(10):!owner.Preferences.AutomaticUpdates || now<next)) return;
         if(manual) lastManual=now;
-        inFlight=true; Status=Text("Checking…","正在检查…","正在檢查…"); Changed?.Invoke();
+        inFlight=true; SetStatus("Checking…","正在检查…","正在檢查…"); Changed?.Invoke();
         try {
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(15));
             using var request=new HttpRequestMessage(HttpMethod.Get,UpdateFeed.Endpoint);
@@ -73,20 +75,20 @@ internal sealed class UpdateController : IDisposable {
             if(response.StatusCode==HttpStatusCode.OK) etag=response.Headers.ETag?.ToString();
             failures=0; next=this.now().AddHours(24);
             state=state with { LastSuccess=this.now() }; Persist();
-            Status=release is null?Text("No newer release found","未发现更新版本","未發現更新版本"):Text("Update available","有新版本可用","有新版本可用"); Notify();
+            if(release is null) SetStatus("No newer release found","未发现更新版本","未發現更新版本"); else SetStatus("Update available","有新版本可用","有新版本可用"); Notify();
         } catch(Exception e) when(e is HttpRequestException or IOException or OperationCanceledException or FormatException or DecoderFallbackException) {
             if(stopped) return;
             failures=Math.Min(failures+1,6); next=this.now().AddSeconds(Math.Min(21600,300*Math.Pow(2,failures-1)));
-            Status=Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。");
+            SetStatus("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。");
         } finally { inFlight=false; if(!stopped) Changed?.Invoke(); }
     }
     void Persist() {
         try { var temp=statePath+".tmp"; File.WriteAllText(temp,JsonSerializer.Serialize(state)); File.Move(temp,statePath,true); }
-        catch(Exception e) when(e is IOException or UnauthorizedAccessException) { Status=Text("Could not save update preferences","无法保存更新偏好","無法儲存更新偏好"); }
+        catch(Exception e) when(e is IOException or UnauthorizedAccessException) { SetStatus("Could not save update preferences","无法保存更新偏好","無法儲存更新偏好"); }
     }
     public void Open() { if(Available is { } release) Platform.OpenUrl(release.ReleaseNotesURL.AbsoluteUri); }
-    public void Snooze() { state=state with { Policy=state.Policy with { SkippedVersion=state.Policy.SkippedVersion==Available?.Version?null:state.Policy.SkippedVersion,SnoozeUntil=DateTimeOffset.UtcNow.AddDays(1) } }; Status=Text("Reminder postponed for 24 hours","已延后提醒 24 小时","已延後提醒 24 小時"); Persist(); Changed?.Invoke(); }
-    public void Skip() { state=state with { Policy=state.Policy with { SkippedVersion=Available?.Version,SnoozeUntil=null } }; Status=Text("Version skipped","已跳过此版本","已跳過此版本"); Persist(); Changed?.Invoke(); }
+    public void Snooze() { state=state with { Policy=state.Policy with { SkippedVersion=state.Policy.SkippedVersion==Available?.Version?null:state.Policy.SkippedVersion,SnoozeUntil=DateTimeOffset.UtcNow.AddDays(1) } }; SetStatus("Reminder postponed for 24 hours","已延后提醒 24 小时","已延後提醒 24 小時"); Persist(); Changed?.Invoke(); }
+    public void Skip() { state=state with { Policy=state.Policy with { SkippedVersion=Available?.Version,SnoozeUntil=null } }; SetStatus("Version skipped","已跳过此版本","已跳過此版本"); Persist(); Changed?.Invoke(); }
     public void Notify() {
         if(stopped || !owner.Preferences.UpdateReminders || Available is not { } release || !state.Policy.ShouldNotify(release.Version,DateTimeOffset.UtcNow)) return;
         if(DateTimeOffset.UtcNow<retryReminder) return;

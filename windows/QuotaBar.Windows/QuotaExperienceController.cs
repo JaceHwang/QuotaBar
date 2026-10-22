@@ -93,6 +93,6 @@ internal sealed class QuotaExperienceController {
         var settings=Ui.Button(copy.Text("Notification settings…","通知设置…","通知設定…"),()=> {
             try { Platform.OpenUrl("ms-settings:notifications"); }
             catch(Exception e) when(e is System.ComponentModel.Win32Exception or InvalidOperationException) { NotificationFailed(); }
-        }); settings.Tag="settings-notifications"; stack.Children.Add(settings); return stack;
+        }); settings.HorizontalAlignment=HorizontalAlignment.Left; settings.Tag="settings-notifications"; stack.Children.Add(settings); return stack;
     }
 }

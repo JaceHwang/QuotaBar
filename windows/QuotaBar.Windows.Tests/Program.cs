@@ -98,6 +98,12 @@ internal static class Program {
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
                     Check(navigation.Length==4,"four sidebar pages");
                     var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
+                    var peer=new System.Windows.Automation.Peers.CheckBoxAutomationPeer(moodToggle);
+                    var togglePattern=(System.Windows.Automation.Provider.IToggleProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle);
+                    togglePattern.Toggle();
+                    Check(!owner.Preferences.Experience.Moods,"accessibility toggle persists preference");
+                    togglePattern.Toggle();
+                    Check(owner.Preferences.Experience.Moods,"accessibility toggle restores preference");
                     moodToggle.IsChecked=false; moodToggle.RaiseEvent(new RoutedEventArgs(CheckBox.ClickEvent));
                     navigation.First(b=>b.Tag?.ToString()=="settings-nav-display").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     navigation.First(b=>b.Tag?.ToString()=="settings-nav-moods").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
@@ -113,6 +119,7 @@ internal static class Program {
                     Check(Tree(settings).OfType<Button>().Any(b=>b.Tag?.ToString()=="settings-notifications"),"notification settings action remains reachable");
                     foreach(var language in new[]{"zh-CN","zh-TW","en"}) {
                         owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
+                        Check(owner.Updates.Status==owner.Copy.Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。"),"update result follows language changes");
                         foreach(var key in new[]{"account","display","moods","updates"}) {
                             Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-"+key).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                             settings.Width=840; settings.Height=560; Pump();

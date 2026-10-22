@@ -7,6 +7,19 @@ internal static class SettingsVisual {
  <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="frame" Property="BorderBrush" Value="#4488DD"/><Setter TargetName="frame" Property="BorderThickness" Value="2"/></Trigger></ControlTemplate.Triggers>
 </ControlTemplate>
 """);
+    public static void ApplyScrollbars(FrameworkElement root,bool dark) {
+        var style=(Style)XamlReader.Parse("""
+<Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ScrollBar">
+ <Setter Property="Width" Value="8"/><Setter Property="Margin" Value="4,0,0,0"/>
+ <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
+ <Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Focusable="False" Opacity="0"/></Track.DecreaseRepeatButton>
+ <Track.Thumb><Thumb Background="{TemplateBinding Foreground}" MinHeight="24"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="{TemplateBinding Background}" CornerRadius="3"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+ <Track.IncreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Focusable="False" Opacity="0"/></Track.IncreaseRepeatButton>
+ </Track></ControlTemplate></Setter.Value></Setter>
+</Style>
+""");
+        style.Setters.Add(new Setter(Control.ForegroundProperty,Muted(dark))); root.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)]=style;
+    }
     public static void ApplyButtons(DependencyObject root,bool dark) {
         if(root is Button button) {
             button.Template=RoundedButtonTemplate; button.Foreground=Ui.Foreground(dark);
