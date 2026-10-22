@@ -1,9 +1,9 @@
 # 独立额度应用开发进度
 
 最近更新：2026-10-22（Asia/Shanghai）
-当前阶段：设置四页原生UI优化已实现，功能源码1cc9971双端CI及治理通过；Mac最终候选已本机安装并验证真实额度。公开版本仍为v1.1.0。
+当前阶段：v1.2.0设置优化与浮窗裁切修复已正式发布；两端原生CI、公开包及更新清单验证通过。
 当前授权：2026-10-22用户要求按设置UI调研提案优化开发；允许两端实现、验证与本地候选安装。用户随后反馈实机测试通过并明确要求推送、合并和发布新版本；本轮已授权按Release Please合并并发布双平台。
-下一步：用户体验本机新版设置；保留Draft PR46供审阅，正式发布需明确授权。未逐项验证的设备/DPI/读屏矩阵单独跟踪。
+下一步：收集升级反馈，补充未逐项执行的DPI、多屏、最低系统和读屏器矩阵；本轮发布已完成。
 
 ## 每次开发的恢复与记录
 
@@ -465,7 +465,7 @@ PR #39以81564ea合并；d34e335上的push与PR两轮CI均通过macOS Xcode26.5�
 
 关键决定：角色仅20pt图标，不照搬概念图放大的浮窗；恢复只消费完整新鲜查询并两次确认；写入提醒收据失败不通知；Bank发送前核验原权益仍存在；不从显示缓存推导到期提醒。
 
-下一步：完整测试与独立审查，双平台候选/原生CI验证；自然账户恢复、系统权限/真实点击、DPI/多屏/休眠和长期占用分别记录。
+下一步：收集升级反馈，补充未逐项执行的DPI、多屏、最低系统和读屏器矩阵；本轮发布已完成。
 
 本地完整治理检查正在复跑。旧Bank缺失明细断言按已批准的新文案更新，未删除数据缺失与零权益区分测试；新增发送前权益替换核验、首见24小时跳过72阶段、账户/套餐/时长变化抑制、两主题原生渲染与四开关持久化覆盖。
 
@@ -559,3 +559,15 @@ PR #39以81564ea合并；d34e335上的push与PR两轮CI均通过macOS Xcode26.5�
 ## 2026-10-22 设置优化实机通过与发布授权
 
 用户明确反馈实机测试通过并要求推送合并发布。记录为用户设备验收，不推断未提供的逐项DPI/读屏/最低系统矩阵。PR46与main的冲突仅在进度与文档索引；保留新设置记录及主分支既有发布证据，功能源码无冲突。准备重新执行治理与准确HEAD原生CI，再合并功能PR、审查Release Please版本PR，从准确tag分别发布两端并复核公开资产和更新清单。
+
+## 2026-10-22 双平台 v1.2.0 正式发布
+
+- 功能PR [#46](https://github.com/JaceHwang/QuotaBar/pull/46)与安装指南PR [#48](https://github.com/JaceHwang/QuotaBar/pull/48)已合并；准确功能提交38ce4ec和指南168da51各8项原生CI/治理检查成功。
+- Release Please重新生成版本PR [#49](https://github.com/JaceHwang/QuotaBar/pull/49)，准确head87d01d9的[原生CI39751460486](https://github.com/JaceHwang/QuotaBar/actions/runs/39751460486)与[治理39751460343](https://github.com/JaceHwang/QuotaBar/actions/runs/39751460343)全部成功。旧PR47的GitHub自动合并标题超过72字符导致治理失败，已关闭并保留记录；没有绕过门禁或人工修改版本。
+- 准确tag：`v1.2.0` → `eae7c1cc69dbeaa37aee9e447059be56d639a1c3`；共享version.txt和manifest为1.2.0，由[Release Please39752079744](https://github.com/JaceHwang/QuotaBar/actions/runs/39752079744)生成。
+- [macOS发布39752176428](https://github.com/JaceHwang/QuotaBar/actions/runs/39752176428)与[Windows发布39752647890](https://github.com/JaceHwang/QuotaBar/actions/runs/39752647890)成功，10项资产全部公开，两端availability均available。
+- 公开DMG重新下载后通过SHA256、严格签名、版本、准确tag源码快照、内嵌运行时，以及隐藏构建目录后的隔离账户真实启动退出。Windows公开ZIP通过完整文件、PE x64、来源、摘要及原生CI启动退出/安装升级回退卸载证明核验；本Mac主机没有执行Windows程序。
+- [Pages39753040666](https://github.com/JaceHwang/QuotaBar/actions/runs/39753040666)成功；[公网更新清单](https://jacehwang.github.io/QuotaBar/updates.json)GET确认两端1.2.0、准确发布链接及非空摘要/更新说明。全部10文件大小和SHA256与GitHub资产元数据一致，v1.1.0全部资产ID/大小/摘要保持不变。
+- 复核命令：`python3 scripts/verify-macos-standalone-release.py v1.2.0 <assets>`、`python3 scripts/verify-windows-standalone-release.py v1.2.0 <assets>`，均在准确tag HEAD成功。日志与公开文件保存在本机`.dist/release-download/v1.2.0`及临时发布验证日志中，不提交安装包或私人账户数据。
+
+详见[完整发布记录](releases/settings-ui-v1.2.0.md)。以上草稿/未授权状态为历史阶段，已被本次明确发布授权与实际发布证据取代。
