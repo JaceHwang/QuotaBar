@@ -23,3 +23,6 @@
 历史文档标明当时版本，不将新功能回写成旧版本已拥有。发布结果以 [GitHub Releases](https://github.com/JaceHwang/QuotaBar/releases/latest) 为准；待发布内容与已经发布的安装包分别记录。
 
 - [v1.2.0发布记录](releases/settings-ui-v1.2.0.md)：准确tag、原生构建、公开下载及更新清单核验。
+
+- [Bark 手机推送配置](BARK_MOBILE_PUSH.zh-CN.md)：开发候选第五设置页、Key 安全保存、独立通道、测试与去重。
+- [Bark 实施计划](superpowers/plans/2026-10-23-bark-mobile-push.md)与[验收记录](validation/2026-10-23-bark-mobile-push.md)：两端实现、自动化、CI及设备边界。

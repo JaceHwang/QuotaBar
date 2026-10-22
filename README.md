@@ -134,3 +134,9 @@ The development branch routes quota recovery, Bank expiry and software update re
 This is not part of the published v1.2.0. See the [validation record](docs/validation/2026-10-22-character-notification-bubbles.md) for platform evidence and remaining checks.
 
 All in-app bubble types remain visible while quota usage is unchanged; a fresh full read confirming a usage change dismisses them. Manual and lifecycle dismissal remain available.
+
+## Bark mobile push (development candidate)
+
+The fifth settings page configures one Bark Device Key in the operating system secure credential store. Automatic push defaults off; saving a key does not enable or send. Explicit phone tests use sample content. Valid recovery, Bank expiry and update reminders can reach Bark independently of desktop channels, widget visibility, lock state or bubble pause, while the app is running. Desktop previews are excluded.
+
+Existing reminder policies still apply. Durable mobile receipts prevent replay across refreshes and restarts; failures are not retried automatically. Titles, bodies and the necessary key go over HTTPS to Bark/APNs; service acceptance does not prove phone display. See the [setup and data guide](docs/BARK_MOBILE_PUSH.zh-CN.md) and [validation status](docs/validation/2026-10-23-bark-mobile-push.md). This feature is not included in public v1.2.0.

@@ -1,6 +1,6 @@
 # Bark Mobile Push Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 为 QuotaBar 接入可独立启用、安全配置、真实提醒去重的 Bark 手机推送。
 
@@ -55,10 +55,10 @@ All three implementers read this section and the approved spec. Task 1 must prov
 
 **Consumes:** Frozen interfaces, approved spec. **Produces:** The frozen API and shared sanitized JSON scenarios for payload/receipt behavior.
 
-- [ ] Add failing tests for defaults/migration, key validation, Unicode/emoji/escaping and 3000-byte boundary, response status/business/size checks, restart dedup, corrupt preservation, atomic failure, baseline suppression, 256 capacity and protected live IDs.
-- [ ] Run focused Swift Core and Windows Core tests and record meaningful RED evidence before implementation.
-- [ ] Implement minimum Core types; malformed Bark preferences must not discard unrelated existing preferences. No platform credentials or HTTP in Core.
-- [ ] Run both Core suites against shared fixtures, self-review and report commands/results/changed files to root. Root serializes the verified Core commit.
+- [x] Add failing tests for defaults/migration, key validation, Unicode/emoji/escaping and 3000-byte boundary, response status/business/size checks, restart dedup, corrupt preservation, atomic failure, baseline suppression, 256 capacity and protected live IDs.
+- [x] Run focused Swift Core and Windows Core tests and record meaningful RED evidence before implementation.
+- [x] Implement minimum Core types; malformed Bark preferences must not discard unrelated existing preferences. No platform credentials or HTTP in Core.
+- [x] Run both Core suites against shared fixtures, self-review and report commands/results/changed files to root. Root serializes the verified Core commit.
 
 Commands: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path native --filter Bark`; `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" dotnet run --project windows/QuotaBar.Core.Tests` (confirm existing test entry point).
 
@@ -68,12 +68,12 @@ Commands: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test -
 
 **Consumes:** Task1 frozen API. **Produces:** Mac fully wired feature with fake-injectable stores/transport and no real test side effects.
 
-- [ ] Add failing fake-store/transport tests: desktop off/hidden/paused still sends; preview exclusion; two-channel arrival permutations and no double shared receipt; account/config/skip/snooze cancellation, old completion isolation, no backlog when enabling.
-- [ ] Add tests for permission-independent phone, queue limits/expiration, explicit test while auto off, failed-save retaining config, clear/disable cancellation, draft persistence and old four-page fixture + fifth-page navigation.
-- [ ] Implement Keychain generic secret adapter, fixed URLSession endpoint/no redirects/10s/bounded streaming response, async serial queue32, durable attempt-before-send/no retry and sanitized statuses. Inject fakes in ALL coordinator tests; never read actual Keychain in tests. Do not initialize a real store merely to render fixtures.
-- [ ] Route Bark before desktop off gate. Track mobile vs desktop success independently, aggregate shown once. Include update snooze generation. Enabling/config changes suppress current known events and do not scan/replay. Cancel mobile before native teardown.
-- [ ] Implement fifth page with NSSecureTextField, no secret readback, save/clear/test, status/timestamp, three languages and existing card/row helpers. Preserve editing draft through refresh/rebuild. Unconfigured cannot enable, save does not auto-enable/test.
-- [ ] Run native focused tests then full Swift tests; render five pages in three languages/two themes plus narrow window, inspect images, record gaps. Root serializes commit after scoped review.
+- [x] Add failing fake-store/transport tests: desktop off/hidden/paused still sends; preview exclusion; two-channel arrival permutations and no double shared receipt; account/config/skip/snooze cancellation, old completion isolation, no backlog when enabling.
+- [x] Add tests for permission-independent phone, queue limits/expiration, explicit test while auto off, failed-save retaining config, clear/disable cancellation, draft persistence and old four-page fixture + fifth-page navigation.
+- [x] Implement Keychain generic secret adapter, fixed URLSession endpoint/no redirects/10s/bounded streaming response, async serial queue32, durable attempt-before-send/no retry and sanitized statuses. Inject fakes in ALL coordinator tests; never read actual Keychain in tests. Do not initialize a real store merely to render fixtures.
+- [x] Route Bark before desktop off gate. Track mobile vs desktop success independently, aggregate shown once. Include update snooze generation. Enabling/config changes suppress current known events and do not scan/replay. Cancel mobile before native teardown.
+- [x] Implement fifth page with NSSecureTextField, no secret readback, save/clear/test, status/timestamp, three languages and existing card/row helpers. Preserve editing draft through refresh/rebuild. Unconfigured cannot enable, save does not auto-enable/test.
+- [x] Run native focused tests then full Swift tests; render five pages in three languages/two themes plus narrow window, inspect images, record gaps. Root serializes commit after scoped review.
 
 Commands: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path native --filter Bark`; full `swift test --package-path native` (same DEVELOPER_DIR). Use an independent scratch path if concurrent Swift compilation conflicts.
 
@@ -83,11 +83,11 @@ Commands: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test -
 
 **Consumes:** Task1 frozen API. **Produces:** Windows feature parity, cross-build and native test coverage.
 
-- [ ] Add failing native fake tests matching Task2: independence, shared once receipt, restart dedup, cancellation/generation, skip/snooze, test-only example and save/clear/draft/settings states.
-- [ ] Implement current-user Credential Manager generic P/Invoke adapter without new packages, injectable fake; HttpClientHandler AllowAutoRedirect=false, timeout10s, ResponseHeadersRead + bounded stream; never persist/log raw Key or exception text.
-- [ ] Implement controller/router/update semantics matching Task2 and approved spec, preserving NotifyIcon serial updates and persistent local bubbles. Current reminder generation captured before shown callback clears snooze.
-- [ ] Append mobile page after updates, PasswordBox draft preserved, localized secure config/status/test controls and accessibility. Update all temp-data test coordinators to fake stores; no real CredRead/CredWrite in native tests.
-- [ ] Run native tests on Windows CI and local cross-build; report distinction. Provide five-page three-language/two-theme screenshots in native harness, plus narrow scrolling checks. Root serializes commit after scoped review.
+- [x] Add failing native fake tests matching Task2: independence, shared once receipt, restart dedup, cancellation/generation, skip/snooze, test-only example and save/clear/draft/settings states.
+- [x] Implement current-user Credential Manager generic P/Invoke adapter without new packages, injectable fake; HttpClientHandler AllowAutoRedirect=false, timeout10s, ResponseHeadersRead + bounded stream; never persist/log raw Key or exception text.
+- [x] Implement controller/router/update semantics matching Task2 and approved spec, preserving NotifyIcon serial updates and persistent local bubbles. Current reminder generation captured before shown callback clears snooze.
+- [x] Append mobile page after updates, PasswordBox draft preserved, localized secure config/status/test controls and accessibility. Update all temp-data test coordinators to fake stores; no real CredRead/CredWrite in native tests.
+- [x] Run native tests on Windows CI and local cross-build; report distinction. Provide five-page three-language/two-theme screenshots in native harness, plus narrow scrolling checks. Root serializes commit after scoped review.
 
 Commands: `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" dotnet build windows/QuotaBar.Windows/QuotaBar.Windows.csproj --no-restore` (restore if required); actual Windows native test entry point in `.github/workflows/ci.yml`. macOS cross-build is not native device evidence.
 
@@ -95,11 +95,11 @@ Commands: `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" dotnet build windows/
 
 **Files:** Focused integration tests/scripts only where gaps found; README.md/README.zh-CN.md, privacy and troubleshooting documents using existing paths.
 
-- [ ] Root reconciles three reports against code and frozen interfaces. Add regression tests before any integration fix; do not weaken existing tests.
-- [ ] Obtain fresh scoped reviewer for each task (spec+quality), and a separate most-capable whole-feature reviewer; resolve load-bearing findings, run relevant tests and record re-review.
-- [ ] Verify mobile attempt and desktop receipt separation, update pure-phone notified behavior, malformed prefs, crash boundary, no Key in diagnostics/receipts, no automatic example push.
-- [ ] Document external HTTPS data flow to Bark/APNs, user setup, difference between service accepted and phone shown, no retry, clear/disable, unknown results, OS secure-store errors and manual phone test.
-- [ ] Run `git diff --check`, `./governance check all`, complete Swift/Core/native build checks. Record exact unrun native/device items.
+- [x] Root reconciles three reports against code and frozen interfaces. Add regression tests before any integration fix; do not weaken existing tests.
+- [x] Obtain fresh scoped reviewer for each task (spec+quality), and a separate most-capable whole-feature reviewer; resolve load-bearing findings, run relevant tests and record re-review.
+- [x] Verify mobile attempt and desktop receipt separation, update pure-phone notified behavior, malformed prefs, crash boundary, no Key in diagnostics/receipts, no automatic example push.
+- [x] Document external HTTPS data flow to Bark/APNs, user setup, difference between service accepted and phone shown, no retry, clear/disable, unknown results, OS secure-store errors and manual phone test.
+- [x] Run `git diff --check`, `./governance check all`, complete Swift/Core/native build checks. Record exact unrun native/device items.
 
 ## Task 5: Candidate, CI and delivery record
 
