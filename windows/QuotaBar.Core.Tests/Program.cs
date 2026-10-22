@@ -128,6 +128,7 @@ var tests = new (string Name, Action Run)[] {
     })
 };
 var failed=0;
+try { BarkTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL Bark: "+e); }
 try { ExperienceTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL experience: "+e); }
 try { NotificationPresentationTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL presentation: "+e); }
 foreach(var test in tests) {

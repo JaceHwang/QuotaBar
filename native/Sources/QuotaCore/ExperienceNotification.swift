@@ -1,6 +1,7 @@
 import Foundation
 public enum ExperienceNotificationKind: Int, Sendable { case recovery = 0, bank = 1, update = 2, test = 3 }
 public struct ExperienceNotification: Sendable {
+    public let reminderGeneration: String
     public let id: String
     public var deliveryToken: String? = nil
     public let kind: ExperienceNotificationKind
@@ -9,8 +10,8 @@ public struct ExperienceNotification: Sendable {
     public let body: String
     public let createdAt: Date
     public var validUntil: Date? = nil
-    public init(id: String, kind: ExperienceNotificationKind, epoch: String?, title: String, body: String, createdAt: Date, validUntil: Date? = nil) {
-        self.id = id; self.kind = kind; self.epoch = epoch; self.title = title; self.body = body; self.createdAt = createdAt; self.validUntil = validUntil
+    public init(id: String, kind: ExperienceNotificationKind, epoch: String?, title: String, body: String, createdAt: Date, validUntil: Date? = nil, reminderGeneration: String = "initial") {
+        self.reminderGeneration = reminderGeneration; self.id = id; self.kind = kind; self.epoch = epoch; self.title = title; self.body = body; self.createdAt = createdAt; self.validUntil = validUntil
     }
     public func valid(now: Date) -> Bool {
         now >= createdAt.addingTimeInterval(-5) && (validUntil.map { now < $0 } ?? true) && (kind != .recovery || now.timeIntervalSince(createdAt) <= 300)
