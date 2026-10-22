@@ -10,7 +10,7 @@
 
 [English](README.md) · **简体中文**
 
-[下载 v1.1.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.1.0) · [安装说明](#安装) · [文档索引](docs/README.md)
+[下载 v1.2.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.2.0) · [安装说明](#安装) · [文档索引](docs/README.md)
 
 </div>
 
@@ -18,7 +18,7 @@
 
 QuotaBar 内嵌官方 Codex 0.144.1 运行时，通过隔离账户读取额度。使用官方浏览器流程登录后，即使关闭 Codex 桌面版，也能继续查询；无需单独安装 CLI 或旧插件。
 
-浮窗、菜单栏、详情和更新配图来自 macOS v1.0.1；新版侧栏设置图为已验证开发候选的原生界面渲染，使用示例数据。配图不包含凭据，也不代表 Windows 界面。
+浮窗、菜单栏、详情和更新配图来自 macOS v1.0.1；侧栏设置图为已验证布局的原生界面渲染，使用发布前测试宿主和示例数据；图中样例版本号不是当前发布版本。配图不包含凭据，也不代表 Windows 界面。
 
 ### 额度，随时可见
 
@@ -42,7 +42,7 @@ macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单�
 
 ### 独立账户，熟悉的原生设置
 
-设置分为“账户”“显示”“额度表情与管理”“更新”四个侧栏页面。开发中的设置优化采用统一右侧开关和分组布局；账户操作按登录状态显示，重新加载运行时位于“故障排查”，表情页仅保留额度相关选项和单一预览入口。公开 v1.1.0 的界面仍以下载包为准。外观支持跟随系统、浅色和深色；语言支持跟随系统、简体中文、繁体中文和英文，还可选择登录电脑后自动启动。
+设置分为“账户”“显示”“额度表情与管理”“更新”四个侧栏页面。设置采用统一右侧原生开关和分组布局；账户操作按登录状态显示，重新加载运行时位于“故障排查”，表情页仅保留额度相关选项和单一预览入口。切换语言会更新状态提示，无障碍切换也会保存偏好。外观支持跟随系统、浅色和深色；语言支持跟随系统、简体中文、繁体中文和英文，还可选择登录电脑后自动启动。
 
 <img src="docs/images/quota-settings-sidebar-zh.png" alt="macOS 新版侧栏设置原生渲染：五种表情图例、恢复提醒、小庆祝和 Bank 提醒，使用示例数据" width="900" />
 
@@ -56,12 +56,12 @@ macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单�
 
 ## 安装
 
-两端共用统一版本 **v1.1.0**。请从[最新版本发布页](https://github.com/JaceHwang/QuotaBar/releases/latest)下载安装包、校验文件及辅助文件，校验后再安装。
+两端共用统一版本 **v1.2.0**。请从[最新版本发布页](https://github.com/JaceHwang/QuotaBar/releases/latest)下载安装包、校验文件及辅助文件，校验后再安装。
 
 | 平台 | 下载 | 系统与签名 |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.1.0/codex-quota-v1.1.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
-| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.1.0/QuotaBar-1.1.0-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
+| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.2.0/codex-quota-v1.2.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
+| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.2.0/QuotaBar-1.2.0-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
 
 ### macOS
 
