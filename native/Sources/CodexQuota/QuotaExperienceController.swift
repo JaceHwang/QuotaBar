@@ -140,6 +140,7 @@ import QuotaCore
         guard router.preferences.mode.usesSystem else { return }
         requestNotificationPermission { [weak self] result in
         guard let self else { return }
+        if result.isEmpty { router.retryFailedDeliveries() }
         setNotificationStatus(result.isEmpty ? nil : ("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知"))
     } }
     private func previewBubble() {

@@ -8,6 +8,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     readonly HashSet<string> receipted=[];
     readonly HashSet<string> previews=[];
     readonly HashSet<string> consumed=[];
+    readonly HashSet<string> failedDeliveries=[];
     readonly DispatcherTimer nativeTimeout=new() { Interval=TimeSpan.FromSeconds(15) };
     readonly DispatcherTimer bubbleTimer=new() { Interval=TimeSpan.FromMilliseconds(250) };
     readonly Func<ExperienceNotification,bool> valid;
@@ -23,10 +24,16 @@ internal sealed class AppNotificationRouter : IDisposable {
     public AppNotificationRouter(Forms.NotifyIcon tray,Func<ExperienceNotification,bool> valid,Action<ExperienceNotification> clicked,Action<ExperienceNotification> shown) {
         this.tray=tray; this.valid=valid; this.clicked=clicked; this.shown=shown;
         tray.BalloonTipClicked+=Clicked; tray.BalloonTipShown+=Shown; tray.BalloonTipClosed+=Closed;
-        nativeTimeout.Tick+=(_,_)=> { nativeTimeout.Stop(); nativeActive=null; DispatchSystem(); };
+        nativeTimeout.Tick+=(_,_)=> { nativeTimeout.Stop(); if(nativeActive is { } pending&&!receipted.Contains(pending.Id)) MarkFailed(pending); nativeActive=null; DispatchSystem(); };
         bubbleTimer.Tick+=(_,_)=>Tick();
     }
-    public void Configure(NotificationPresentationPreferences value) { if(preferences==value) return; preferences=value; while(systemQueue.Next(DateTimeOffset.UtcNow)!=null) { } nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); Suspend(); Dispatch(); }
+    public void Configure(NotificationPresentationPreferences value) { if(preferences==value) return; var channelChanged=preferences.Mode!=value.Mode; preferences=value; while(systemQueue.Next(DateTimeOffset.UtcNow)!=null) { } nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); Suspend(); RetryFailedDeliveries(channelChanged); Dispatch(); }
+    public void RetryFailedDeliveries(bool allUndelivered=false) {
+        var candidates=allUndelivered?messages.Keys.ToArray():failedDeliveries.ToArray();
+        var retry=candidates.Where(id=>messages.ContainsKey(id)&&!receipted.Contains(id)&&!consumed.Contains(id)).Select(id=>messages[id]).ToArray(); failedDeliveries.Clear();
+        foreach(var m in retry) { CancelMessage(m.Id); if(valid(m)&&m.Valid(DateTimeOffset.UtcNow)) Enqueue(m); }
+    }
+    void MarkFailed(ExperienceNotification m) { if(!receipted.Contains(m.Id)) failedDeliveries.Add(m.Id); Failed?.Invoke(); }
     public void UpdateEnvironment(bool visible) { canPresent=visible; if(!visible) Suspend(); else Dispatch(); }
     public bool Preview(ExperienceNotification message) {
         if(!canPresent||stopped) return false;
@@ -71,25 +78,25 @@ internal sealed class AppNotificationRouter : IDisposable {
         while(systemQueue.Next(DateTimeOffset.UtcNow) is { } next) {
             if(!valid(next)) continue;
             nativeActive=next; nativeTimeout.Start();
-            try { if(SystemDelivery is { } send) send(next,success=> { if(stopped||!messages.TryGetValue(next.Id,out var current)||current.DeliveryToken!=next.DeliveryToken||!valid(next)) return; if(success && preferences.UsesSystem && next.Valid(DateTimeOffset.UtcNow)) Receipt(next); else if(!success) Failed?.Invoke(); }); else tray.ShowBalloonTip(10000,next.Title,next.Body,Forms.ToolTipIcon.Info); }
-            catch(InvalidOperationException) { nativeActive=null; nativeTimeout.Stop(); Failed?.Invoke(); continue; }
+            try { if(SystemDelivery is { } send) send(next,success=> { if(stopped||!messages.TryGetValue(next.Id,out var current)||current.DeliveryToken!=next.DeliveryToken||!valid(next)) return; if(success && preferences.UsesSystem && next.Valid(DateTimeOffset.UtcNow)) Receipt(next); else if(!success) MarkFailed(next); if(nativeActive?.DeliveryToken==next.DeliveryToken) { nativeActive=null; nativeTimeout.Stop(); DispatchSystem(); } }); else tray.ShowBalloonTip(10000,next.Title,next.Body,Forms.ToolTipIcon.Info); }
+            catch(InvalidOperationException) { nativeActive=null; nativeTimeout.Stop(); MarkFailed(next); continue; }
             break;
         }
     }
     void Shown(object? sender,EventArgs e) { if(nativeActive is { } m&&m.Valid(DateTimeOffset.UtcNow)) Receipt(m); }
     void Clicked(object? sender,EventArgs e) { if(nativeActive is { } m) Activate(m.Id,m.DeliveryToken); nativeActive=null; /* cooldown guards trailing native events */ }
-    void Closed(object? sender,EventArgs e) { nativeActive=null; }
+    void Closed(object? sender,EventArgs e) { if(nativeActive is { } m&&!receipted.Contains(m.Id)) MarkFailed(m); nativeActive=null; }
     public void CancelMessage(string id) {
-        var active=state.ActiveId==id; state.Forget(id); systemQueue.CancelId(id); messages.Remove(id); receipted.Remove(id); previews.Remove(id); consumed.Remove(id);
+        var active=state.ActiveId==id; state.Forget(id); systemQueue.CancelId(id); messages.Remove(id); receipted.Remove(id); previews.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id);
         if(nativeActive?.Id==id) { nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); }
         if(active) { HideBubble?.Invoke(); bubbleTimer.Stop(); } UnreadChanged?.Invoke();
     }
     public void CancelAuthenticationEpoch(string epoch) {
         systemQueue.Cancel(epoch); var active=state.ActiveId;
-        state.Cancel(epoch); foreach(var id in messages.Values.Where(m=>m.Epoch==epoch).Select(m=>m.Id).ToArray()) { messages.Remove(id); receipted.Remove(id); consumed.Remove(id); }
+        state.Cancel(epoch); foreach(var id in messages.Values.Where(m=>m.Epoch==epoch).Select(m=>m.Id).ToArray()) { messages.Remove(id); receipted.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id); }
         if(nativeActive?.Epoch==epoch) nativeActive=null;
         if(active!=state.ActiveId) { HideBubble?.Invoke(); bubbleTimer.Stop(); }
         UnreadChanged?.Invoke(); Dispatch();
     }
-    public void Dispose() { if(stopped) return; stopped=true; state.Stop(); nativeTimeout.Stop(); bubbleTimer.Stop(); nativeActive=null; HideBubble?.Invoke(); messages.Clear(); receipted.Clear(); previews.Clear(); consumed.Clear(); tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }
+    public void Dispose() { if(stopped) return; stopped=true; state.Stop(); nativeTimeout.Stop(); bubbleTimer.Stop(); nativeActive=null; HideBubble?.Invoke(); messages.Clear(); receipted.Clear(); previews.Clear(); consumed.Clear(); failedDeliveries.Clear(); tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }
 }

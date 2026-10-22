@@ -351,6 +351,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         try? diagnostic.write(to: root.appendingPathComponent("standalone-state.txt"), atomically: true, encoding: .utf8)
     }
     private func showMenu() {
+        floatingMenuVisible = true; AppNotificationRouter.shared.updateEnvironment(canPresent: false)
+        defer { floatingMenuVisible = false; render() }
         let menu = NSMenu()
         for (title, action) in [(text("Quota details", "额度详情", "額度詳情"), #selector(clicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -570,6 +572,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         defer {
             floatingMenuVisible = false
             if floating.frame?.contains(NSEvent.mouseLocation) != true { floatingInteraction.updatePointerInside(false); menuRequiresPointerExit = false }
+            render()
         }
         let menu = NSMenu()
         for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {

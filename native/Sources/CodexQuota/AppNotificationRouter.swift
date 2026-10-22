@@ -12,6 +12,7 @@ import QuotaCore
     private var received: Set<String> = []
     private var previews: Set<String> = []
     private var consumed: Set<String> = []
+    private var failedDeliveries: Set<String> = []
     private var cancelledTokens: Set<String> = []
     private var canPresent = false
     private var timer: Timer?
@@ -37,8 +38,18 @@ import QuotaCore
         if center != nil { center?.delegate = self }
     }
     func configure(_ value: NotificationPresentationPreferences) {
+        let channelChanged = preferences.mode != value.mode
         defaults.set(try? JSONEncoder().encode(value), forKey: "notifications.presentation")
-        suspend(); dispatch()
+        suspend(); retryFailedDeliveries(allUndelivered: channelChanged); dispatch()
+    }
+    func retryFailedDeliveries(allUndelivered: Bool = false) {
+        let candidates = allUndelivered ? Array(deliveries.values) : failedDeliveries.compactMap { deliveries[$0] }
+        let retry = candidates.filter { !received.contains($0.message.id) && !consumed.contains($0.message.id) }
+        failedDeliveries = []
+        for d in retry {
+            cancelMessage(id: d.message.id)
+            if d.valid(), d.message.valid(now: Date()) { enqueue(d.message, valid: d.valid, failed: d.failed, shown: d.shown, action: d.action) }
+        }
     }
     func requestPermission(completion: @escaping (String) -> Void) {
         guard preferences.mode.usesSystem else { completion(""); return }
@@ -71,7 +82,7 @@ import QuotaCore
         if preferences.mode.usesSystem && !forceBubble {
             let done: (Bool) -> Void = { [weak self] success in
                 guard let self, !stopped, let d = deliveries[m.id], d.message.deliveryToken == m.deliveryToken, d.valid(), m.valid(now: Date()) else { return }
-                if success { receipt(m.id, token: m.deliveryToken) } else { d.failed() }
+                if success { failedDeliveries.remove(m.id); receipt(m.id, token: m.deliveryToken) } else { if !received.contains(m.id) { failedDeliveries.insert(m.id) }; d.failed() }
             }
             if let sendSystem { sendSystem(m, done) } else { deliverSystem(m, done: done) }
         }
@@ -146,7 +157,7 @@ import QuotaCore
         let active = state.activeID == id
         if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; if cancelledTokens.count > 256 { cancelledTokens = Set(cancelledTokens.sorted().suffix(128)) }
         let identifiers = [id, id + "." + (deliveries[id]?.message.deliveryToken ?? "")]
-        consumed.remove(id); state.forget(id: id); deliveries.removeValue(forKey: id); received.remove(id); previews.remove(id)
+        consumed.remove(id); failedDeliveries.remove(id); state.forget(id: id); deliveries.removeValue(forKey: id); received.remove(id); previews.remove(id)
         center?.removeDeliveredNotifications(withIdentifiers: identifiers); center?.removePendingNotificationRequests(withIdentifiers: identifiers)
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?()
@@ -157,12 +168,13 @@ import QuotaCore
         let identifiers = ids.flatMap { [$0, $0 + "." + (deliveries[$0]?.message.deliveryToken ?? "")] }
         for id in ids { if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; consumed.remove(id) }
         state.cancel(epoch: epoch)
-        for id in ids { deliveries.removeValue(forKey: id); received.remove(id) }
+        for id in ids { deliveries.removeValue(forKey: id); received.remove(id); failedDeliveries.remove(id) }
+        if cancelledTokens.count > 256 { cancelledTokens = Set(cancelledTokens.sorted().suffix(128)) }
         center?.removeDeliveredNotifications(withIdentifiers: identifiers); center?.removePendingNotificationRequests(withIdentifiers: identifiers)
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?(); dispatch()
     }
-    func stop() { stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = []; consumed = []; cancelledTokens = [] }
+    func stop() { stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = []; consumed = []; cancelledTokens = []; failedDeliveries = [] }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let id = response.notification.request.content.userInfo["id"] as? String
         let version = response.notification.request.content.userInfo["version"] as? String

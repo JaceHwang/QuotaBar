@@ -48,6 +48,10 @@ internal static class Program {
                 var completions=new System.Collections.Generic.List<Action<bool>>(); router.SystemDelivery=(_,done)=>completions.Add(done);
                 router.Enqueue(m with { Id="reuse" }); router.CancelMessage("reuse"); router.Enqueue(m with { Id="reuse" });
                 var beforeReceipts=receipts; completions[0](true); Check(receipts==beforeReceipts,"old generation cannot receipt new message"); completions[1](true); Check(receipts==beforeReceipts+1,"current generation receipts");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.System });
+                router.SystemDelivery=(_,done)=>done(false); router.Enqueue(m with { Id="failed-update",Kind=ExperienceNotificationKind.Update,Epoch=null });
+                var beforePresentations=presentations; router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                Check(presentations==beforePresentations+1,"explicit channel change retries failed event");
             }
             using(var bubble = new CharacterNotificationBubble()) {
                 var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
@@ -58,8 +62,11 @@ internal static class Program {
                     Check(Tree(bubble).OfType<QuotaMoodView>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
                     var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
                     foreach(var scale in new[]{1d,1.5d,2d}) {
-                        var bitmap=new RenderTargetBitmap((int)(368*scale),(int)(180*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(bubble.Content as System.Windows.Media.Visual);
-                        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-{language}-{dark}-{scale}.png")); encoder.Save(file);
+                        var content=(FrameworkElement)bubble.Content; bubble.Content=null; content.Measure(new Size(368,180)); content.Arrange(new Rect(0,0,368,180)); content.UpdateLayout();
+                        var bitmap=new RenderTargetBitmap((int)(368*scale),(int)(180*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
+                        var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4]; bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
+                        Check(Enumerable.Range(0,pixels.Length/4).Count(i=>pixels[i*4+3]>0)>pixels.Length/16,"bubble screenshot contains visible content");
+                        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-{language}-{dark}-{scale}.png")); encoder.Save(file); bubble.Content=content;
                     }
                 }
             }
@@ -109,6 +116,7 @@ internal static class Program {
             Check(File.ReadAllBytes(Path.Combine(output,"tray-light.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(output,"tray-dark.png"))),"same circular tray pixels across themes");
             var updateRoot=Path.Combine(Path.GetTempPath(),"quotabar-update-ui-"+Guid.NewGuid());
             using(var owner=new Coordinator(app,updateRoot,new HttpClient(new InterruptedFeedHandler()))) {
+                Check(owner.Notifications.PresentBubble?.Invoke(new ExperienceNotification("guard",ExperienceNotificationKind.Test,null,"Example","",DateTimeOffset.UtcNow))==false,"presentation rechecks hidden or cloaked floating anchor");
                 owner.Updates.Check(true);
                 var deadline=DateTime.UtcNow.AddSeconds(5);
                 while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();

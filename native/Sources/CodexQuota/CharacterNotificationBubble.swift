@@ -89,7 +89,9 @@ private final class BubbleActionButton: NSButton { var messageID = ""; var token
         panel.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : 0
         panel.orderFrontRegardless(); isVisible = true
         if panel.alphaValue == 0 { NSAnimationContext.runAnimationGroup { c in c.duration = 0.15; panel.animator().alphaValue = 1 } }
-        return panel.isVisible
+        isVisible = panel.isVisible && panel.isOnActiveSpace
+        if !isVisible { panel.orderOut(nil) }
+        return isVisible
     }
     func contains(_ point: CGPoint) -> Bool { panel.isVisible && panel.frame.contains(point) }
     func dismiss() { panel.orderOut(nil); isVisible = false; onInteractionChanged?(false) }

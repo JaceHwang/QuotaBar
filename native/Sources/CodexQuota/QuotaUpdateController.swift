@@ -152,6 +152,7 @@ final class QuotaUpdateController: NSObject {
         AppNotificationRouter.shared.requestPermission { [weak self] result in
             guard let self else { return }
             if !result.isEmpty { status = text("System notifications unavailable; bubbles remain available", "系统通知不可用，仍可使用气泡提醒", "系統通知無法使用，仍可使用氣泡提醒") }
+            if result.isEmpty { AppNotificationRouter.shared.retryFailedDeliveries() }
             refreshView(); notifyIfNeeded()
         }
     }

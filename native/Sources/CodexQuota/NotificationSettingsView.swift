@@ -35,6 +35,7 @@ import QuotaCore
         var value = router.preferences; value.mode = NotificationDeliveryMode.allCases[sender.indexOfSelectedItem]; router.configure(value)
         router.requestPermission { [weak self] result in
             guard let self else { return }
+            if result.isEmpty { router.retryFailedDeliveries() }
             status.stringValue = result.isEmpty ? "" : copy.text("System notifications unavailable. Bubbles do not require permission.", "系统通知不可用；气泡不需要通知权限。", "系統通知無法使用；氣泡不需要通知權限。")
         }
     }

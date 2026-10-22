@@ -85,4 +85,18 @@ import QuotaCore
         completions[1](true); XCTAssertEqual(newReceipts, 1)
     }
 
+    func testFailedSystemDeliveryRearmsOnlyOnExplicitChannelChange() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "FailureRecovery.\(UUID())")!); defer { router.stop() }
+        router.configure(NotificationPresentationPreferences(mode: .system))
+        var attempts = 0, bubbles = 0
+        router.sendSystem = { _, done in attempts += 1; done(false) }
+        router.presentBubble = { _ in bubbles += 1; return true }; router.updateEnvironment(canPresent: true)
+        let m = ExperienceNotification(id: "retry-update", kind: .update, epoch: nil, title: "Update", body: "", createdAt: Date())
+        router.enqueue(m, valid: { true }, failed: {})
+        router.enqueue(m, valid: { true }, failed: {})
+        XCTAssertEqual(attempts, 1, "No automatic failure loop")
+        router.configure(NotificationPresentationPreferences(mode: .bubble))
+        XCTAssertEqual(bubbles, 1, "Explicit channel change retries an undelivered event")
+    }
+
 }
