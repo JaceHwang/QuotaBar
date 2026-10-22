@@ -45,7 +45,7 @@ public sealed class NotificationPresentationState {
     public void SetInteracting(bool value,DateTimeOffset now) { }
     public bool Tick(DateTimeOffset now) { Prune(now); return false; }
     public bool ObserveQuota(QuotaObservation observation,DateTimeOffset now) {
-        if(stopped||observation.Source!=ObservationSource.FullRead||(now-observation.ReceivedAt).TotalSeconds is < -5 or >120||!double.IsFinite(observation.Quota.Primary.UsedPercent)||observation.Quota.Primary.UsedPercent<0||observation.Quota.Secondary is { } secondary&&(!double.IsFinite(secondary.UsedPercent)||secondary.UsedPercent<0)) return false;
+        if(stopped||observation.Source!=ObservationSource.FullRead||(now-observation.ReceivedAt).TotalSeconds is < -5 or >120||!double.IsFinite(observation.Quota.Primary.UsedPercent)||observation.Quota.Primary.UsedPercent is <0 or >100||observation.Quota.Secondary is { } secondary&&(!double.IsFinite(secondary.UsedPercent)||secondary.UsedPercent is <0 or >100)) return false;
         var previous=quotaBaseline;
         if(previous?.Epoch==observation.Epoch&&(observation.Sequence<=previous.Sequence||observation.ReceivedAt<previous.ReceivedAt)) return false;
         var changed=previous?.Epoch==observation.Epoch&&(previous.Quota.Primary.UsedPercent!=observation.Quota.Primary.UsedPercent||(previous.Quota.Secondary is { } old&&observation.Quota.Secondary is { } current&&old.UsedPercent!=current.UsedPercent));

@@ -22,11 +22,22 @@ static class NotificationPresentationTests {
             held.Enqueue(M("held",kind),true,now); held.Next(true,now); held.Shown("held",now);
             Check(!held.Tick(now.AddHours(25))&&held.ActiveId=="held","all kinds remain beyond timer and retention");
             Check(!held.ObserveQuota(O(20,2,now.AddSeconds(60)),now.AddSeconds(60)),"timestamp alone unchanged");
+            Check(!held.ObserveQuota(O(101,3,now.AddSeconds(65)),now.AddSeconds(65))&&held.ActiveId=="held","invalid percentage ignored");
+            Check(!held.ObserveQuota(O(20,4,now.AddSeconds(66)),now.AddSeconds(66)),"invalid observation did not replace baseline");
             Check(!held.ObserveQuota(O(21,3,now.AddSeconds(70),ObservationSource.Notification),now.AddSeconds(70)),"partial notification ignored");
             Check(!held.ObserveQuota(O(21,1,now),now.AddSeconds(80)),"late sequence ignored");
             Check(!held.ObserveQuota(O(21,3,now),now.AddSeconds(180)),"stale observation ignored");
-            Check(held.ObserveQuota(O(20.1,4,now.AddSeconds(120)),now.AddSeconds(120))&&held.ActiveId==null,"raw quota change dismisses");
+            Check(held.ObserveQuota(O(20.1,10,now.AddSeconds(120)),now.AddSeconds(120))&&held.ActiveId==null,"raw quota change dismisses");
         }
+        var optional=new NotificationPresentationState();
+        QuotaObservation S(double? secondary,long sequence,string epoch="a")=>new(epoch,sequence,now,new(new(20,80,now,300),secondary is { } used?new(used,50,now,10080):null,null,null,null,now));
+        optional.ObserveQuota(S(40,1),now); optional.Enqueue(M("secondary"),true,now); optional.Next(true,now); optional.Shown("secondary",now);
+        Check(!optional.ObserveQuota(S(null,2),now),"missing secondary is unknown");
+        Check(!optional.ObserveQuota(S(101,3),now)&&optional.ActiveId=="secondary","invalid secondary ignored");
+        Check(optional.ObserveQuota(S(41,4),now),"known secondary comparison survives omission and invalid response");
+        optional.Enqueue(M("epoch-update",ExperienceNotificationKind.Update),true,now); optional.Next(true,now);
+        Check(!optional.ObserveQuota(S(90,1,"b"),now)&&optional.ActiveId=="epoch-update","new epoch establishes baseline");
+        optional.Stop(); Check(!optional.ObserveQuota(S(91,2,"b"),now),"stopped observation ignored");
         var rect=NotificationBubbleLayout.Place(new(-100,550,90,30),new(-800,0,800,600),368,150);
         Check(rect is { } r && r.X>=-792 && r.X+r.Width<=-8 && r.Y+r.Height==542,"placement");
         Check(NotificationBubbleLayout.Place(new(0,0,10,30),new(0,0,200,100),368,150)==null,"narrow");

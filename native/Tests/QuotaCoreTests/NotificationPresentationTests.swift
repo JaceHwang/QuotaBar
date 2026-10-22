@@ -62,10 +62,13 @@ final class NotificationPresentationTests: XCTestCase {
             XCTAssertFalse(state.tick(now: now.addingTimeInterval(90000)))
             XCTAssertEqual(state.activeID, "held")
             XCTAssertFalse(state.observeQuota(observation(20, 2, now.addingTimeInterval(60)), now: now.addingTimeInterval(60)))
+            XCTAssertFalse(state.observeQuota(observation(101, 3, now.addingTimeInterval(65)), now: now.addingTimeInterval(65)))
+            XCTAssertEqual(state.activeID, "held")
+            XCTAssertFalse(state.observeQuota(observation(20, 4, now.addingTimeInterval(66)), now: now.addingTimeInterval(66)))
             XCTAssertFalse(state.observeQuota(observation(21, 3, now.addingTimeInterval(70), source: .notification), now: now.addingTimeInterval(70)))
             XCTAssertFalse(state.observeQuota(observation(21, 1, now), now: now.addingTimeInterval(80)))
             XCTAssertFalse(state.observeQuota(observation(21, 3, now), now: now.addingTimeInterval(180)))
-            XCTAssertTrue(state.observeQuota(observation(20.1, 4, now.addingTimeInterval(120)), now: now.addingTimeInterval(120)))
+            XCTAssertTrue(state.observeQuota(observation(20.1, 10, now.addingTimeInterval(120)), now: now.addingTimeInterval(120)))
             XCTAssertNil(state.activeID)
         }
     }

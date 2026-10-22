@@ -64,8 +64,8 @@ public struct NotificationPresentationState: Sendable {
               now.timeIntervalSince(observation.receivedAt) >= -5,
               now.timeIntervalSince(observation.receivedAt) <= 120,
               observation.quota.primary.usedPercent.isFinite,
-              observation.quota.primary.usedPercent >= 0,
-              observation.quota.secondary.map({ $0.usedPercent.isFinite && $0.usedPercent >= 0 }) ?? true else { return false }
+              observation.quota.primary.usedPercent >= 0, observation.quota.primary.usedPercent <= 100,
+              observation.quota.secondary.map({ $0.usedPercent.isFinite && $0.usedPercent >= 0 && $0.usedPercent <= 100 }) ?? true else { return false }
         let previous = quotaBaseline
         if let previous, previous.epoch == observation.epoch {
             guard observation.sequence > previous.sequence, observation.receivedAt >= previous.receivedAt else { return false }
