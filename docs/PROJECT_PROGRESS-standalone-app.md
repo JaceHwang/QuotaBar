@@ -581,3 +581,5 @@ PR #39以81564ea合并；d34e335上的push与PR两轮CI均通过macOS Xcode26.5�
 证据：`./governance doctor`通过（hooks active）；MemoraX聚焦查询无记忆上下文，当前行为以现场源码为准。本阶段仅文档，未执行产品代码变更、原生CI、设备或安装验证，不将过去v1.2.0验证当作新功能通过。
 
 规格阶段基线验证：`./governance check all`首轮因当前PATH缺少dotnet退出127，配置既有本地.NET路径后完整重跑通过；现有Swift Core/AppKit、Windows Core 14/14及协议/账户/安装事务检查通过。以上仅证明改造前基线正常，新气泡功能尚未实现或验证。
+
+用户随后明确要求“实施开发”，视为详细规格确认。已据此完成[实施计划](superpowers/plans/2026-10-22-character-notification-bubbles.md)，包含6项可独立验证任务、共享接口、失败测试与回归命令。writing-plans要求计划审阅及执行方式确认后才进入产品代码；已提出当前会话原生执行建议，当前待该确认。没有新增代码、安装或发布。
