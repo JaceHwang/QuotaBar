@@ -51,6 +51,7 @@ import QuotaCore
         sequence += 1
         let o = QuotaObservation(epoch: engine.state.epoch, sequence: sequence, receivedAt: quota.receivedAt, quota: quota, bankFieldState: bank)
         lastObservation = o
+        router.observeQuota(o)
         let result = engine.observe(o, now: Date())
         guard persist() else { return }
         if !result.recoveries.isEmpty {

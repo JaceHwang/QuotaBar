@@ -132,3 +132,5 @@ Enabling either recovery notifications or celebrations permits one notification 
 The development branch routes quota recovery, Bank expiry and software update reminders into character speech bubbles beside the floating button. Select bubbles, system notifications, both, or off; existing reminder switches and skipped-version records are preserved. Hidden or locked screens retain unread reminders for the current run without opening the widget. Bubbles can be paused for an hour and do not automatically inherit system Focus. Previews use sample data.
 
 This is not part of the published v1.2.0. See the [validation record](docs/validation/2026-10-22-character-notification-bubbles.md) for platform evidence and remaining checks.
+
+All in-app bubble types remain visible while quota usage is unchanged; a fresh full read confirming a usage change dismisses them. Manual and lifecycle dismissal remain available.

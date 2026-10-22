@@ -4,6 +4,22 @@ import QuotaCore
 @testable import CodexQuota
 
 @MainActor final class NotificationRoutingTests: XCTestCase {
+    func testQuotaChangeHidesAllBubbleKindsButSameReadKeepsThem() {
+        for kind in [ExperienceNotificationKind.recovery, .bank, .update, .test] {
+            let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "Held.\(UUID())")!); defer { router.stop() }
+            var hidden = 0
+            router.presentBubble = { _ in true }; router.hideBubble = { hidden += 1 }
+            router.updateEnvironment(canPresent: true)
+            func observation(_ used: Double, _ sequence: Int) -> QuotaObservation {
+                let date = Date()
+                return QuotaObservation(epoch: "a", sequence: sequence, receivedAt: date, quota: AllowanceSnapshot(usedPercent: used, remainingPercent: 80, resetsAt: date.addingTimeInterval(3600), receivedAt: date))
+            }
+            router.observeQuota(observation(20, 1))
+            router.enqueue(ExperienceNotification(id: "held", kind: kind, epoch: "a", title: "Held", body: "", createdAt: Date()), valid: { true }, failed: {})
+            router.observeQuota(observation(20, 2)); router.tick(); XCTAssertEqual(hidden, 0)
+            router.observeQuota(observation(21, 3)); XCTAssertEqual(hidden, 1)
+        }
+    }
     func testBubbleDoesNotRequestSystemPermissionAndHiddenDoesNotMarkShown() {
         let defaults = UserDefaults(suiteName: "BubbleRouting.\(UUID())")!
         let router = AppNotificationRouter(defaults: defaults)

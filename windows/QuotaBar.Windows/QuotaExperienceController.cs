@@ -30,7 +30,7 @@ internal sealed class QuotaExperienceController {
         owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.RotateEpoch(); sequence=0; lastObservation=null; owner.CancelCelebration(); Persist();
     }
     public void Receive(QuotaObservation observation) {
-        var o=observation with { Epoch=engine.State.Epoch,Sequence=++sequence }; lastObservation=o;
+        var o=observation with { Epoch=engine.State.Epoch,Sequence=++sequence }; lastObservation=o; owner.Notifications.ObserveQuota(o);
         var result=engine.Observe(o,DateTimeOffset.UtcNow);
         if(!Persist()) return;
         if(result.Recoveries.Count>0) {

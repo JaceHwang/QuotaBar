@@ -10,7 +10,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     readonly HashSet<string> consumed=[];
     readonly HashSet<string> failedDeliveries=[];
     readonly DispatcherTimer nativeTimeout=new() { Interval=TimeSpan.FromSeconds(15) };
-    readonly DispatcherTimer bubbleTimer=new() { Interval=TimeSpan.FromMilliseconds(250) };
+    readonly DispatcherTimer bubbleTimer=new() { Interval=TimeSpan.FromSeconds(1) };
     readonly Func<ExperienceNotification,bool> valid;
     readonly Action<ExperienceNotification> clicked,shown;
     ExperienceNotification? nativeActive;
@@ -63,6 +63,10 @@ internal sealed class AppNotificationRouter : IDisposable {
         if(state.ActiveId is { } id&&(!messages.TryGetValue(id,out var m)||!valid(m)&&!previews.Contains(id))) { state.Dismiss(id,false); HideBubble?.Invoke(); }
         if(state.Tick(DateTimeOffset.UtcNow)) { previews.Clear(); HideBubble?.Invoke(); UnreadChanged?.Invoke(); }
         if(state.ActiveId==null) { bubbleTimer.Stop(); Dispatch(); }
+    }
+    public void ObserveQuota(QuotaObservation observation) {
+        if(!state.ObserveQuota(observation,DateTimeOffset.UtcNow)) return;
+        previews.Clear(); bubbleTimer.Stop(); HideBubble?.Invoke(); UnreadChanged?.Invoke(); Dispatch();
     }
     public void SetInteracting(bool value)=>state.SetInteracting(value,DateTimeOffset.UtcNow);
     public void Suspend() { previews.Clear(); state.Suspend(); bubbleTimer.Stop(); HideBubble?.Invoke(); }

@@ -119,7 +119,7 @@ import QuotaCore
             guard presentBubble?(m) == true else { state.suspend(); break }
             state.shown(id: m.id, now: Date()); receipt(m.id, token: m.deliveryToken)
             timer?.invalidate()
-            timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
+            timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
             RunLoop.main.add(timer!, forMode: .common)
             break
         }
@@ -128,6 +128,10 @@ import QuotaCore
         if let id = state.activeID, deliveries[id]?.valid() != true { state.dismiss(id: id, read: false); hideBubble?() }
         if state.tick(now: Date()) { previews = []; hideBubble?(); onUnreadChange?() }
         if state.activeID == nil { timer?.invalidate(); timer = nil; dispatch() }
+    }
+    func observeQuota(_ observation: QuotaObservation) {
+        guard state.observeQuota(observation, now: Date()) else { return }
+        previews = []; timer?.invalidate(); timer = nil; hideBubble?(); onUnreadChange?(); dispatch()
     }
     func setInteracting(_ value: Bool) { state.setInteracting(value, now: Date()) }
     func dismiss(id: String, read: Bool, token: String? = nil) {

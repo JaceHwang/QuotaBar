@@ -28,9 +28,7 @@ public struct NotificationPresentationState: Sendable {
     private struct Entry: Sendable { let message: ExperienceNotification; var deferred: Bool; var presented = false; var read = false }
     private var entries: [Entry] = []
     public private(set) var activeID: String?
-    private var deadline: Date?
-    private var remaining: TimeInterval = 0
-    private var interacting = false
+    private var quotaBaseline: QuotaObservation?
     private var stopped = false
     public init() {}
     public mutating func enqueue(_ m: ExperienceNotification, canPresent: Bool, now: Date) {
@@ -47,27 +45,43 @@ public struct NotificationPresentationState: Sendable {
         guard !stopped, canPresent, activeID == nil else { return nil }
         let candidates = entries.indices.filter { !entries[$0].deferred && !entries[$0].presented && !entries[$0].read && entries[$0].message.valid(now: now) }
         guard let i = candidates.min(by: { entries[$0].message.kind.rawValue < entries[$1].message.kind.rawValue }) else { return nil }
-        activeID = entries[i].message.id; remaining = [.bank, .update].contains(entries[i].message.kind) ? 10 : 6
-        deadline = nil; interacting = false
+        activeID = entries[i].message.id
         return entries[i].message
     }
     public mutating func shown(id: String, now: Date) {
         guard activeID == id, let i = entries.firstIndex(where: { $0.message.id == id }) else { return }
-        entries[i].presented = true; deadline = now.addingTimeInterval(remaining)
+        entries[i].presented = true
     }
     public mutating func dismiss(id: String, read: Bool) {
         if let i = entries.firstIndex(where: { $0.message.id == id }) { entries[i].read = read || entries[i].read; entries[i].deferred = true }
-        if activeID == id { activeID = nil; deadline = nil; interacting = false }
+        if activeID == id { activeID = nil }
     }
-    public mutating func setInteracting(_ value: Bool, now: Date) {
-        guard activeID != nil, value != interacting else { return }
-        if value { if let deadline { remaining = max(0, deadline.timeIntervalSince(now)) }; deadline = nil }
-        else { deadline = now.addingTimeInterval(remaining) }
-        interacting = value
-    }
-    @discardableResult public mutating func tick(now: Date) -> Bool {
-        prune(now)
-        guard let id = activeID, let deadline, now >= deadline else { return false }
+    // All bubble kinds are held until a fresh full read proves a quota change.
+    public mutating func setInteracting(_ value: Bool, now: Date) {}
+    @discardableResult public mutating func tick(now: Date) -> Bool { prune(now); return false }
+    @discardableResult public mutating func observeQuota(_ observation: QuotaObservation, now: Date) -> Bool {
+        guard !stopped, observation.source == .fullRead,
+              now.timeIntervalSince(observation.receivedAt) >= -5,
+              now.timeIntervalSince(observation.receivedAt) <= 120,
+              observation.quota.primary.usedPercent.isFinite,
+              observation.quota.primary.usedPercent >= 0,
+              observation.quota.secondary.map({ $0.usedPercent.isFinite && $0.usedPercent >= 0 }) ?? true else { return false }
+        let previous = quotaBaseline
+        if let previous, previous.epoch == observation.epoch {
+            guard observation.sequence > previous.sequence, observation.receivedAt >= previous.receivedAt else { return false }
+        }
+        let changed = previous.map { old in
+            old.epoch == observation.epoch &&
+            (old.quota.primary.usedPercent != observation.quota.primary.usedPercent ||
+             (old.quota.secondary != nil && observation.quota.secondary != nil && old.quota.secondary?.usedPercent != observation.quota.secondary?.usedPercent))
+        } ?? false
+        // Missing optional periods are unknown, not zero. Preserve only their comparison baseline.
+        var quota = observation.quota
+        if quota.secondary == nil, let previous, previous.epoch == observation.epoch {
+            quota = AllowanceSnapshot(usedPercent: quota.primary.usedPercent, remainingPercent: quota.primary.remainingPercent, resetsAt: quota.primary.resetsAt, receivedAt: quota.receivedAt, windowDurationMins: quota.primary.windowDurationMins, planType: quota.planType, secondary: previous.quota.secondary)
+        }
+        quotaBaseline = QuotaObservation(epoch: observation.epoch, sequence: observation.sequence, receivedAt: observation.receivedAt, quota: quota, source: .fullRead)
+        guard changed, let id = activeID else { return false }
         dismiss(id: id, read: false); return true
     }
     public mutating func suspend() { if let id = activeID { dismiss(id: id, read: false) } }
@@ -82,7 +96,6 @@ public struct NotificationPresentationState: Sendable {
     }
     public mutating func stop() { suspend(); entries = []; stopped = true }
     private mutating func prune(_ now: Date) {
-        if let id = activeID, entries.contains(where: { $0.message.id == id && now.timeIntervalSince($0.message.createdAt) > 86400 }) { suspend() }
-        entries.removeAll { now.timeIntervalSince($0.message.createdAt) > 86400 }
+        entries.removeAll { $0.message.id != activeID && now.timeIntervalSince($0.message.createdAt) > 86400 }
     }
 }

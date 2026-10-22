@@ -53,6 +53,13 @@ internal static class Program {
                 var beforePresentations=presentations; router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
                 Check(presentations==beforePresentations+1,"explicit channel change retries failed event");
             }
+            using(var heldRouter=new AppNotificationRouter(new System.Windows.Forms.NotifyIcon(),_=>true,_=>{},_=>{})) {
+                var hidden=0; heldRouter.PresentBubble=_=>true; heldRouter.HideBubble=()=>hidden++; heldRouter.UpdateEnvironment(true);
+                QuotaObservation O(double used,long sequence) { var at=DateTimeOffset.UtcNow; return new("a",sequence,at,new(new(used,80,at.AddHours(1),300),null,null,null,null,at)); }
+                heldRouter.ObserveQuota(O(20,1)); heldRouter.Enqueue(new("held",ExperienceNotificationKind.Test,"a","Held","",DateTimeOffset.UtcNow));
+                heldRouter.ObserveQuota(O(20,2)); Check(hidden==0,"same quota keeps actual router bubble");
+                heldRouter.ObserveQuota(O(21,3)); Check(hidden==1,"quota change hides actual router bubble");
+            }
             using(var bubble = new CharacterNotificationBubble()) {
                 var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
                 foreach(var dark in new[]{false,true}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
