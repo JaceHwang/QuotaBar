@@ -7,16 +7,23 @@ internal sealed class QuotaExperienceController {
     long sequence;
     TextBlock? statusLabel;
     bool storageReady;
+    enum SettingsStatus { None, StorageUnavailable, NotificationsUnavailable }
+    SettingsStatus settingsStatus;
+    string CurrentStatus=>settingsStatus switch {
+        SettingsStatus.StorageUnavailable=>Copy.Text("Could not save reminder state; no alert sent","无法保存提醒状态，本次未发提醒","無法儲存提醒狀態，本次未發提醒"),
+        SettingsStatus.NotificationsUnavailable=>Copy.Text("System notifications unavailable; check system settings","系统提醒不可用，请检查系统设置","系統提醒不可用，請檢查系統設定"),
+        _=>""
+    };
     public QuotaExperienceController(Coordinator owner,string root) {
         this.owner=owner; store=new(Path.Combine(root,"experience-state.json")); var state=store.Load(); engine=new(state,store.Corrupted); engine.Configure(owner.Preferences.Experience); Persist();
     }
     ExperienceCopy Copy=>new(owner.Preferences.Language);
     bool Persist() {
-        try { store.Save(engine.State); storageReady=true; return true; }
-        catch(Exception e) when(e is IOException or UnauthorizedAccessException) { storageReady=false; Status(Copy.Text("Could not save reminder state; no alert sent","无法保存提醒状态，本次未发提醒","無法儲存提醒狀態，本次未發提醒")); return false; }
+        try { store.Save(engine.State); storageReady=true; if(settingsStatus==SettingsStatus.StorageUnavailable) Status(SettingsStatus.None); return true; }
+        catch(Exception e) when(e is IOException or UnauthorizedAccessException) { storageReady=false; Status(SettingsStatus.StorageUnavailable); return false; }
     }
-    void Status(string text) { if(statusLabel is not null) statusLabel.Text=text; }
-    public void NotificationFailed()=>Status(Copy.Text("System notifications unavailable; check system settings","系统提醒不可用，请检查系统设置","系統提醒不可用，請檢查系統設定"));
+    void Status(SettingsStatus status) { settingsStatus=status; if(statusLabel is not null) statusLabel.Text=CurrentStatus; }
+    public void NotificationFailed()=>Status(SettingsStatus.NotificationsUnavailable);
     public void Configure() { engine.Configure(owner.Preferences.Experience); if(!engine.Preferences.Celebration) owner.CancelCelebration(); }
     public void ResetBaseline() { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.ResetBaseline(); lastObservation=null; owner.CancelCelebration(); }
     public void ClearAccount() {
@@ -52,40 +59,40 @@ internal sealed class QuotaExperienceController {
         var hints=new[]{copy.Text("Show the battery character for your current quota.","根据当前额度状态，显示对应的电池表情。","根據目前額度狀態，顯示對應的電池表情。"),copy.Text("A system notification after confirmed recovery.","额度确认恢复时，显示系统通知。","額度確認恢復時，顯示系統通知。"),copy.Text("A brief celebration with one recovery notification.","播放短暂庆祝，并同步一条恢复通知。","播放短暫慶祝，並同步一條恢復通知。"),copy.Text("Known credits only; never redeem automatically.","仅提醒已知权益，不会自动兑换。","僅提醒已知權益，不會自動兌換。")};
         var values=new[]{p.Moods,p.Recovery,p.Celebration,p.Bank};
         for(var i=0;i<4;i++) {
-            var index=i; var row=new Grid { Margin=new Thickness(0,10,0,10) }; row.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) }); row.ColumnDefinitions.Add(new() { Width=new GridLength(1.1,GridUnitType.Star) });
-            var left=new StackPanel { VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,16,0) };
-            left.Children.Add(SettingsVisual.Toggle(titles[i],values[i],fg,on=> {
+            var index=i; var row=new StackPanel { Margin=new Thickness(0,8,0,12) };
+            row.Children.Add(SettingsVisual.Toggle(titles[i],values[i],fg,on=> {
                 var next=owner.Preferences.Experience;
                 next=index switch { 0=>next with { Moods=on },1=>next with { Recovery=on },2=>next with { Celebration=on },_=>next with { Bank=on } };
                 owner.Save(owner.Preferences with { Experience=next },false);
             }));
-            var hint=Ui.Text(hints[i],11,muted); hint.TextWrapping=TextWrapping.Wrap; hint.Margin=new Thickness(0,10,0,0); left.Children.Add(hint); row.Children.Add(left);
+            var hint=Ui.Text(hints[i],11,muted); hint.TextWrapping=TextWrapping.Wrap; hint.Margin=new Thickness(0,0,0,10); row.Children.Add(hint);
             UIElement right;
             if(i==0) {
-                var legend=new System.Windows.Controls.Primitives.UniformGrid { Columns=5,VerticalAlignment=VerticalAlignment.Center };
+                var legend=new System.Windows.Controls.Primitives.UniformGrid { Columns=5,Width=360,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center };
                 var states=new[]{QuotaMood.Good,QuotaMood.Low,QuotaMood.Exhausted,QuotaMood.Unavailable,QuotaMood.Recovered};
                 var labels=new[]{copy.Text("Good","充足","充足"),copy.Text("Low","偏低","偏低"),copy.Text("Empty","耗尽","耗盡"),copy.Text("Unavailable","不可用","無法使用"),copy.Text("Restored","恢复","恢復")};
                 for(var j=0;j<states.Length;j++) {
-                    var item=new StackPanel { HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(2,0,2,0) }; var icon=new QuotaMoodView { Width=42,Height=42,Mood=states[j],Dark=dark,Stars=states[j]==QuotaMood.Recovered };
+                    var item=new StackPanel { HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(2,0,2,0) }; var icon=new QuotaMoodView { Width=36,Height=36,Mood=states[j],Dark=dark,Stars=states[j]==QuotaMood.Recovered };
                     System.Windows.Automation.AutomationProperties.SetName(icon,Copy.MoodLabel(states[j])); item.Children.Add(icon);
                     var label=Ui.Text(labels[j],10,fg); label.HorizontalAlignment=HorizontalAlignment.Center; label.Margin=new Thickness(0,5,0,0); item.Children.Add(label); legend.Children.Add(item);
                 } right=legend;
             } else if(i==1) {
-                var illustration=new StackPanel { Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center };
-                illustration.Children.Add(new SettingsIllustration { Dark=dark,Width=34,Height=40,Margin=new Thickness(0,0,10,0) });
-                var example=new StackPanel(); var title=Ui.Text("QuotaBar · "+copy.Text("Quota restored","额度已恢复","額度已恢復"),12,fg); title.FontWeight=FontWeights.SemiBold; example.Children.Add(title);
-                example.Children.Add(Ui.Text(copy.Text("Example: 5h 80% · 7d 36%","示例：5 小时 80% · 7 天 36%","範例：5 小時 80% · 7 天 36%"),11,muted)); illustration.Children.Add(SettingsVisual.Card(example,dark,new Thickness(10))); right=illustration;
+                right=Ui.Text(copy.Text("Example: Quota restored · 5h 80% · 7d 36%","示例：额度已恢复 · 5 小时 80% · 7 天 36%","範例：額度已恢復 · 5 小時 80% · 7 天 36%"),11,muted);
             } else if(i==2) {
                 var preview=new StackPanel { Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center };
-                preview.Children.Add(new QuotaMoodView { Width=58,Height=58,Mood=QuotaMood.Recovered,Dark=dark,Stars=true,Margin=new Thickness(0,0,16,0) }); preview.Children.Add(Ui.Button(copy.Text("Preview","预览","預覽"),PreviewCelebration)); right=preview;
+                preview.Children.Add(new QuotaMoodView { Width=36,Height=36,Mood=QuotaMood.Recovered,Dark=dark,Stars=true,Margin=new Thickness(0,0,12,0) }); preview.Children.Add(Ui.Button(copy.Text("Preview celebration","预览庆祝","預覽慶祝"),PreviewCelebration)); right=preview;
             } else {
-                var bank=new StackPanel { Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center }; bank.Children.Add(new SettingsIllustration { Bank=true,Dark=dark,Width=42,Height=42,Margin=new Thickness(0,0,12,0) }); bank.Children.Add(Ui.Text(copy.Text("72 hours / 24 hours before expiry","提前 72 小时 / 24 小时","提前 72 小時 / 24 小時"),12,fg)); right=bank;
+                right=Ui.Text(copy.Text("72 hours and 24 hours before expiry; credits are grouped.","提前 72 小时和 24 小时提醒，同批权益合并。","提前 72 小時與 24 小時提醒，同批權益合併。"),11,muted);
             }
-            Grid.SetColumn(right,1); row.Children.Add(right); rows.Children.Add(row); if(i!=3) { var divider=Ui.Divider(); divider.Margin=new Thickness(0,5,0,5); rows.Children.Add(divider); }
+            row.Children.Add(right); rows.Children.Add(row); if(i!=3) { var divider=Ui.Divider(); divider.Margin=new Thickness(0,5,0,5); rows.Children.Add(divider); }
         }
         stack.Children.Add(SettingsVisual.Card(rows,dark));
-        var actions=new DockPanel(); var buttons=new StackPanel { Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right }; buttons.Children.Add(Ui.Button(copy.Text("Preview celebration","预览庆祝","預覽慶祝"),PreviewCelebration)); buttons.Children.Add(Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),TestNotification)); DockPanel.SetDock(buttons,Dock.Right); actions.Children.Add(buttons); actions.Children.Add(Ui.Text(copy.Text("Preview and test","预览与测试","預覽與測試"),12,fg)); stack.Children.Add(SettingsVisual.Card(actions,dark));
-        var note=Ui.Text(copy.Text("Celebrations play only while the floating button is visible. Previews use example notifications.","小庆祝仅在悬浮按钮可见时播放；预览同步发送示例通知。","小慶祝僅在懸浮按鈕可見時播放；預覽同步傳送範例通知。"),11,muted); note.TextWrapping=TextWrapping.Wrap; note.Margin=new Thickness(0,0,0,10); stack.Children.Add(note);
-        statusLabel=Ui.Text("",11,muted); stack.Children.Add(statusLabel); return stack;
+        var actions=new WrapPanel(); actions.Children.Add(Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),TestNotification)); stack.Children.Add(actions);
+        var note=Ui.Text(copy.Text("Celebrations play only while the floating button is visible. Tests use example notifications and do not change reminder history.","小庆祝仅在悬浮按钮可见时播放；测试使用示例通知，不改变提醒记录。","小慶祝僅在懸浮按鈕可見時播放；測試使用範例通知，不改變提醒記錄。"),11,muted); note.TextWrapping=TextWrapping.Wrap; note.Margin=new Thickness(0,0,0,10); stack.Children.Add(note);
+        statusLabel=Ui.Text(CurrentStatus,11,muted); statusLabel.TextWrapping=TextWrapping.Wrap; stack.Children.Add(statusLabel);
+        var settings=Ui.Button(copy.Text("Notification settings…","通知设置…","通知設定…"),()=> {
+            try { Platform.OpenUrl("ms-settings:notifications"); }
+            catch(Exception e) when(e is System.ComponentModel.Win32Exception or InvalidOperationException) { NotificationFailed(); }
+        }); settings.Tag="settings-notifications"; stack.Children.Add(settings); return stack;
     }
 }

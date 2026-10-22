@@ -26,12 +26,14 @@ final class QuotaUpdateController: NSObject {
     private var cache: Data?
     private var etag: String?
     private var status = ""
+    var currentVersion: String { version }
     var isChecking: Bool { request != nil }
     var statusText: String { status }
     private(set) var available: UpdateRelease?
     private weak var statusField: NSTextField?
     private weak var actions: NSStackView?
     private weak var checkButton: NSButton?
+    private weak var progress: NSProgressIndicator?
     var onChange: (() -> Void)?
     private var auto: Bool { !defaults.bool(forKey: "updates.autoDisabled") }
     private var reminders: Bool { defaults.bool(forKey: "updates.reminders") }
@@ -100,18 +102,32 @@ final class QuotaUpdateController: NSObject {
         refreshView()
     }
     func makeSettingsView() -> NSView {
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
-        let separator = NSBox(); separator.boxType = .separator; stack.addArrangedSubview(separator); separator.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        let title = NSTextField(labelWithString: text("Software update", "软件更新", "軟體更新")); title.font = .boldSystemFont(ofSize: 13); stack.addArrangedSubview(title)
-        let automatic = NSButton(checkboxWithTitle: text("Automatically check for updates", "自动检查更新", "自動檢查更新"), target: self, action: #selector(autoChanged)); automatic.state = auto ? .on : .off; stack.addArrangedSubview(automatic)
-        let reminder = NSButton(checkboxWithTitle: text("Update reminders", "更新提醒", "更新提醒"), target: self, action: #selector(remindersChanged)); reminder.state = reminders ? .on : .off; stack.addArrangedSubview(reminder)
-        let label = NSTextField(wrappingLabelWithString: ""); label.font = .systemFont(ofSize: 12); stack.addArrangedSubview(label); label.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true; statusField = label
-        let check = NSButton(title: text("Check for updates", "检查更新", "檢查更新"), target: self, action: #selector(manualCheck)); stack.addArrangedSubview(check); checkButton = check
+        let stack = QuotaSettingsStyle.column(20)
+        let header = QuotaSettingsStyle.column(10)
+        let brand = NSStackView(); brand.spacing = 10
+        let icon = QuotaThemeIconView(frame: .zero)
+        icon.widthAnchor.constraint(equalToConstant: 32).isActive = true; icon.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        brand.addArrangedSubview(icon)
+        let name = QuotaSettingsStyle.label("QuotaBar", size: 16); name.font = .systemFont(ofSize: 16, weight: .semibold); brand.addArrangedSubview(name)
+        header.addArrangedSubview(brand)
+        let label = QuotaSettingsStyle.label("", size: 12, secondary: true); statusField = label; QuotaSettingsStyle.fill(label, in: header)
+        let checkRow = NSStackView(); checkRow.spacing = 10
+        let check = QuotaSettingsStyle.button(text("Check for updates", "检查更新", "檢查更新"), target: self, action: #selector(manualCheck)); checkButton = check; checkRow.addArrangedSubview(check)
+        let spinner = NSProgressIndicator(); spinner.style = .spinning; spinner.controlSize = .small; spinner.isDisplayedWhenStopped = false; progress = spinner; checkRow.addArrangedSubview(spinner)
+        header.addArrangedSubview(checkRow)
         let row = NSStackView(); row.orientation = .horizontal; row.spacing = 8
         for (label, action) in [(text("View update", "查看更新", "查看更新"), #selector(openRelease)), (text("Remind later", "稍后提醒", "稍後提醒"), #selector(snooze)), (text("Skip version", "跳过此版本", "跳過此版本"), #selector(skip))] {
-            row.addArrangedSubview(NSButton(title: label, target: self, action: action))
+            row.addArrangedSubview(QuotaSettingsStyle.button(label, target: self, action: action))
         }
-        stack.addArrangedSubview(row); actions = row
+        header.addArrangedSubview(row); actions = row
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(header), in: stack)
+        let options = QuotaSettingsStyle.column(0)
+        let automatic = QuotaSettingsSwitch(); automatic.target = self; automatic.action = #selector(autoChanged); automatic.state = auto ? .on : .off
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Automatically check for updates", "自动检查更新", "自動檢查更新"), control: automatic), in: options)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: options)
+        let reminder = QuotaSettingsSwitch(); reminder.target = self; reminder.action = #selector(remindersChanged); reminder.state = reminders ? .on : .off
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Update reminders", "更新提醒", "更新提醒"), control: reminder), in: options)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(options), in: stack)
         refreshView(); return stack
     }
     private func refreshView() {
@@ -126,10 +142,11 @@ final class QuotaUpdateController: NSObject {
         }
         actions?.isHidden = available == nil
         checkButton?.isEnabled = request == nil
+        if request == nil { progress?.stopAnimation(nil) } else { progress?.startAnimation(nil) }
     }
     @objc private func manualCheck() { check(manual: true) }
-    @objc private func autoChanged(_ sender: NSButton) { defaults.set(sender.state != .on, forKey: "updates.autoDisabled"); if sender.state == .on { nextCheck = .distantPast; check() } }
-    @objc private func remindersChanged(_ sender: NSButton) {
+    @objc private func autoChanged(_ sender: QuotaSettingsSwitch) { defaults.set(sender.state != .on, forKey: "updates.autoDisabled"); if sender.state == .on { nextCheck = .distantPast; check() } }
+    @objc private func remindersChanged(_ sender: QuotaSettingsSwitch) {
         defaults.set(sender.state == .on, forKey: "updates.reminders")
         guard sender.state == .on else { return }
         guard let center = notificationCenter else { status = text("System reminders require the installed app", "系统提醒需要安装后的应用", "系統提醒需要安裝後的應用"); refreshView(); return }

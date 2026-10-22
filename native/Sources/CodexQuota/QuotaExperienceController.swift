@@ -72,64 +72,45 @@ import QuotaCore
         let labels = [copy.text("Quota mood mode", "额度表情模式", "額度表情模式"), copy.text("Notify when quota is restored", "额度恢复时提醒", "額度恢復時提醒"), copy.text("Celebrate quota recovery", "额度恢复时播放小庆祝", "額度恢復時播放小慶祝"), copy.text("Bank expiry reminders", "Bank 到期提醒", "Bank 到期提醒")]
         let hints = [copy.text("Show the battery character for your current quota.", "根据当前额度状态，显示对应的电池表情。", "根據目前額度狀態，顯示對應的電池表情。"), copy.text("A system notification after confirmed recovery.", "额度确认恢复时，显示系统通知。", "額度確認恢復時，顯示系統通知。"), copy.text("A brief celebration with one recovery notification.", "播放短暂庆祝，并同步一条恢复通知。", "播放短暫慶祝，並同步一條恢復通知。"), copy.text("Known credits only; never redeem automatically.", "仅提醒已知权益，不会自动兑换。", "僅提醒已知權益，不會自動兌換。")]
         for i in 0..<4 {
-            let row = NSStackView(); row.spacing = 20; row.alignment = .centerY; row.edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
-            let left = QuotaSettingsStyle.column(10)
-            let title = NSStackView(); title.spacing = 12
-            let name = QuotaSettingsStyle.label(labels[i], size: 13); name.font = .systemFont(ofSize: 13, weight: .semibold)
+            let item = QuotaSettingsStyle.column(8)
             let toggle = QuotaSettingsSwitch(); toggle.tag = i; toggle.target = self; toggle.action = #selector(changed(_:)); toggle.setAccessibilityLabel(labels[i])
             toggle.state = [preferences.moods, preferences.recovery, preferences.celebration, preferences.bank][i] ? .on : .off
-            title.addArrangedSubview(name); title.addArrangedSubview(toggle); left.addArrangedSubview(title)
-            QuotaSettingsStyle.fill(QuotaSettingsStyle.label(hints[i], size: 11, secondary: true), in: left)
-            left.widthAnchor.constraint(equalToConstant: 255).isActive = true; row.addArrangedSubview(left)
-            let right: NSView
+            QuotaSettingsStyle.fill(QuotaSettingsStyle.row(labels[i], control: toggle, hint: hints[i]), in: item)
             if i == 0 {
-                let legend = NSStackView(); legend.spacing = 10
+                let legend = NSStackView(); legend.spacing = 16; legend.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 8, right: 0)
                 for (index, mood) in [QuotaMood.good, .low, .exhausted, .unavailable, .recovered].enumerated() {
-                    let item = QuotaSettingsStyle.column(5); item.alignment = .centerX
-                    let icon = moodView(mood, size: 42); icon.identifier = NSUserInterfaceItemIdentifier("settings.mood.\(mood.rawValue)")
-                    item.addArrangedSubview(icon); item.addArrangedSubview(QuotaSettingsStyle.label([copy.text("Good", "充足", "充足"), copy.text("Low", "偏低", "偏低"), copy.text("Empty", "耗尽", "耗盡"), copy.text("Unavailable", "不可用", "無法使用"), copy.text("Restored", "恢复", "恢復")][index], size: 10)); legend.addArrangedSubview(item)
+                    let cell = QuotaSettingsStyle.column(4); cell.alignment = .centerX
+                    let icon = moodView(mood, size: 36); icon.identifier = NSUserInterfaceItemIdentifier("settings.mood.\(mood.rawValue)")
+                    cell.addArrangedSubview(icon)
+                    cell.addArrangedSubview(QuotaSettingsStyle.label([copy.text("Good", "充足", "充足"), copy.text("Low", "偏低", "偏低"), copy.text("Empty", "耗尽", "耗盡"), copy.text("Unavailable", "不可用", "無法使用"), copy.text("Restored", "恢复", "恢復")][index], size: 10, secondary: true))
+                    legend.addArrangedSubview(cell)
                 }
-                right = legend
+                item.addArrangedSubview(legend)
             } else if i == 1 {
-                let example = QuotaSettingsStyle.column(5)
-                let title = QuotaSettingsStyle.label("QuotaBar · " + copy.text("Quota restored", "额度已恢复", "額度已恢復"), size: 12); title.font = .systemFont(ofSize: 12, weight: .semibold)
-                example.addArrangedSubview(title)
-                example.addArrangedSubview(QuotaSettingsStyle.label(copy.text("Example: 5h 80% · 7d 36%", "示例：5 小时 80% · 7 天 36%", "範例：5 小時 80% · 7 天 36%"), size: 11, secondary: true))
-                let notification = NSStackView(); notification.spacing = 12
-                let bell = NSImageView(image: NSImage(systemSymbolName: "bell", accessibilityDescription: nil)!); bell.imageScaling = .scaleProportionallyUpOrDown
-                bell.widthAnchor.constraint(equalToConstant: 30).isActive = true; bell.heightAnchor.constraint(equalToConstant: 34).isActive = true
-                notification.addArrangedSubview(bell); notification.addArrangedSubview(QuotaSettingsStyle.card(example)); right = notification
+                QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Example: Quota restored · 5h 80% · 7d 36%", "示例：额度已恢复 · 5 小时 80% · 7 天 36%", "範例：額度已恢復 · 5 小時 80% · 7 天 36%"), size: 11, secondary: true), in: item)
             } else if i == 2 {
-                let previewRow = NSStackView(); previewRow.spacing = 16
-                let icon = moodView(.recovered, size: 58); icon.stars = true; previewRow.addArrangedSubview(icon)
-                previewRow.addArrangedSubview(NSButton(title: copy.text("Preview", "预览", "預覽"), target: self, action: #selector(preview)))
-                right = previewRow
+                let previewRow = NSStackView(); previewRow.spacing = 12
+                previewRow.addArrangedSubview(moodView(.recovered, size: 36))
+                previewRow.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Preview celebration", "预览庆祝", "預覽慶祝"), target: self, action: #selector(preview)))
+                item.addArrangedSubview(previewRow)
             } else {
-                let bank = NSStackView(); bank.spacing = 14
-                let illustration = NSView(frame: NSRect(x: 0, y: 0, width: 48, height: 44))
-                illustration.widthAnchor.constraint(equalToConstant: 48).isActive = true; illustration.heightAnchor.constraint(equalToConstant: 44).isActive = true
-                let icon = NSImageView(image: NSImage(systemSymbolName: "building.columns", accessibilityDescription: nil)!)
-                icon.frame = NSRect(x: 0, y: 8, width: 36, height: 36); icon.imageScaling = .scaleProportionallyUpOrDown; icon.contentTintColor = .secondaryLabelColor
-                illustration.addSubview(icon)
-                let clock = NSImageView(image: NSImage(systemSymbolName: "clock", accessibilityDescription: nil)!); clock.frame = NSRect(x: 25, y: 0, width: 22, height: 22); clock.imageScaling = .scaleProportionallyUpOrDown; illustration.addSubview(clock)
-                bank.addArrangedSubview(illustration); bank.addArrangedSubview(QuotaSettingsStyle.label(copy.text("72 hours / 24 hours before expiry", "提前 72 小时 / 24 小时", "提前 72 小時 / 24 小時"), size: 12))
-                right = bank
+                QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("72 hours and 24 hours before expiry; credits are grouped.", "提前 72 小时和 24 小时提醒，同批权益合并。", "提前 72 小時與 24 小時提醒，同批權益合併。"), size: 11, secondary: true), in: item)
             }
-            row.addArrangedSubview(right)
-            let spacer = NSView(); spacer.setContentHuggingPriority(.defaultLow, for: .horizontal); row.addArrangedSubview(spacer)
-            QuotaSettingsStyle.fill(row, in: rows)
-            if i != 3 { QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: rows) }
+            item.edgeInsets.bottom = 12
+            QuotaSettingsStyle.fill(item, in: rows)
+            if i < 3 { QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: rows) }
         }
         QuotaSettingsStyle.fill(QuotaSettingsStyle.card(rows), in: stack)
-        let controls = NSStackView(); controls.spacing = 12
-        controls.addArrangedSubview(QuotaSettingsStyle.label(copy.text("Preview and test", "预览与测试", "預覽與測試"), size: 12))
-        let spacer = NSView(); spacer.setContentHuggingPriority(.defaultLow, for: .horizontal); controls.addArrangedSubview(spacer)
-        controls.addArrangedSubview(NSButton(title: copy.text("Preview celebration", "预览庆祝", "預覽慶祝"), target: self, action: #selector(preview)))
-        controls.addArrangedSubview(NSButton(title: copy.text("Send test notification", "发送测试通知", "傳送測試通知"), target: self, action: #selector(testNotification)))
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(controls), in: stack)
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Celebrations play only while the floating button is visible. Previews use example notifications.", "小庆祝仅在悬浮按钮可见时播放；预览同步发送示例通知。", "小慶祝僅在懸浮按鈕可見時播放；預覽同步傳送範例通知。"), size: 11, secondary: true), in: stack)
+        let testing = QuotaSettingsStyle.column(8)
+        testing.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Send test notification", "发送测试通知", "傳送測試通知"), target: self, action: #selector(testNotification)))
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Celebrations play only while the floating button is visible. Tests use example notifications and do not change reminder history.", "小庆祝仅在悬浮按钮可见时播放；测试使用示例通知，不改变提醒记录。", "小慶祝僅在懸浮按鈕可見時播放；測試使用範例通知，不改變提醒記錄。"), size: 11, secondary: true), in: testing)
+        QuotaSettingsStyle.fill(testing, in: stack)
         let status = QuotaSettingsStyle.label(notificationStatus, size: 11, secondary: true); status.isHidden = notificationStatus.isEmpty; stack.addArrangedSubview(status); statusLabel = status
+        stack.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Notification settings…", "通知设置…", "通知設定…"), target: self, action: #selector(openNotificationSettings)))
         return stack
+    }
+    @objc private func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
     }
     private func moodView(_ mood: QuotaMood, size: CGFloat) -> QuotaMoodView {
         let view = QuotaMoodView(frame: NSRect(x: 0, y: 0, width: size, height: size)); view.mood = mood; view.usesEffectiveAppearance = true; view.stars = mood == .recovered

@@ -90,6 +90,9 @@ internal static class Program {
                     Check(experienceToggles.Length==4 && experienceToggles.All(b=>b.IsChecked==true),"four independent default-on controls present");
                     Check(Tree(settings).OfType<ScrollViewer>().Any(),"settings remain reachable on short screens");
                     Check(Tree(settings).OfType<QuotaMoodView>().Count()==6,"inline five mood states plus recovery illustration");
+                    Check(Tree(settings).OfType<CheckBox>().Count(b=>b.Content?.ToString()=="显示悬浮按钮")==1,"one owning page for general settings");
+                    Check(Tree(settings).OfType<Button>().Count(b=>b.Content?.ToString()=="预览庆祝")==1,"single celebration preview");
+                    Check(!Tree(settings).OfType<Button>().Any(b=>b.Content?.ToString()?.Contains("›")==true),"no duplicate sidebar update action");
                     var moodBitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); moodBitmap.Render(settings);
                     var moodEncoder=new PngBitmapEncoder(); moodEncoder.Frames.Add(BitmapFrame.Create(moodBitmap)); using(var moodFile=File.Create(Path.Combine(output,"settings-b-"+(dark?"dark":"light")+".png"))) moodEncoder.Save(moodFile);
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
@@ -105,6 +108,34 @@ internal static class Program {
                     navigation.First(b=>b.Tag?.ToString()=="settings-nav-updates").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
                     var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-updates-"+(dark?"dark":"light")+".png"))) encoder.Save(file);
+                    owner.Experience.NotificationFailed(); settings.Build(); Pump();
+                    Check(Tree(settings).OfType<TextBlock>().Any(b=>b.Text.Contains("系统提醒不可用")),"notification failure survives settings rebuild");
+                    Check(Tree(settings).OfType<Button>().Any(b=>b.Tag?.ToString()=="settings-notifications"),"notification settings action remains reachable");
+                    foreach(var language in new[]{"zh-CN","zh-TW","en"}) {
+                        owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
+                        foreach(var key in new[]{"account","display","moods","updates"}) {
+                            Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-"+key).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                            settings.Width=840; settings.Height=560; Pump();
+                            Check(Tree(settings).OfType<CheckBox>().Where(b=>b.IsVisible).All(b=>b.ActualWidth<=640),"settings controls remain within reading width");
+                            foreach(var scroll in Tree(settings).OfType<ScrollViewer>().Where(v=>v.IsVisible)) {
+                                scroll.ScrollToEnd(); Pump();
+                                var last=Tree(scroll).OfType<Button>().Where(b=>b.IsVisible).OrderBy(b=>b.TransformToAncestor(scroll).Transform(new Point()).Y).LastOrDefault();
+                                if(last is not null) {
+                                    var rect=last.TransformToAncestor(scroll).TransformBounds(new Rect(last.RenderSize));
+                                    Check(new Rect(0,0,scroll.ActualWidth,scroll.ActualHeight).Contains(rect),"last page action fully reachable after scrolling");
+                                }
+                            } Pump();
+                            var rendered=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); rendered.Render(settings);
+                            var encoded=new PngBitmapEncoder(); encoded.Frames.Add(BitmapFrame.Create(rendered)); using var stream=File.Create(Path.Combine(output,$"polish-{language}-{dark}-{key}.png")); encoded.Save(stream);
+                        }
+                    }
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-account").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    owner.State.LoginCompleted(false); settings.UpdateStatus(); Pump();
+                    Check(Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-account-login").IsVisible,"sign in is visible when logged out");
+                    Check(!Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-account-logout").IsVisible,"sign out is hidden when logged out");
+                    owner.State.BeginLogin(); settings.UpdateStatus(); Pump();
+                    Check(Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-account-cancel").IsVisible,"cancel is visible only during sign in");
+                    owner.State.LoginCompleted(true);
                     settings.Close();
                 }
             }

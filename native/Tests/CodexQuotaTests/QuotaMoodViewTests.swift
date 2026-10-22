@@ -120,20 +120,19 @@ import QuotaCore
         }
         }
     }
-    func testDuplicatePreferencesStayInSyncAcrossSidebarPages() throws {
-        let name = "QuotaSettingsSync.\(UUID())", defaults = UserDefaults(suiteName: "QuotaSettingsSync.temporary")!
+    func testPreferencesRetainStateAcrossSidebarNavigation() throws {
+        let suite = "SettingsNavigation.\(UUID())", defaults = UserDefaults(suiteName: "SettingsNavigation.temporary")!
         defaults.set(false, forKey: "standalone.floating.enabled")
-        defer { defaults.removePersistentDomain(forName: "QuotaSettingsSync.temporary") }
-        let coordinator = StandaloneCoordinator(defaults: defaults, root: FileManager.default.temporaryDirectory.appendingPathComponent(name))
+        defer { defaults.removePersistentDomain(forName: "SettingsNavigation.temporary") }
+        let coordinator = StandaloneCoordinator(defaults: defaults, root: FileManager.default.temporaryDirectory.appendingPathComponent(suite))
         let window = coordinator.makeSettingsWindow(); defer { window.close() }
-        let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView)
-        let summaryToggle = try XCTUnwrap(descendants(shell).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.identifier?.rawValue == "settings.general.1" })
-        summaryToggle.performClick(nil)
-        shell.selectPage(1)
-        let displayToggle = try XCTUnwrap(descendants(shell).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.identifier?.rawValue == "settings.general.1" })
-        XCTAssertEqual(displayToggle.state, .off)
-        displayToggle.performClick(nil)
-        shell.selectPage(2); XCTAssertEqual(summaryToggle.state, .on)
+        let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView); shell.selectPage(1)
+        let control = try XCTUnwrap(descendants(shell).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.identifier?.rawValue == "settings.general.1" })
+        control.state = .off; NSApp.sendAction(control.action!, to: control.target, from: control)
+        shell.selectPage(2); shell.selectPage(1)
+        XCTAssertEqual(control.state, .off)
+        control.state = .on; NSApp.sendAction(control.action!, to: control.target, from: control)
+        shell.selectPage(0); shell.selectPage(1); XCTAssertEqual(control.state, .on)
     }
     func testAccountSummaryUpdatesWithoutReopeningSettings() throws {
         let suite = "QuotaAccountSummary.\(UUID())", defaults = UserDefaults(suiteName: suite)!
@@ -142,6 +141,7 @@ import QuotaCore
         let coordinator = StandaloneCoordinator(defaults: defaults, root: FileManager.default.temporaryDirectory.appendingPathComponent(suite))
         let window = coordinator.makeSettingsWindow(); defer { window.close() }
         let content = try XCTUnwrap(window.contentView)
+        (content as? QuotaSettingsShellView)?.selectPage(0)
         coordinator.receive(.identity(AccountIdentity(displayName: "Example account")))
         XCTAssertTrue(descendants(content).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Example account") })
         coordinator.receive(.loggedOut)

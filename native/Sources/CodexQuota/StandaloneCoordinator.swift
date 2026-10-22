@@ -24,7 +24,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var updates: QuotaUpdateController?
     private var settings: NSWindow?
     private var statusLabel: NSTextField?
-    private weak var summaryStatusLabel: NSTextField?
+    private weak var accountIdentityLabel: NSTextField?
+    private weak var accountPlanLabel: NSTextField?
+    private var accountActions: [NSButton] = []
+    private weak var troubleshooting: NSView?
     private weak var settingsShell: QuotaSettingsShellView?
     private var showingDetail = false
     private var floatingMenuVisible = false
@@ -296,8 +299,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         let updated = state.lastSuccess.map { text("Updated: ", "更新时间：", "更新時間：") + DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .medium) } ?? ""
         statusItem?.button?.toolTip = freshness + "\n" + updated
         statusItem?.button?.setAccessibilityLabel(text("Codex remaining quota", "Codex 剩余额度", "Codex 剩餘額度") + "\n" + indicatorText)
-        statusLabel?.stringValue = freshness + "\n" + (identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號")) + "\n" + updated + (startupNotice.map { "\n" + $0 } ?? "")
-        summaryStatusLabel?.stringValue = identity?.preferredName ?? phaseText
+        statusLabel?.stringValue = freshness + "\n" + updated + (startupNotice.map { "\n" + $0 } ?? "")
+        updateAccountSettings()
         synchronizeSettingsControls()
         updates?.onChange?()
         floating.setExperience(mood: QuotaMood.resolve(snapshot, ready: state.phase == .ready, now: Date()), enabled: experience?.preferences.moods == true, description: ExperienceCopy(language).moodLabel(QuotaMood.resolve(snapshot, ready: state.phase == .ready, now: Date())))
@@ -359,54 +362,93 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
     }
     func makeSettingsWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 700), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定"); window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 960, height: 440)
-        func column() -> NSStackView { QuotaSettingsStyle.column(14) }
-        func button(_ title: String, _ action: Selector) -> NSButton { NSButton(title: title, target: self, action: action) }
+        window.minSize = NSSize(width: 840, height: 560)
+        func column() -> NSStackView { QuotaSettingsStyle.column(22) }
+        func button(_ title: String, _ action: Selector) -> NSButton { QuotaSettingsStyle.button(title, target: self, action: action) }
         let account = column()
-        let label = QuotaSettingsStyle.label(phaseText, size: 14); statusLabel = label
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(label), in: account)
+        let identityCard = QuotaSettingsStyle.column(6)
+        let identityTitle = QuotaSettingsStyle.label(identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號"), size: 16)
+        identityTitle.font = .systemFont(ofSize: 16, weight: .semibold); accountIdentityLabel = identityTitle
+        let identityRow = NSStackView(); identityRow.spacing = 12
+        let accountIcon = NSImageView(image: NSImage(systemSymbolName: "person.crop.circle", accessibilityDescription: nil)!)
+        accountIcon.contentTintColor = .secondaryLabelColor; accountIcon.imageScaling = .scaleProportionallyUpOrDown
+        accountIcon.widthAnchor.constraint(equalToConstant: 32).isActive = true; accountIcon.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        identityRow.addArrangedSubview(accountIcon); identityRow.addArrangedSubview(identityTitle)
+        QuotaSettingsStyle.fill(identityRow, in: identityCard)
+        let planLabel = QuotaSettingsStyle.label("", size: 12, secondary: true); planLabel.isHidden = true; accountPlanLabel = planLabel
+        QuotaSettingsStyle.fill(planLabel, in: identityCard)
+        let label = QuotaSettingsStyle.label(phaseText, size: 12, secondary: true); statusLabel = label
+        QuotaSettingsStyle.fill(label, in: identityCard)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(identityCard), in: account)
         let auth = NSStackView(); auth.spacing = 8
-        for (title, selector) in [(text("Sign in", "登录", "登入"), #selector(loginClicked)), (text("Cancel", "取消"), #selector(cancelClicked)), (text("Sign out", "退出账号", "登出"), #selector(logoutClicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked))] { auth.addArrangedSubview(button(title, selector)) }
+        accountActions = []
+        for (title, selector) in [(text("Sign in", "登录", "登入"), #selector(loginClicked)), (text("Cancel", "取消"), #selector(cancelClicked)), (text("Sign out", "退出账号", "登出"), #selector(logoutClicked)), (text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Quota details", "额度详情", "額度詳情"), #selector(statusDetailsClicked))] {
+            let action = button(title, selector); accountActions.append(action)
+        }
+        // Primary and routine actions precede the separate sign-out group.
+        for index in [0, 1, 4, 3] { auth.addArrangedSubview(accountActions[index]) }
+        accountActions[0].bezelColor = .controlAccentColor; accountActions[4].bezelColor = .controlAccentColor
         account.addArrangedSubview(auth)
-        let actions = NSStackView(); actions.spacing = 8
-        actions.addArrangedSubview(button(text("Quota details", "额度详情", "額度詳情"), #selector(statusDetailsClicked)))
-        actions.addArrangedSubview(button(text("Reload runtime", "重新加载运行时", "重新載入執行環境"), #selector(reloadClicked))); account.addArrangedSubview(actions)
+        let signOut = QuotaSettingsStyle.column(0); signOut.addArrangedSubview(accountActions[2])
+        QuotaSettingsStyle.fill(signOut, in: account)
+        let maintenance = QuotaSettingsStyle.column(10)
+        let disclosure = button(text("Troubleshooting", "故障排查", "疑難排解"), #selector(toggleTroubleshooting(_:)))
+        disclosure.isBordered = false; disclosure.alignment = .left; disclosure.imagePosition = .imageLeading
+        disclosure.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+        maintenance.addArrangedSubview(disclosure)
+        let advanced = QuotaSettingsStyle.column(10); advanced.isHidden = true; troubleshooting = advanced
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Restart the bundled runtime if quota updates stop working.", "额度持续无法更新时，可重新加载内嵌运行时。", "額度持續無法更新時，可重新載入內嵌執行環境。"), secondary: true), in: advanced)
+        advanced.addArrangedSubview(button(text("Reload runtime", "重新加载运行时", "重新載入執行環境"), #selector(reloadClicked)))
+        QuotaSettingsStyle.fill(advanced, in: maintenance); QuotaSettingsStyle.fill(QuotaSettingsStyle.card(maintenance), in: account)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Account credentials stay in the isolated local directory.", "凭据保存在本机隔离账户目录。", "憑證儲存在本機隔離帳號目錄。"), secondary: true), in: account)
         let display = column()
-        let theme = makeThemePicker(), language = makeLanguagePicker()
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Theme", "主题", "主題"), control: theme), in: display)
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Language", "语言", "語言"), control: language), in: display)
-        QuotaSettingsStyle.fill(makeGeneralSettings(), in: display)
+        let appearance = QuotaSettingsStyle.column(0)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Theme", "主题", "主題"), control: makeThemePicker()), in: appearance)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: appearance)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Language", "语言", "語言"), control: makeLanguagePicker()), in: appearance)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.section(text("Appearance", "外观", "外觀"), content: appearance), in: display)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.section(text("Everyday behavior", "常驻入口", "常駐入口"), content: makeGeneralSettings()), in: display)
         let experiences = column()
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Manage quota moods, notifications and celebrations.", "管理额度相关的表情、提醒和互动效果。", "管理額度相關的表情、提醒和互動效果。"), secondary: true), in: experiences)
         if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
-        let summary = NSStackView(); summary.spacing = 20; summary.alignment = .top; summary.distribution = .fillEqually
-        let accountSummary = column()
-        accountSummary.addArrangedSubview(QuotaSettingsStyle.label(text("Account status", "账户状态", "帳號狀態"), size: 12))
-        let summaryLabel = QuotaSettingsStyle.label(identity?.preferredName ?? phaseText, size: 11, secondary: true); summaryStatusLabel = summaryLabel; accountSummary.addArrangedSubview(summaryLabel)
-        let summaryActions = NSStackView(); summaryActions.spacing = 6
-        summaryActions.addArrangedSubview(button(text("Quota details", "额度详情", "額度詳情"), #selector(statusDetailsClicked)))
-        summaryActions.addArrangedSubview(button(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked))); accountSummary.addArrangedSubview(summaryActions)
-        summary.addArrangedSubview(accountSummary)
-        let appearanceSummary = column(); appearanceSummary.addArrangedSubview(QuotaSettingsStyle.label(text("Appearance and language", "外观与语言", "外觀與語言"), size: 12))
-        appearanceSummary.addArrangedSubview(makeThemePicker()); appearanceSummary.addArrangedSubview(makeLanguagePicker()); summary.addArrangedSubview(appearanceSummary)
-        let general = column(); general.addArrangedSubview(QuotaSettingsStyle.label(text("General", "通用", "一般"), size: 12))
-        general.addArrangedSubview(makeGeneralSettings()); summary.addArrangedSubview(general)
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(summary), in: experiences)
         let updatePage = column()
-        if let updates { QuotaSettingsStyle.fill(QuotaSettingsStyle.card(updates.makeSettingsView()), in: updatePage) }
-        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: QuotaSettingsStyle.card(display)), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage)]
+        if let updates { QuotaSettingsStyle.fill(updates.makeSettingsView(), in: updatePage) }
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage)]
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
-        let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? "1.0.1", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
+        let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? updates?.currentVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }
         settingsShell = shell
         shell.onSelection = { [weak self] in self?.settingsPage = $0; self?.synchronizeSettingsControls() }; shell.selectPage(settingsPage)
         window.contentView = shell
-        window.setContentSize(NSSize(width: min(1040, (NSScreen.main?.visibleFrame.width ?? 1200) - 60), height: min(730, (NSScreen.main?.visibleFrame.height ?? 900) - 90)))
+        window.setContentSize(NSSize(width: min(900, (NSScreen.main?.visibleFrame.width ?? 1200) - 60), height: min(650, (NSScreen.main?.visibleFrame.height ?? 900) - 90)))
         updates?.onChange = { [weak shell] in shell?.refreshDocumentSize() }
+        settings = window
+        updateAccountSettings()
         return window
+    }
+    private func updateAccountSettings() {
+        accountIdentityLabel?.stringValue = identity?.preferredName ?? text("No account", "暂无账户", "尚無帳號")
+        accountPlanLabel?.stringValue = snapshot?.planType.map { text("Plan: ", "套餐：", "方案：") + $0 } ?? ""
+        accountPlanLabel?.isHidden = snapshot?.planType?.isEmpty != false
+        guard accountActions.count == 5 else { return }
+        let signingIn = state.phase == .signingIn
+        let signedIn = identity != nil && state.phase != .needsLogin && !signingIn
+        accountActions[0].isHidden = signedIn || signingIn || state.phase == .loading
+        accountActions[1].isHidden = !signingIn
+        accountActions[2].isHidden = !signedIn
+        accountActions[3].isHidden = !signedIn
+        accountActions[4].isHidden = !signedIn
+        accountActions[3].isEnabled = !requestInFlight
+        settingsShell?.refreshDocumentSize()
+    }
+    @objc private func toggleTroubleshooting(_ sender: NSButton) {
+        guard let troubleshooting else { return }
+        troubleshooting.isHidden.toggle()
+        sender.image = NSImage(systemSymbolName: troubleshooting.isHidden ? "chevron.right" : "chevron.down", accessibilityDescription: nil)
+        sender.setAccessibilityValue(troubleshooting.isHidden ? 0 : 1)
+        settingsShell?.refreshDocumentSize()
     }
     private func synchronizeSettingsControls() {
         guard let shell = settingsShell else { return }
@@ -428,13 +470,14 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         picker.selectItem(at: ["system", "simplifiedChinese", "traditionalChinese", "english"].firstIndex(of: defaults.string(forKey: "standalone.language") ?? "system") ?? 0); return picker
     }
     private func makeGeneralSettings() -> NSView {
-        let stack = QuotaSettingsStyle.column(6)
-        let titles = [text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), text("Menu bar quota", "任务栏显示额度信息", "工作列顯示額度資訊"), text("Launch at login", "登录时启动", "登入時啟動")]
+        let stack = QuotaSettingsStyle.column(0)
+        let titles = [text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), text("Menu bar quota", "菜单栏显示额度", "選單列顯示額度"), text("Launch at login", "登录时启动", "登入時啟動")]
         for i in 0..<3 {
             let toggle = QuotaSettingsSwitch(); toggle.tag = i; toggle.identifier = NSUserInterfaceItemIdentifier("settings.general.\(i)")
             toggle.state = [floating.preferences.enabled, statusDisplay.showsQuotaInformation, SMAppService.mainApp.status == .enabled][i] ? .on : .off
             toggle.target = self; toggle.action = #selector(generalSettingChanged(_:)); toggle.setAccessibilityLabel(titles[i])
-            let row = NSStackView(); row.spacing = 5; row.addArrangedSubview(toggle); row.addArrangedSubview(QuotaSettingsStyle.label(titles[i], size: 11)); stack.addArrangedSubview(row)
+            QuotaSettingsStyle.fill(QuotaSettingsStyle.row(titles[i], control: toggle), in: stack)
+            if i < 2 { QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: stack) }
         }
         return stack
     }
