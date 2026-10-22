@@ -1,9 +1,9 @@
 # 独立额度应用开发进度
 
 最近更新：2026-10-22（Asia/Shanghai）
-当前阶段：v1.2.0设置优化与浮窗裁切修复已正式发布；两端原生CI、公开包及更新清单验证通过。
+当前阶段：v1.2.0已发布；新一轮C角色对话气泡通知已选视觉方向，详细规格待审阅，尚未实现。
 当前授权：2026-10-22用户要求按设置UI调研提案优化开发；允许两端实现、验证与本地候选安装。用户随后反馈实机测试通过并明确要求推送、合并和发布新版本；本轮已授权按Release Please合并并发布双平台。
-下一步：收集升级反馈，补充未逐项执行的DPI、多屏、最低系统和读屏器矩阵；本轮发布已完成。
+下一步：审阅C角色对话提醒规格，确认后编写实施计划并实现双端；原有设备矩阵继续独立跟踪。
 
 ## 每次开发的恢复与记录
 
@@ -571,3 +571,13 @@ PR #39以81564ea合并；d34e335上的push与PR两轮CI均通过macOS Xcode26.5�
 - 复核命令：`python3 scripts/verify-macos-standalone-release.py v1.2.0 <assets>`、`python3 scripts/verify-windows-standalone-release.py v1.2.0 <assets>`，均在准确tag HEAD成功。日志与公开文件保存在本机`.dist/release-download/v1.2.0`及临时发布验证日志中，不提交安装包或私人账户数据。
 
 详见[完整发布记录](releases/settings-ui-v1.2.0.md)。以上草稿/未授权状态为历史阶段，已被本次明确发布授权与实际发布证据取代。
+
+## 2026-10-22 C角色对话气泡通知
+
+用户选择C效果图并要求优化现有通知。当前授权涵盖macOS/Windows实现；不包含新增低额度预警、公开发布或替换已安装版本。使用分支`codex/feat/character-notification-bubbles`，基于main `f9264be`。
+
+已核对macOS体验路由与更新独立投递、Windows统一NotifyIcon队列。详细规格见[角色对话提醒设计](superpowers/specs/2026-10-22-character-notification-bubbles-design.md)，选定C概念图已归档；规格包含渠道迁移、未读、队列与有效性、非激活窗口、屏幕布局、权限和双端验收。视觉选择已确认，详细规格依据brainstorming架构变更流程待用户审阅后进入实施计划。
+
+证据：`./governance doctor`通过（hooks active）；MemoraX聚焦查询无记忆上下文，当前行为以现场源码为准。本阶段仅文档，未执行产品代码变更、原生CI、设备或安装验证，不将过去v1.2.0验证当作新功能通过。
+
+规格阶段基线验证：`./governance check all`首轮因当前PATH缺少dotnet退出127，配置既有本地.NET路径后完整重跑通过；现有Swift Core/AppKit、Windows Core 14/14及协议/账户/安装事务检查通过。以上仅证明改造前基线正常，新气泡功能尚未实现或验证。
