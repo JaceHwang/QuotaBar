@@ -11,6 +11,8 @@ import QuotaCore
     private var deliveries: [String: Delivery] = [:]
     private var received: Set<String> = []
     private var previews: Set<String> = []
+    private var consumed: Set<String> = []
+    private var cancelledTokens: Set<String> = []
     private var canPresent = false
     private var timer: Timer?
     private var stopped = false
@@ -60,15 +62,16 @@ import QuotaCore
         enqueue(message, valid: { true }, failed: {}, forceBubble: true)
         return state.activeID == message.id
     }
-    func enqueue(_ m: ExperienceNotification, valid: @escaping () -> Bool, failed: @escaping () -> Void, shown: @escaping () -> Void = {}, action: (() -> Void)? = nil, forceBubble: Bool = false) {
+    func enqueue(_ input: ExperienceNotification, valid: @escaping () -> Bool, failed: @escaping () -> Void, shown: @escaping () -> Void = {}, action: (() -> Void)? = nil, forceBubble: Bool = false) {
+        var m = input; m.deliveryToken = UUID().uuidString
         guard !stopped, deliveries[m.id] == nil, (preferences.mode != .off || forceBubble), valid(), m.valid(now: Date()) else { return }
         deliveries[m.id] = Delivery(message: m, valid: valid, failed: failed, shown: shown, action: action)
         if deliveries.count > 128, let oldest = deliveries.values.filter({ $0.message.id != state.activeID }).min(by: { $0.message.createdAt < $1.message.createdAt }) { deliveries.removeValue(forKey: oldest.message.id); received.remove(oldest.message.id) }
         if preferences.mode.usesBubble || forceBubble { state.enqueue(m, canPresent: canPresent && (!preferences.paused(now: Date()) || forceBubble), now: Date()) }
         if preferences.mode.usesSystem && !forceBubble {
             let done: (Bool) -> Void = { [weak self] success in
-                guard let self, !stopped, let d = deliveries[m.id], d.valid(), m.valid(now: Date()) else { return }
-                if success { receipt(m.id) } else { d.failed() }
+                guard let self, !stopped, let d = deliveries[m.id], d.message.deliveryToken == m.deliveryToken, d.valid(), m.valid(now: Date()) else { return }
+                if success { receipt(m.id, token: m.deliveryToken) } else { d.failed() }
             }
             if let sendSystem { sendSystem(m, done) } else { deliverSystem(m, done: done) }
         }
@@ -78,20 +81,20 @@ import QuotaCore
         Task { [weak self] in
             guard let self, let center else { done(false); return }
             let permission = await center.notificationSettings()
-            guard !stopped, deliveries[m.id]?.valid() == true, m.valid(now: Date()), preferences.mode.usesSystem else { return }
+            guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, m.valid(now: Date()), preferences.mode.usesSystem else { return }
             guard permission.authorizationStatus == .authorized || permission.authorizationStatus == .provisional else { done(false); return }
             let content = UNMutableNotificationContent(); content.title = m.title; content.body = m.body
-            content.userInfo = ["id": m.id, "kind": String(describing: m.kind), "epoch": m.epoch ?? ""]
+            content.userInfo = ["token": m.deliveryToken ?? "", "id": m.id, "kind": String(describing: m.kind), "epoch": m.epoch ?? ""]
             if m.kind == .update { let v = m.id.replacingOccurrences(of: "quotabar-update-", with: ""); if (try? UpdateFeed.versionParts(v)) != nil { content.userInfo["version"] = v } }
             do {
-                try await center.add(UNNotificationRequest(identifier: m.id, content: content, trigger: nil))
-                guard !stopped, deliveries[m.id]?.valid() == true else { center.removeDeliveredNotifications(withIdentifiers: [m.id]); return }
+                try await center.add(UNNotificationRequest(identifier: m.id + "." + (m.deliveryToken ?? ""), content: content, trigger: nil))
+                guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true else { center.removeDeliveredNotifications(withIdentifiers: [m.id + "." + (m.deliveryToken ?? "")]); return }
                 done(true)
             } catch { done(false) }
         }
     }
-    private func receipt(_ id: String) {
-        guard !received.contains(id), let d = deliveries[id], d.valid() else { return }
+    private func receipt(_ id: String, token: String? = nil) {
+        guard !received.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken, d.valid() else { return }
         received.insert(id); d.shown()
     }
     func updateEnvironment(canPresent: Bool) {
@@ -101,9 +104,9 @@ import QuotaCore
     private func dispatch() {
         guard !stopped, canPresent, ((preferences.mode.usesBubble && !preferences.paused(now: Date())) || !previews.isEmpty) else { return }
         while let m = state.next(canPresent: true, now: Date()) {
-            guard deliveries[m.id]?.valid() == true else { state.dismiss(id: m.id, read: false); continue }
+            guard deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true else { state.dismiss(id: m.id, read: false); continue }
             guard presentBubble?(m) == true else { state.suspend(); break }
-            state.shown(id: m.id, now: Date()); receipt(m.id)
+            state.shown(id: m.id, now: Date()); receipt(m.id, token: m.deliveryToken)
             timer?.invalidate()
             timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
             RunLoop.main.add(timer!, forMode: .common)
@@ -116,20 +119,24 @@ import QuotaCore
         if state.activeID == nil { timer?.invalidate(); timer = nil; dispatch() }
     }
     func setInteracting(_ value: Bool) { state.setInteracting(value, now: Date()) }
-    func dismiss(id: String, read: Bool) {
+    func dismiss(id: String, read: Bool, token: String? = nil) {
+        guard token == nil || deliveries[id]?.message.deliveryToken == token else { return }
+        if read { consumed.insert(id) }
         let active = state.activeID == id
         state.dismiss(id: id, read: read); previews.remove(id)
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?(); dispatch()
     }
     func suspend() { previews = []; state.suspend(); timer?.invalidate(); timer = nil; hideBubble?() }
-    func activateLatest(id: String) {
-        guard let d = deliveries[id] else { return }
+    func activateLatest(id: String, token: String? = nil) {
+        guard !consumed.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken else { return }
         if d.message.kind == .update { activate(id: id); return }
         dismiss(id: id, read: true); openDetails?()
     }
-    func activate(id: String) {
-        guard let d = deliveries[id], d.valid() else { dismiss(id: id, read: true); return }
+    func activate(id: String, token: String? = nil) {
+        guard !consumed.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken else { return }
+        guard d.valid() else { dismiss(id: id, read: true, token: token); return }
+        consumed.insert(id)
         receipt(id); suspend(); state.dismiss(id: id, read: true); onUnreadChange?()
         if let action = d.action { action() }
         else if d.message.kind == .bank { (openBank ?? openDetails)?() }
@@ -137,26 +144,32 @@ import QuotaCore
     }
     func cancelMessage(id: String) {
         let active = state.activeID == id
-        state.forget(id: id); deliveries.removeValue(forKey: id); received.remove(id); previews.remove(id)
-        center?.removeDeliveredNotifications(withIdentifiers: [id]); center?.removePendingNotificationRequests(withIdentifiers: [id])
+        if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; if cancelledTokens.count > 256 { cancelledTokens = Set(cancelledTokens.sorted().suffix(128)) }
+        let identifiers = [id, id + "." + (deliveries[id]?.message.deliveryToken ?? "")]
+        consumed.remove(id); state.forget(id: id); deliveries.removeValue(forKey: id); received.remove(id); previews.remove(id)
+        center?.removeDeliveredNotifications(withIdentifiers: identifiers); center?.removePendingNotificationRequests(withIdentifiers: identifiers)
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?()
     }
     func cancelAuthenticationEpoch(_ epoch: String) {
         let ids = deliveries.values.filter { $0.message.epoch == epoch }.map { $0.message.id }
         let active = ids.contains(state.activeID ?? "")
+        let identifiers = ids.flatMap { [$0, $0 + "." + (deliveries[$0]?.message.deliveryToken ?? "")] }
+        for id in ids { if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; consumed.remove(id) }
         state.cancel(epoch: epoch)
         for id in ids { deliveries.removeValue(forKey: id); received.remove(id) }
-        center?.removeDeliveredNotifications(withIdentifiers: ids); center?.removePendingNotificationRequests(withIdentifiers: ids)
+        center?.removeDeliveredNotifications(withIdentifiers: identifiers); center?.removePendingNotificationRequests(withIdentifiers: identifiers)
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?(); dispatch()
     }
-    func stop() { stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = [] }
+    func stop() { stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = []; consumed = []; cancelledTokens = [] }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let id = response.notification.request.content.userInfo["id"] as? String
         let version = response.notification.request.content.userInfo["version"] as? String
+        let token = response.notification.request.content.userInfo["token"] as? String
         Task { @MainActor [weak self] in
-            if let id, self?.deliveries[id] != nil { self?.activate(id: id) }
+            if let token, self?.cancelledTokens.contains(token) == true { return }
+            if let id, self?.deliveries[id] != nil { self?.activate(id: id, token: token) }
             else if let version, (try? UpdateFeed.versionParts(version)) != nil, let url = URL(string: "https://github.com/JaceHwang/QuotaBar/releases/tag/v\(version)") { NSWorkspace.shared.open(url) }
         }
         completionHandler()

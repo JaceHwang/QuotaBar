@@ -9,7 +9,7 @@ internal sealed class NotificationUnreadWindow : Window {
             column.Children.Add(Ui.Text(item.Message.CreatedAt.ToLocalTime().ToString("g"),11,Brushes.Gray));
             var body=item.Stale?copy.Text("Earlier observation. View current quota for the latest status.","此前观测的提醒，请查看最新额度状态。","先前觀測的提醒，請查看最新額度狀態。"):item.Message.Body;
             var text=Ui.Text(body,12,Ui.Foreground(dark)); text.TextWrapping=TextWrapping.Wrap; text.Margin=new Thickness(0,6,0,8); column.Children.Add(text);
-            var row=new WrapPanel(); row.Children.Add(Ui.Button(copy.Text("View latest","查看最新","查看最新"),()=> { router.ActivateLatest(item.Message.Id); Close(); })); row.Children.Add(Ui.Button(copy.Text("Got it","知道了","知道了"),()=> { router.Dismiss(item.Message.Id,true); Close(); })); row.Margin=new Thickness(0,0,0,20); column.Children.Add(row);
+            var row=new WrapPanel(); row.Children.Add(Ui.Button(copy.Text("View latest","查看最新","查看最新"),()=> { router.ActivateLatest(item.Message.Id,item.Message.DeliveryToken); Close(); })); row.Children.Add(Ui.Button(copy.Text("Got it","知道了","知道了"),()=> { router.Dismiss(item.Message.Id,true,item.Message.DeliveryToken); Close(); })); row.Margin=new Thickness(0,0,0,20); column.Children.Add(row);
         }
     }
 }

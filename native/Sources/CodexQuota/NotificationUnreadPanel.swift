@@ -27,7 +27,7 @@ private final class UnreadStackView: NSStackView { override var isFlipped: Bool 
                 let key = i * 2 + offset; let button = NSButton(title: label, target: self, action: #selector(invoke(_:))); button.tag = key; button.bezelStyle = .rounded
                 callbacks[key] = { [weak self, weak router] in
                     guard let self, let router else { return }
-                    if offset == 0 { router.activateLatest(id: item.message.id) } else { router.dismiss(id: item.message.id, read: true) }
+                    if offset == 0 { router.activateLatest(id: item.message.id, token: item.message.deliveryToken) } else { router.dismiss(id: item.message.id, read: true, token: item.message.deliveryToken) }
                     self.window?.close()
                 }; row.addArrangedSubview(button)
             }

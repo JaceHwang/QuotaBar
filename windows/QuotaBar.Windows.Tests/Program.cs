@@ -30,8 +30,8 @@ internal static class Program {
         var button=new FloatingWindow(); var detail=new DetailWindow();
         try {
             using(var tray = new System.Windows.Forms.NotifyIcon()) {
-                var receipts=0; var presentations=0;
-                using var router=new AppNotificationRouter(tray,_=>true,_=>{},_=>receipts++);
+                var receipts=0; var presentations=0; var opens=0;
+                using var router=new AppNotificationRouter(tray,_=>true,_=>opens++,_=>receipts++);
                 router.PresentBubble=_=> { presentations++; return true; };
                 var m=new ExperienceNotification("hidden",ExperienceNotificationKind.Recovery,"a","Restored","100%",DateTimeOffset.UtcNow);
                 router.Enqueue(m); router.UpdateEnvironment(true);
@@ -42,6 +42,12 @@ internal static class Program {
                 Action<bool>? systemDone=null; router.SystemDelivery=(_,done)=>systemDone=done;
                 router.Enqueue(m with { Id="both" }); systemDone?.Invoke(true);
                 Check(receipts==2,"both channels receipt once"); router.CancelAuthenticationEpoch("a"); systemDone?.Invoke(true); Check(receipts==2,"late system callback after cancellation ignored");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                router.Enqueue(m with { Id="once" }); router.Activate("once"); router.Activate("once"); Check(opens==1,"two channels execute one action");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.System });
+                var completions=new System.Collections.Generic.List<Action<bool>>(); router.SystemDelivery=(_,done)=>completions.Add(done);
+                router.Enqueue(m with { Id="reuse" }); router.CancelMessage("reuse"); router.Enqueue(m with { Id="reuse" });
+                var beforeReceipts=receipts; completions[0](true); Check(receipts==beforeReceipts,"old generation cannot receipt new message"); completions[1](true); Check(receipts==beforeReceipts+1,"current generation receipts");
             }
             using(var bubble = new CharacterNotificationBubble()) {
                 var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);

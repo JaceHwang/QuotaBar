@@ -167,8 +167,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
         router.hideBubble = { [weak self] in self?.notificationBubble.dismiss() }
         router.onUnreadChange = { [weak self] in self?.floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty }
-        notificationBubble.onAction = { router.activate(id: $0) }
-        notificationBubble.onAcknowledge = { router.dismiss(id: $0, read: true) }
+        notificationBubble.onAction = { router.activate(id: $0, token: $1) }
+        notificationBubble.onAcknowledge = { router.dismiss(id: $0, read: true, token: $1) }
         notificationBubble.onInteractionChanged = { router.setInteracting($0) }
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(notificationScreenLocked), name: NSNotification.Name("com.apple.screenIsLocked"), object: nil)
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(notificationScreenUnlocked), name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)

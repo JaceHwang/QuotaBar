@@ -26,7 +26,7 @@ import QuotaCore
     }
     func testAcknowledgeAndViewAreDistinct() {
         let b = CharacterNotificationBubble(); var actions = 0, acknowledged = 0
-        b.onAction = { _ in actions += 1 }; b.onAcknowledge = { _ in acknowledged += 1 }
+        b.onAction = { _, _ in actions += 1 }; b.onAcknowledge = { _, _ in acknowledged += 1 }
         let m = ExperienceNotification(id: "t", kind: .recovery, epoch: "a", title: "Restored", body: "100%", createdAt: Date())
         let view = b.content(message: m, dark: false, language: .english, width: 368)
         let buttons = tree(view).compactMap { $0 as? NSButton }
@@ -65,7 +65,7 @@ import QuotaCore
         b.dismiss(); XCTAssertFalse(b.panel.isVisible)
     }
     func testLateButtonRetainsItsOriginalMessageID() {
-        let b = CharacterNotificationBubble(); var ids: [String] = []; b.onAction = { ids.append($0) }
+        let b = CharacterNotificationBubble(); var ids: [String] = []; b.onAction = { id, _ in ids.append(id) }
         let old = ExperienceNotification(id: "old", kind: .recovery, epoch: nil, title: "Old", body: "", createdAt: Date())
         let first = b.content(message: old, dark: false, language: .english, width: 368)
         _ = b.content(message: ExperienceNotification(id: "new", kind: .recovery, epoch: nil, title: "New", body: "", createdAt: Date()), dark: false, language: .english, width: 368)

@@ -1,7 +1,7 @@
 namespace QuotaBar.Windows;
 internal sealed class CharacterNotificationBubble : Window,IDisposable {
     bool disposed;
-    public Action<string>? ActionRequested,Acknowledged;
+    public Action<string,string?>? ActionRequested,Acknowledged;
     public Action<bool>? InteractionChanged;
     public CharacterNotificationBubble() {
         Width=368; Height=180; WindowStyle=WindowStyle.None; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -28,8 +28,8 @@ internal sealed class CharacterNotificationBubble : Window,IDisposable {
         var text=Ui.Text(message.Body,12,muted); text.Height=52; text.Margin=new Thickness(0,6,0,10); text.TextWrapping=TextWrapping.Wrap; text.TextTrimming=TextTrimming.CharacterEllipsis; text.ToolTip=message.Body; body.Children.Add(text);
         var actions=new Grid(); actions.ColumnDefinitions.Add(new()); actions.ColumnDefinitions.Add(new());
         var label=message.Kind==ExperienceNotificationKind.Bank?copy.Text("View Bank","查看 Bank","查看 Bank"):message.Kind==ExperienceNotificationKind.Update?copy.Text("View update","查看更新","查看更新"):copy.Text("View details","查看详情","查看詳情");
-        var primary=Ui.Button(label,()=>ActionRequested?.Invoke(message.Id)); primary.Height=28; primary.MinHeight=28; primary.FontSize=12; primary.Margin=new Thickness(0,0,8,0); primary.Padding=new Thickness(8,2,8,2); primary.Tag="notification.primary";
-        var acknowledge=Ui.Button(copy.Text("Got it","知道了","知道了"),()=>Acknowledged?.Invoke(message.Id)); acknowledge.Height=28; acknowledge.MinHeight=28; acknowledge.FontSize=12; acknowledge.Margin=new Thickness(0); acknowledge.Padding=new Thickness(8,2,8,2); acknowledge.Tag="notification.acknowledge";
+        var primary=Ui.Button(label,()=>ActionRequested?.Invoke(message.Id,message.DeliveryToken)); primary.Height=28; primary.MinHeight=28; primary.FontSize=12; primary.Margin=new Thickness(0,0,8,0); primary.Padding=new Thickness(8,2,8,2); primary.Tag="notification.primary";
+        var acknowledge=Ui.Button(copy.Text("Got it","知道了","知道了"),()=>Acknowledged?.Invoke(message.Id,message.DeliveryToken)); acknowledge.Height=28; acknowledge.MinHeight=28; acknowledge.FontSize=12; acknowledge.Margin=new Thickness(0); acknowledge.Padding=new Thickness(8,2,8,2); acknowledge.Tag="notification.acknowledge";
         Grid.SetColumn(acknowledge,1); actions.Children.Add(primary); actions.Children.Add(acknowledge); body.Children.Add(actions);
         SettingsVisual.ApplyButtons(canvas,dark); primary.Background=new SolidColorBrush(Color.FromRgb(46,59,76)); primary.Foreground=Brushes.White;
         System.Windows.Automation.AutomationProperties.SetName(this,message.Title+". "+message.Body); Content=canvas;

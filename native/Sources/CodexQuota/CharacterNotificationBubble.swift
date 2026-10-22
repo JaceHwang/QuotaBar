@@ -27,11 +27,11 @@ private final class BubbleSurfaceView: NSView {
         (dark ? NSColor(calibratedWhite: 0.14, alpha: 1) : NSColor.white).setFill(); tail.fill()
     }
 }
-private final class BubbleActionButton: NSButton { var messageID = "" }
+private final class BubbleActionButton: NSButton { var messageID = ""; var token: String? }
 @MainActor final class CharacterNotificationBubble: NSObject {
     let panel: NSPanel = BubblePassivePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-    var onAction: ((String) -> Void)?
-    var onAcknowledge: ((String) -> Void)?
+    var onAction: ((String, String?) -> Void)?
+    var onAcknowledge: ((String, String?) -> Void)?
     var onInteractionChanged: ((Bool) -> Void)?
     private var currentID = ""
     private(set) var isVisible = false
@@ -70,8 +70,8 @@ private final class BubbleActionButton: NSButton { var messageID = "" }
         _ = label(message.title, size: 14, weight: .semibold, y: 34, height: 34, lines: 2)
         let body = label(message.body, size: 12, weight: .regular, y: 74, height: 48, lines: 4); body.textColor = dark ? NSColor(calibratedWhite: 0.8, alpha: 1) : .darkGray
         let title = message.kind == .bank ? copy.text("View Bank", "查看 Bank", "查看 Bank") : message.kind == .update ? copy.text("View update", "查看更新", "查看更新") : copy.text("View details", "查看详情", "查看詳情")
-        let primary = BubbleActionButton(title: title, target: self, action: #selector(viewTapped(_:))); primary.messageID = message.id; primary.bezelColor = NSColor(calibratedRed: 0.18, green: 0.23, blue: 0.3, alpha: 1); primary.contentTintColor = .white; primary.bezelStyle = .rounded; primary.frame = CGRect(x: 12, y: 138, width: 136, height: 28); primary.font = .systemFont(ofSize: 12, weight: .semibold); primary.identifier = .init("notification.primary"); card.addSubview(primary)
-        let acknowledge = BubbleActionButton(title: copy.text("Got it", "知道了", "知道了"), target: self, action: #selector(acknowledgeTapped(_:))); acknowledge.messageID = message.id; acknowledge.bezelStyle = .rounded; acknowledge.frame = CGRect(x: card.frame.width - 140, y: 138, width: 126, height: 28); acknowledge.font = .systemFont(ofSize: 12); acknowledge.identifier = .init("notification.acknowledge"); card.addSubview(acknowledge)
+        let primary = BubbleActionButton(title: title, target: self, action: #selector(viewTapped(_:))); primary.messageID = message.id; primary.token = message.deliveryToken; primary.bezelColor = NSColor(calibratedRed: 0.18, green: 0.23, blue: 0.3, alpha: 1); primary.contentTintColor = .white; primary.bezelStyle = .rounded; primary.frame = CGRect(x: 12, y: 138, width: 136, height: 28); primary.font = .systemFont(ofSize: 12, weight: .semibold); primary.identifier = .init("notification.primary"); card.addSubview(primary)
+        let acknowledge = BubbleActionButton(title: copy.text("Got it", "知道了", "知道了"), target: self, action: #selector(acknowledgeTapped(_:))); acknowledge.messageID = message.id; acknowledge.token = message.deliveryToken; acknowledge.bezelStyle = .rounded; acknowledge.frame = CGRect(x: card.frame.width - 140, y: 138, width: 126, height: 28); acknowledge.font = .systemFont(ofSize: 12); acknowledge.identifier = .init("notification.acknowledge"); card.addSubview(acknowledge)
         root.setAccessibilityLabel(message.title + ". " + message.body)
         return root
     }
@@ -93,6 +93,6 @@ private final class BubbleActionButton: NSButton { var messageID = "" }
     }
     func contains(_ point: CGPoint) -> Bool { panel.isVisible && panel.frame.contains(point) }
     func dismiss() { panel.orderOut(nil); isVisible = false; onInteractionChanged?(false) }
-    @objc private func viewTapped(_ sender: BubbleActionButton) { onAction?(sender.messageID) }
-    @objc private func acknowledgeTapped(_ sender: BubbleActionButton) { onAcknowledge?(sender.messageID) }
+    @objc private func viewTapped(_ sender: BubbleActionButton) { onAction?(sender.messageID, sender.token) }
+    @objc private func acknowledgeTapped(_ sender: BubbleActionButton) { onAcknowledge?(sender.messageID, sender.token) }
 }

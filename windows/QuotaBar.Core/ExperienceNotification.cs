@@ -1,6 +1,6 @@
 namespace QuotaBar.Core;
 public enum ExperienceNotificationKind { Recovery,Bank,Update,Test }
-public sealed record ExperienceNotification(string Id,ExperienceNotificationKind Kind,string? Epoch,string Title,string Body,DateTimeOffset CreatedAt,DateTimeOffset? ValidUntil=null,IReadOnlyList<BankExpiryEvent>? BankEvents=null) {
+public sealed record ExperienceNotification(string Id,ExperienceNotificationKind Kind,string? Epoch,string Title,string Body,DateTimeOffset CreatedAt,DateTimeOffset? ValidUntil=null,IReadOnlyList<BankExpiryEvent>? BankEvents=null,string? DeliveryToken=null) {
     public bool Valid(DateTimeOffset now)=>now>=CreatedAt.AddSeconds(-5) && (ValidUntil is null || now<ValidUntil) && (Kind!=ExperienceNotificationKind.Recovery || now<=CreatedAt.AddMinutes(5));
 }
 public sealed class ExperienceNotificationQueue {

@@ -63,4 +63,26 @@ import QuotaCore
         XCTAssertEqual(shown, 2)
     }
 
+    func testBothClicksConsumeActionOnlyOnce() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "ActionOnce.\(UUID())")!); defer { router.stop() }
+        var opens = 0; router.openDetails = { opens += 1 }
+        let m = ExperienceNotification(id: "once", kind: .recovery, epoch: "a", title: "Restored", body: "", createdAt: Date())
+        router.enqueue(m, valid: { true }, failed: {})
+        router.activate(id: m.id); router.activate(id: m.id)
+        XCTAssertEqual(opens, 1)
+    }
+    func testOldSystemCompletionCannotReceiptReusedID() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "Generation.\(UUID())")!); defer { router.stop() }
+        router.configure(NotificationPresentationPreferences(mode: .system))
+        var completions: [(Bool) -> Void] = [], oldReceipts = 0, newReceipts = 0
+        router.sendSystem = { _, done in completions.append(done) }
+        let m = ExperienceNotification(id: "update-reused", kind: .update, epoch: nil, title: "Update", body: "", createdAt: Date())
+        router.enqueue(m, valid: { true }, failed: {}, shown: { oldReceipts += 1 })
+        router.cancelMessage(id: m.id)
+        router.enqueue(m, valid: { true }, failed: {}, shown: { newReceipts += 1 })
+        completions[0](true)
+        XCTAssertEqual(oldReceipts, 0); XCTAssertEqual(newReceipts, 0)
+        completions[1](true); XCTAssertEqual(newReceipts, 1)
+    }
+
 }

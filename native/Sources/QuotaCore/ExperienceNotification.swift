@@ -2,6 +2,7 @@ import Foundation
 public enum ExperienceNotificationKind: Int, Sendable { case recovery = 0, bank = 1, update = 2, test = 3 }
 public struct ExperienceNotification: Sendable {
     public let id: String
+    public var deliveryToken: String? = nil
     public let kind: ExperienceNotificationKind
     public let epoch: String?
     public let title: String

@@ -46,7 +46,7 @@ internal sealed class Coordinator : IDisposable {
         Notifications.PresentBubble=m=>notificationBubble.ShowMessage(m,Platform.Bounds(floating),Platform.IsDark(Preferences),Copy,VisualTreeHelper.GetDpi(floating).DpiScaleX);
         Notifications.HideBubble=notificationBubble.Dismiss;
         Notifications.UnreadChanged=()=>floating.HasUnread=Notifications.Unread.Count>0;
-        notificationBubble.ActionRequested=Notifications.Activate; notificationBubble.Acknowledged=id=>Notifications.Dismiss(id,true); notificationBubble.InteractionChanged=Notifications.SetInteracting;
+        notificationBubble.ActionRequested=(id,token)=>Notifications.Activate(id,token); notificationBubble.Acknowledged=(id,token)=>Notifications.Dismiss(id,true,token); notificationBubble.InteractionChanged=Notifications.SetInteracting;
         floating.DragStarted+=()=> { notificationDragging=true; Notifications.UpdateEnvironment(false); };
         floating.DragFinished+=()=> { notificationDragging=false; Render(); };
         floating.Primary+=()=> {
