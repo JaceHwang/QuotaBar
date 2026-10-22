@@ -2,6 +2,9 @@ namespace QuotaBar.Windows;
 internal sealed class SettingsWindow : Window {
     readonly Coordinator owner;
     readonly Grid shell=new();
+    readonly BarkSettingsDraft mobileDraft=new();
+    BarkSettingsView? mobile;
+    public void UpdateMobileStatus()=>mobile?.Refresh();
     TextBlock? updateStatus;
     StackPanel? updateActions;
     Button? updateCheck;
@@ -39,17 +42,17 @@ internal sealed class SettingsWindow : Window {
         var sidebar=new DockPanel { Margin=new Thickness(12,22,12,16) };
         var brand=new StackPanel { Margin=new Thickness(8,6,0,28) }; var brandRow=new StackPanel { Orientation=Orientation.Horizontal }; brandRow.Children.Add(Ui.ApplicationLogo(42));
         var brandText=new StackPanel { Margin=new Thickness(10,0,0,0) }; var brandName=Ui.Text("QuotaBar",19,fg); brandName.FontWeight=FontWeights.Bold; brandText.Children.Add(brandName); var version=Ui.Text("v"+owner.Updates.Version,12,muted); version.ToolTip=owner.Updates.DisplayVersion; brandText.Children.Add(version); brandRow.Children.Add(brandText); brand.Children.Add(brandRow); DockPanel.SetDock(brand,Dock.Top); sidebar.Children.Add(brand);
-        var navigation=new StackPanel(); var labels=new[]{copy.Text("Account","账户","帳戶"),copy.Text("Display","显示","顯示"),copy.Text("Quota experience","额度表情与管理","額度表情與管理"),copy.Text("Updates","更新","更新")}; var keys=new[]{"account","display","moods","updates"};
+        var navigation=new StackPanel(); var labels=new[]{copy.Text("Account","账户","帳戶"),copy.Text("Display","显示","顯示"),copy.Text("Quota experience","额度表情与管理","額度表情與管理"),copy.Text("Updates","更新","更新"),copy.Text("Mobile push","手机推送","手機推播")}; var keys=new[]{"account","display","moods","updates","mobile"};
         for(var i=0;i<keys.Length;i++) {
-            var key=keys[i]; var button=Ui.Button(labels[i],()=> { selectedPage=key; Build(); }); button.Tag="settings-nav-"+key; button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Padding=new Thickness(10,8,6,8); button.BorderThickness=new Thickness(0); button.FontSize=13;
+            var key=keys[i]; var button=Ui.Button(labels[i],()=> { selectedPage=key; if(key=="mobile") owner.Mobile.RefreshConfiguration(); Build(); }); button.Tag="settings-nav-"+key; button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Padding=new Thickness(10,8,6,8); button.BorderThickness=new Thickness(0); button.FontSize=13;
             button.Content=SettingsVisual.NavigationLabel(i,labels[i],fg);
             button.Background=key==selectedPage?new SolidColorBrush(dark?Color.FromRgb(43,81,53):Color.FromRgb(218,242,218)):Brushes.Transparent; button.Foreground=fg; if(key==selectedPage) button.FontWeight=FontWeights.Bold;
             System.Windows.Automation.AutomationProperties.SetName(button,labels[i]); navigation.Children.Add(button);
         } sidebar.Children.Add(navigation);
         var sideSurface=new Border { Background=dark?new SolidColorBrush(Color.FromRgb(25,27,32)):new SolidColorBrush(Color.FromRgb(240,242,245)),Child=new ScrollViewer { Content=sidebar,VerticalScrollBarVisibility=ScrollBarVisibility.Auto } }; shell.Children.Add(sideSurface);
         var pages=new Grid { Margin=new Thickness(24,26,24,18),MaxWidth=640,HorizontalAlignment=HorizontalAlignment.Stretch };
-        var account=AccountView(dark); var display=DisplayView(dark); var moods=MoodsView(dark); var updates=UpdatesView(dark);
-        foreach(var (key,page) in new[]{("account",account),("display",display),("moods",moods),("updates",updates)}) { var scroll=new ScrollViewer { Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Visibility=selectedPage==key?Visibility.Visible:Visibility.Collapsed }; pages.Children.Add(scroll); }
+        var account=AccountView(dark); var display=DisplayView(dark); var moods=MoodsView(dark); var updates=UpdatesView(dark); mobile=new(owner,mobileDraft,dark);
+        foreach(var (key,page) in new[]{("account",account),("display",display),("moods",moods),("updates",updates),("mobile",mobile.View)}) { var scroll=new ScrollViewer { Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Visibility=selectedPage==key?Visibility.Visible:Visibility.Collapsed }; pages.Children.Add(scroll); }
         Grid.SetColumn(pages,1); shell.Children.Add(pages); UpdateStatus(); UpdateUpdateStatus(); SettingsVisual.ApplyButtons(shell,dark);
     }
     StackPanel Page(string heading,string description,bool dark) {

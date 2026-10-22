@@ -7,6 +7,7 @@ internal sealed class Coordinator : IDisposable {
     readonly Application app;
     public UpdateController Updates { get; }
     internal AppNotificationRouter Notifications { get; }
+    internal BarkNotificationController Mobile { get; }
     internal QuotaExperienceController Experience { get; }
     readonly string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"QuotaBar");
     readonly PreferencesStore store;
@@ -34,13 +35,16 @@ internal sealed class Coordinator : IDisposable {
     public TokenUsage? Tokens { get; private set; }
     public AccountIdentity? Identity { get; private set; }
     public Copy Copy=>new(Preferences.Language);
-    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null) {
+    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null,IBarkSecretStore? barkSecrets=null,IBarkPushClient? barkTransport=null) {
         this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
         Updates=new(this,root,updatesTransport); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
         Notifications=new(tray,
             m=>m.Kind==ExperienceNotificationKind.Update ? Updates.ReminderValid(m.Id[7..]) : Experience?.Valid(m)==true,
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Open(); else { OpenExperienceDetail(); if(m.Kind==ExperienceNotificationKind.Bank) detail.FocusBank(); } },
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.ReminderShown(m.Id[7..]); });
+        Mobile=new(barkSecrets??new BarkSecretStore(),barkTransport??new BarkPushClient(),new BarkDeliveryStore(Path.Combine(root,"bark-deliveries.json")),Preferences.Bark,value=> { var updated=Preferences with { Bark=value }; store.Save(updated); Preferences=updated; });
+        Notifications.Mobile=Mobile; Mobile.CurrentMessages=()=>Notifications.CurrentMessages.Concat(Updates.CurrentReminder is { } update?new[]{update}:Array.Empty<ExperienceNotification>());
+        Mobile.Changed+=()=> { if(!stopping) settings?.UpdateMobileStatus(); };
         Experience=new(this,root); Notifications.Failed=Experience.NotificationFailed;
         Notifications.Configure(Preferences.Notifications);
         Notifications.PresentBubble=m=>floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&notificationBubble.ShowMessage(m,Platform.Bounds(floating),Platform.IsDark(Preferences),Copy,VisualTreeHelper.GetDpi(floating).DpiScaleX);
@@ -113,7 +117,7 @@ internal sealed class Coordinator : IDisposable {
         Notifications.Configure(Preferences.Notifications);
         Experience.Configure();
         if(retryReminder) Notifications.RetryFailedDeliveries();
-        Updates.PreferencesChanged();
+        Updates.PreferencesChanged(); Mobile.Revalidate();
         Render(); if(rebuildSettings) settings?.Build();
     }
     void SetFloating(bool enabled) {
@@ -188,8 +192,8 @@ internal sealed class Coordinator : IDisposable {
         var p=Platform.Cursor; var screen=Platform.WorkArea(p); trayAnchor=new Rect(p.X,screen.Y+screen.Height,1,1);
         detailFromFloating=false; trayDetail=true; Render(); Refresh();
     }
-    internal bool ShowUpdateReminder(string version,string? summary=null) {
-        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow)); return true;
+    internal bool ShowUpdateReminder(string version,string? summary=null,string reminderGeneration="initial") {
+        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration)); return true;
     }
     public void ShowSettings() {
         if(settings is null) { settings=new(this); settings.Closed+=(_,_)=>settings=null; }

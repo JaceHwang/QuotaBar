@@ -20,6 +20,7 @@ internal static class Program {
     static int Main() {
         if(!OperatingSystem.IsWindows()) return 1;
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
+        Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
         var quota=QuotaDecoder.Decode(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/rate-limits/read-response.json")));
         quota=quota with { Primary=quota.Primary with { ResetsAt=DateTimeOffset.Now.AddHours(5) },Secondary=quota.Secondary is { } second ? second with { ResetsAt=DateTimeOffset.Now.AddDays(4) } : null };
@@ -53,6 +54,27 @@ internal static class Program {
                 var beforePresentations=presentations; router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
                 Check(presentations==beforePresentations+1,"explicit channel change retries failed event");
             }
+            var barkRoot=Path.Combine(Path.GetTempPath(),"quotabar-bark-router-"+Guid.NewGuid()); Directory.CreateDirectory(barkRoot);
+            try {
+                var accepted=0; var displayed=0; var secrets=new BarkTests.Secrets { Key="fake-device-key" }; var transport=new BarkTests.Transport();
+                using var mobile=new BarkNotificationController(secrets,transport,new BarkDeliveryStore(Path.Combine(barkRoot,"receipts.json")),new BarkPreferences { Enabled=true },_=>{});
+                using var tray=new System.Windows.Forms.NotifyIcon();
+                using var router=new AppNotificationRouter(tray,_=>true,_=>{},_=>accepted++); router.Mobile=mobile; router.PresentBubble=_=> { displayed++; return true; };
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Off }); router.UpdateEnvironment(false);
+                router.Enqueue(new("mobile-only",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow));
+                Check(transport.Sends==1&&accepted==1&&router.Unread.Count==0,"desktop off and hidden does not block mobile or create unread");
+                router.UpdateEnvironment(true); router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                Check(displayed==1&&accepted==1&&router.Unread.Count==1,"mobile receipt preserves desktop delivery and unread; shared receipt once");
+                router.CancelMessage("mobile-only"); router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.System });
+                transport.Pending=new(TaskCreationOptions.RunContinuationsAsynchronously); Action<bool>? desktopDone=null; router.SystemDelivery=(_,done)=>desktopDone=done;
+                router.Enqueue(new("desktop-first",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow)); desktopDone?.Invoke(true);
+                Check(accepted==2,"desktop succeeds while mobile in-flight"); transport.Pending.SetResult(BarkPushResult.Accepted);
+                var wait=DateTime.UtcNow.AddSeconds(3); while(!mobile.WhenIdle.IsCompleted&&DateTime.UtcNow<wait) Pump();
+                Check(mobile.WhenIdle.IsCompleted&&accepted==2&&transport.Sends==2,"mobile also completes after desktop; shared receipt remains once");
+                mobile.ClearKey(); router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                router.Enqueue(new("desktop-only",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow));
+                Check(displayed==2&&transport.Sends==2,"mobile off does not block desktop");
+            } finally { Directory.Delete(barkRoot,true); }
             using(var heldRouter=new AppNotificationRouter(new System.Windows.Forms.NotifyIcon(),_=>true,_=>{},_=>{})) {
                 var hidden=0; heldRouter.PresentBubble=_=>true; heldRouter.HideBubble=()=>hidden++; heldRouter.UpdateEnvironment(true);
                 QuotaObservation O(double used,long sequence) { var at=DateTimeOffset.UtcNow; return new("a",sequence,at,new(new(used,80,at.AddHours(1),300),null,null,null,null,at)); }
@@ -134,7 +156,7 @@ internal static class Program {
             }
             Check(File.ReadAllBytes(Path.Combine(output,"tray-light.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(output,"tray-dark.png"))),"same circular tray pixels across themes");
             var updateRoot=Path.Combine(Path.GetTempPath(),"quotabar-update-ui-"+Guid.NewGuid());
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new InterruptedFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new InterruptedFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 Check(owner.Notifications.PresentBubble?.Invoke(new ExperienceNotification("guard",ExperienceNotificationKind.Test,null,"Example","",DateTimeOffset.UtcNow))==false,"presentation rechecks hidden or cloaked floating anchor");
                 owner.Updates.Check(true);
                 var deadline=DateTime.UtcNow.AddSeconds(5);
@@ -157,7 +179,7 @@ internal static class Program {
                     var moodBitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); moodBitmap.Render(settings);
                     var moodEncoder=new PngBitmapEncoder(); moodEncoder.Frames.Add(BitmapFrame.Create(moodBitmap)); using(var moodFile=File.Create(Path.Combine(output,"settings-b-"+(dark?"dark":"light")+".png"))) moodEncoder.Save(moodFile);
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
-                    Check(navigation.Length==4,"four sidebar pages");
+                    Check(navigation.Length==5,"five sidebar pages preserving updates fourth");
                     var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
                     var peer=new System.Windows.Automation.Peers.CheckBoxAutomationPeer(moodToggle);
                     var togglePattern=(System.Windows.Automation.Provider.IToggleProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle);
@@ -181,7 +203,7 @@ internal static class Program {
                     foreach(var language in new[]{"zh-CN","zh-TW","en"}) {
                         owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
                         Check(owner.Updates.Status==owner.Copy.Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。"),"update result follows language changes");
-                        foreach(var key in new[]{"account","display","moods","updates"}) {
+                        foreach(var key in new[]{"account","display","moods","updates","mobile"}) {
                             Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-"+key).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                             settings.Width=840; settings.Height=560; Pump();
                             Check(Tree(settings).OfType<CheckBox>().Where(b=>b.IsVisible).All(b=>b.ActualWidth<=640),"settings controls remain within reading width");
@@ -197,6 +219,18 @@ internal static class Program {
                             var encoded=new PngBitmapEncoder(); encoded.Frames.Add(BitmapFrame.Create(rendered)); using var stream=File.Create(Path.Combine(output,$"polish-{language}-{dark}-{key}.png")); encoded.Save(stream);
                         }
                     }
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-mobile").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    var keyDraft=Tree(settings).OfType<PasswordBox>().Single(); keyDraft.Password="fake-draft-key";
+                    settings.Build(); Pump(); Check(Tree(settings).OfType<PasswordBox>().Single().Password=="fake-draft-key","mobile draft survives settings rebuild");
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(owner.Mobile.HasKey&&!owner.Mobile.Preferences.Enabled&&Tree(settings).OfType<PasswordBox>().Single().Password=="","save configures without enabling and does not read key back");
+                    Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-test").IsEnabled,"configured mobile sample test available while automatic off");
+                    foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
+                        owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
+                        var configured=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); configured.Render(settings);
+                        var image=new PngBitmapEncoder(); image.Frames.Add(BitmapFrame.Create(configured)); using var configuredFile=File.Create(Path.Combine(output,$"mobile-configured-{language}-{dark}.png")); image.Save(configuredFile);
+                    }
+
                     Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-account").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     owner.State.LoginCompleted(false); settings.UpdateStatus(); Pump();
                     Check(Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-account-login").IsVisible,"sign in is visible when logged out");
@@ -208,7 +242,7 @@ internal static class Program {
                 }
             }
             File.WriteAllText(Path.Combine(updateRoot,"updates.json"),"{\"Policy\":null}");
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 owner.Updates.Check(true); var deadline=DateTime.UtcNow.AddSeconds(5);
                 while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();
                 Check(owner.Updates.Available?.Version=="999.0.0","valid Windows release discovered");
@@ -227,7 +261,7 @@ internal static class Program {
             }
             var clock=DateTimeOffset.FromUnixTimeSeconds(100000);
             File.WriteAllText(Path.Combine(updateRoot,"updates.json"),JsonSerializer.Serialize(new { LastSuccess=clock }));
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 owner.Save(new Preferences { AutomaticUpdates=false },false);
                 using var updates=new UpdateController(owner,updateRoot,new HttpClient(new AvailableFeedHandler()),()=>clock);
                 owner.Save(new Preferences { AutomaticUpdates=true },false);
@@ -242,7 +276,7 @@ internal static class Program {
                 using(var updateState=JsonDocument.Parse(File.ReadAllText(Path.Combine(updateRoot,"updates.json"))))
                     Check(updateState.RootElement.GetProperty("LastSuccess").GetDateTimeOffset()==clock,"automatic check resumes after 24 hours");
             }
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 owner.Save(new Preferences { AutomaticUpdates=false },false);
                 var failed=new InterruptedFeedHandler();
                 using var updates=new UpdateController(owner,updateRoot,new HttpClient(failed),()=>clock);

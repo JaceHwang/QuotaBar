@@ -6,6 +6,9 @@ internal sealed class AppNotificationRouter : IDisposable {
     readonly NotificationPresentationState state=new();
     readonly Dictionary<string,ExperienceNotification> messages=[];
     readonly HashSet<string> receipted=[];
+    readonly HashSet<BarkEventIdentity> semanticReceipts=[];
+    public BarkNotificationController? Mobile { get; set; }
+    public IEnumerable<ExperienceNotification> CurrentMessages=>messages.Values;
     readonly HashSet<string> previews=[];
     readonly HashSet<string> consumed=[];
     readonly HashSet<string> failedDeliveries=[];
@@ -31,7 +34,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     public void RetryFailedDeliveries(bool allUndelivered=false) {
         var candidates=allUndelivered?messages.Keys.ToArray():failedDeliveries.ToArray();
         var retry=candidates.Where(id=>messages.ContainsKey(id)&&!receipted.Contains(id)&&!consumed.Contains(id)).Select(id=>messages[id]).ToArray(); failedDeliveries.Clear();
-        foreach(var m in retry) { CancelMessage(m.Id); if(valid(m)&&m.Valid(DateTimeOffset.UtcNow)) Enqueue(m); }
+        foreach(var m in retry) { CancelMessage(m.Id,false); if(valid(m)&&m.Valid(DateTimeOffset.UtcNow)) Enqueue(m); }
     }
     void MarkFailed(ExperienceNotification m) { if(!receipted.Contains(m.Id)) failedDeliveries.Add(m.Id); Failed?.Invoke(); }
     public void UpdateEnvironment(bool visible) { canPresent=visible; if(!visible) Suspend(); else Dispatch(); }
@@ -43,14 +46,17 @@ internal sealed class AppNotificationRouter : IDisposable {
     public void Enqueue(ExperienceNotification message)=>Enqueue(message,false);
     void Enqueue(ExperienceNotification input,bool forceBubble) {
         var message=input with { DeliveryToken=Guid.NewGuid().ToString() };
-        if(stopped||preferences.Mode==NotificationDeliveryMode.Off&&!forceBubble||messages.ContainsKey(message.Id)||!forceBubble&&!valid(message)||!message.Valid(DateTimeOffset.UtcNow)) return;
+        if(stopped||messages.ContainsKey(message.Id)||!forceBubble&&!valid(message)||!message.Valid(DateTimeOffset.UtcNow)) return;
         messages[message.Id]=message;
-        if(messages.Count>128) { var oldest=messages.Values.Where(m=>m.Id!=state.ActiveId&&m.Id!=nativeActive?.Id).OrderBy(m=>m.CreatedAt).First(); messages.Remove(oldest.Id); receipted.Remove(oldest.Id); }
+        if(messages.Count>128) { var oldest=messages.Values.Where(m=>m.Id!=state.ActiveId&&m.Id!=nativeActive?.Id).OrderBy(m=>m.CreatedAt).First(); messages.Remove(oldest.Id); receipted.Remove(oldest.Id); semanticReceipts.Remove(new(oldest.Id,oldest.ReminderGeneration)); }
+        if(!forceBubble) Mobile?.Enqueue(message,valid,MobileReceipt);
         if(preferences.UsesBubble||forceBubble) state.Enqueue(message,canPresent&&(!preferences.Paused(DateTimeOffset.UtcNow)||forceBubble),DateTimeOffset.UtcNow);
         if(preferences.UsesSystem&&!forceBubble) systemQueue.Enqueue(message);
         UnreadChanged?.Invoke(); Dispatch(); DispatchSystem();
     }
-    void Receipt(ExperienceNotification message) { if(stopped||!messages.TryGetValue(message.Id,out var current)||current.DeliveryToken!=message.DeliveryToken||!valid(message)||!receipted.Add(message.Id)) return; shown(message); }
+    void Receipt(ExperienceNotification message) { if(stopped||!messages.TryGetValue(message.Id,out var current)||current.DeliveryToken!=message.DeliveryToken||!valid(message)||!receipted.Add(message.Id)) return; SemanticReceipt(message); }
+    void SemanticReceipt(ExperienceNotification message) { if(semanticReceipts.Add(new(message.Id,message.ReminderGeneration))) shown(message); }
+    void MobileReceipt(ExperienceNotification message) { if(!stopped&&message.Valid(DateTimeOffset.UtcNow)&&valid(message)) SemanticReceipt(message); }
     void Dispatch() {
         if(stopped||(!preferences.UsesBubble||preferences.Paused(DateTimeOffset.UtcNow))&&previews.Count==0||!canPresent) return;
         while(state.Next(true,DateTimeOffset.UtcNow) is { } message) {
@@ -90,17 +96,19 @@ internal sealed class AppNotificationRouter : IDisposable {
     void Shown(object? sender,EventArgs e) { if(nativeActive is { } m&&m.Valid(DateTimeOffset.UtcNow)) Receipt(m); }
     void Clicked(object? sender,EventArgs e) { if(nativeActive is { } m) Activate(m.Id,m.DeliveryToken); nativeActive=null; /* cooldown guards trailing native events */ }
     void Closed(object? sender,EventArgs e) { if(nativeActive is { } m&&!receipted.Contains(m.Id)) MarkFailed(m); nativeActive=null; }
-    public void CancelMessage(string id) {
+    public void CancelMessage(string id,bool cancelMobile=true) {
+        if(cancelMobile) Mobile?.Cancel(id);
         var active=state.ActiveId==id; state.Forget(id); systemQueue.CancelId(id); messages.Remove(id); receipted.Remove(id); previews.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id);
         if(nativeActive?.Id==id) { nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); }
         if(active) { HideBubble?.Invoke(); bubbleTimer.Stop(); } UnreadChanged?.Invoke();
     }
     public void CancelAuthenticationEpoch(string epoch) {
+        Mobile?.CancelAuthenticationEpoch(epoch);
         systemQueue.Cancel(epoch); var active=state.ActiveId;
         state.Cancel(epoch); foreach(var id in messages.Values.Where(m=>m.Epoch==epoch).Select(m=>m.Id).ToArray()) { messages.Remove(id); receipted.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id); }
         if(nativeActive?.Epoch==epoch) nativeActive=null;
         if(active!=state.ActiveId) { HideBubble?.Invoke(); bubbleTimer.Stop(); }
         UnreadChanged?.Invoke(); Dispatch();
     }
-    public void Dispose() { if(stopped) return; stopped=true; state.Stop(); nativeTimeout.Stop(); bubbleTimer.Stop(); nativeActive=null; HideBubble?.Invoke(); messages.Clear(); receipted.Clear(); previews.Clear(); consumed.Clear(); failedDeliveries.Clear(); tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }
+    public void Dispose() { if(stopped) return; stopped=true; Mobile?.Dispose(); semanticReceipts.Clear(); state.Stop(); nativeTimeout.Stop(); bubbleTimer.Stop(); nativeActive=null; HideBubble?.Invoke(); messages.Clear(); receipted.Clear(); previews.Clear(); consumed.Clear(); failedDeliveries.Clear(); tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }
 }
