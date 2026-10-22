@@ -161,7 +161,10 @@ final class FloatingQuotaButton: NSObject {
         guard preferences.enabled else { hide(); return }
         panel.appearance = theme.appKitAppearance; icon.updateAppearance(theme.appKitAppearance)
         label.attributedStringValue = summary.map { FloatingQuotaTypography.string(summary: $0, alignment: .left) } ?? NSAttributedString(string: fallback, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor])
-        let width = min(304, max(188, ceil(label.attributedStringValue.size().width + 68)))
+        // NSTextFieldCell includes the drawing insets omitted by attributed-string size().
+        // Measure the same cell that renders the text, and always reserve the close slot.
+        let textWidth = ceil(label.cell?.cellSize.width ?? label.intrinsicContentSize.width)
+        let width = max(188, textWidth + 67)
         let frame = preferences.frame(size: CGSize(width: width, height: 30), screens: NSScreen.screens.map(\.visibleFrame))
         panel.setFrame(frame, display: true); interaction.frame = CGRect(origin: .zero, size: frame.size)
         icon.frame = CGRect(x: 6, y: 5, width: 20, height: 20)
