@@ -4,6 +4,23 @@ import QuotaCore
 @testable import CodexQuota
 
 @MainActor final class NotificationRoutingTests: XCTestCase {
+    func testRealPreviewSurvivesFormerTimeoutUntilQuotaChanges() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "HeldWindow.\(UUID())")!)
+        let bubble = CharacterNotificationBubble(); defer { router.stop(); bubble.dismiss() }
+        let work = try XCTUnwrap(NSScreen.main).visibleFrame
+        router.presentBubble = { bubble.show(message: $0, anchor: CGRect(x: work.midX, y: work.midY, width: 180, height: 30), dark: false, language: .english) }
+        router.hideBubble = { bubble.dismiss() }; router.updateEnvironment(canPresent: true)
+        func observation(_ used: Double, _ sequence: Int) -> QuotaObservation {
+            let date = Date()
+            return QuotaObservation(epoch: "a", sequence: sequence, receivedAt: date, quota: AllowanceSnapshot(usedPercent: used, remainingPercent: 80, resetsAt: date.addingTimeInterval(3600), receivedAt: date))
+        }
+        router.observeQuota(observation(20, 1))
+        XCTAssertTrue(router.preview(ExperienceNotification(id: "preview-held", kind: .test, epoch: nil, title: "Example", body: "Held until quota changes", createdAt: Date())))
+        RunLoop.main.run(until: Date().addingTimeInterval(12))
+        XCTAssertTrue(bubble.panel.isVisible)
+        router.observeQuota(observation(20, 2)); XCTAssertTrue(bubble.panel.isVisible)
+        router.observeQuota(observation(21, 3)); XCTAssertFalse(bubble.panel.isVisible)
+    }
     func testQuotaChangeHidesAllBubbleKindsButSameReadKeepsThem() {
         for kind in [ExperienceNotificationKind.recovery, .bank, .update, .test] {
             let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "Held.\(UUID())")!); defer { router.stop() }
