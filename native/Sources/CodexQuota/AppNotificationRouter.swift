@@ -113,6 +113,11 @@ import QuotaCore
         onUnreadChange?(); dispatch()
     }
     func suspend() { state.suspend(); timer?.invalidate(); timer = nil; hideBubble?() }
+    func activateLatest(id: String) {
+        guard let d = deliveries[id] else { return }
+        if d.message.kind == .update { activate(id: id); return }
+        dismiss(id: id, read: true); openDetails?()
+    }
     func activate(id: String) {
         guard let d = deliveries[id], d.valid() else { dismiss(id: id, read: true); return }
         dismiss(id: id, read: true)

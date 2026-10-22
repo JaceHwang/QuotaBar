@@ -40,6 +40,12 @@ final class QuotaDetailPanel {
         panel.isVisible ? panel.frame : nil
     }
 
+    func focusBank() {
+        func tree(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(tree) }
+        guard let content = panel.contentView, let label = tree(content).compactMap({ $0 as? NSTextField }).first(where: { $0.stringValue.hasPrefix("Bank") }) else { return }
+        label.scrollToVisible(label.bounds)
+    }
+
     func show(
         content: QuotaDetailContent,
         relativeTo indicatorFrame: CGRect,

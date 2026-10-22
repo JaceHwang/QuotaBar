@@ -106,6 +106,11 @@ final class FloatingQuotaButton: NSObject {
     var onMenu: (() -> Void)?
     var onHover: ((Bool) -> Void)?
     var onMove: (() -> Void)?
+    var onDragStarted: (() -> Void)?
+    var onDragFinished: (() -> Void)?
+    var isOnActiveSpace: Bool { panel.isOnActiveSpace }
+    private let unreadDot = NSView(frame: CGRect(x: 24, y: 23, width: 5, height: 5))
+    var hasUnread = false { didSet { unreadDot.isHidden = !hasUnread } }
     var frame: CGRect? { panel.isVisible ? panel.frame : nil }
     init(preferences: FloatingQuotaPreferences = FloatingQuotaPreferences()) {
         self.preferences = preferences
@@ -133,6 +138,7 @@ final class FloatingQuotaButton: NSObject {
         closeButton.target = self; closeButton.action = #selector(closeFloatingButton)
         closeButton.isHidden = true
         interaction.addSubview(closeButton); interaction.closeControl = closeButton
+        unreadDot.wantsLayer = true; unreadDot.layer?.cornerRadius = 2.5; unreadDot.layer?.backgroundColor = NSColor.systemOrange.cgColor; unreadDot.isHidden = true; interaction.addSubview(unreadDot)
         interaction.setAccessibilityElement(true); interaction.setAccessibilityRole(.button)
         interaction.onPrimaryClick = { [weak self] in self?.onClick?() }
         interaction.onSecondaryClick = { [weak self] in self?.onMenu?() }
@@ -145,7 +151,7 @@ final class FloatingQuotaButton: NSObject {
             }
             onHover?(value)
         }
-        interaction.onDragBegan = { [weak self] in self?.celebration.cancel(); self?.dragOrigin = self?.panel.frame.origin }
+        interaction.onDragBegan = { [weak self] in self?.onDragStarted?(); self?.celebration.cancel(); self?.dragOrigin = self?.panel.frame.origin }
         interaction.onDrag = { [weak self] delta in
             guard let self, let dragOrigin else { return }
             preferences.origin = CGPoint(x: dragOrigin.x + delta.x, y: dragOrigin.y + delta.y)
@@ -154,7 +160,7 @@ final class FloatingQuotaButton: NSObject {
         }
         interaction.onDragEnded = { [weak self] in
             guard let self else { return }
-            preferences.origin = panel.frame.origin; dragOrigin = nil
+            preferences.origin = panel.frame.origin; dragOrigin = nil; onDragFinished?()
         }
     }
     func show(summary: ResetIndicatorSummary?, theme: CodexInterfaceTheme, tooltip: String, fallback: String, dimmed: Bool) {

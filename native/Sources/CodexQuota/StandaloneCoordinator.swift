@@ -8,6 +8,10 @@ nonisolated(unsafe) private var standaloneSignalWriteFD: Int32 = -1
 @MainActor
 final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private let detail = QuotaDetailPanel()
+    private let notificationBubble = CharacterNotificationBubble()
+    private let unreadPanel = NotificationUnreadPanel()
+    private var notificationDragging = false
+    private var screenLocked = false
     private let floating: FloatingQuotaButton
     private var detailFromFloating = false
     private var floatingInteraction = QuotaDetailInteractionState()
@@ -122,6 +126,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
         floating.onMenu = { [weak self] in self?.showFloatingMenu() }
         floating.onMove = { [weak self] in self?.render() }
+        floating.onDragStarted = { [weak self] in self?.notificationDragging = true; AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
+        floating.onDragFinished = { [weak self] in self?.notificationDragging = false; self?.render() }
         floating.onClose = { [weak self] in self?.setFloatingEnabled(false) }
         floating.onHover = { [weak self] entered in self?.floatingHoverChanged(entered) }
         detail.onLockOpenToggle = { [weak self] in
@@ -149,6 +155,24 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         AppNotificationRouter.shared.openDetails = { [weak self] in
             guard let self else { return }
             if snapshot == nil { showSettings() } else { detailFromFloating = false; showingDetail = true; render(); refresh() }
+        }
+        let router = AppNotificationRouter.shared
+        router.openBank = { [weak self] in router.openDetails?(); self?.detail.focusBank() }
+        router.presentBubble = { [weak self] message in
+            guard let self, let anchor = floating.frame, floating.isOnActiveSpace else { return false }
+            return notificationBubble.show(message: message, anchor: anchor, dark: theme == .dark, language: language)
+        }
+        router.hideBubble = { [weak self] in self?.notificationBubble.dismiss() }
+        router.onUnreadChange = { [weak self] in self?.floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty }
+        notificationBubble.onAction = { router.activate(id: $0) }
+        notificationBubble.onAcknowledge = { router.dismiss(id: $0, read: true) }
+        notificationBubble.onInteractionChanged = { router.setInteracting($0) }
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(notificationScreenLocked), name: NSNotification.Name("com.apple.screenIsLocked"), object: nil)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(notificationScreenUnlocked), name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(notificationSpaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(notificationSpaceChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        if let appMenu = NSApp.mainMenu?.items.first?.submenu {
+            let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒"), action: #selector(showUnreadReminders), keyEquivalent: "u"); unread.target = self; appMenu.insertItem(unread, at: 1)
         }
         render()
         let refreshTimer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
@@ -239,8 +263,14 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func wake() { sleeping = false; refresh(); updates?.check() }
-    @objc private func sleep() { sleeping = true; experience?.resetBaseline() }
+    @objc private func sleep() { sleeping = true; experience?.resetBaseline(); AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
+    @objc private func notificationScreenLocked() { screenLocked = true; AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
+    @objc private func notificationScreenUnlocked() { screenLocked = false; render() }
+    @objc private func notificationSpaceChanged() { AppNotificationRouter.shared.suspend(); render() }
+    @objc private func showUnreadReminders() { AppNotificationRouter.shared.suspend(); unreadPanel.show(router: .shared, language: language) }
     private func dismissOutsideClick() {
+        if notificationBubble.contains(NSEvent.mouseLocation) { return }
+        if notificationBubble.isVisible { AppNotificationRouter.shared.suspend() }
         guard showingDetail || floatingInteraction.shouldShowDetail, !(detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked) else { return }
         let point = NSEvent.mouseLocation
         if detail.frame?.contains(point) == true || floating.frame?.contains(point) == true || statusItem?.button?.window?.frame.contains(point) == true { return }
@@ -311,6 +341,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             detail.show(content: QuotaDetailFormatter().content(snapshot: snapshot, tokenUsage: tokens, footerName: identity?.preferredName, footerAvatarURL: identity?.avatarURL, now: Date(), language: language, timeZone: .current), relativeTo: anchor, theme: theme, isLockedOpen: detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked)
         } else { detail.hide() }
         let detailVisible = detail.frame != nil
+        AppNotificationRouter.shared.updateEnvironment(canPresent: floating.frame != nil && floating.isOnActiveSpace && !detailVisible && !sleeping && !screenLocked && !notificationDragging && !floatingMenuVisible && !stopping)
+        floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty
         let detailFits = detail.frame.map { frame in NSScreen.screens.contains { $0.visibleFrame.contains(frame) } } ?? false
         let diagnostic = "pid=\(ProcessInfo.processInfo.processIdentifier) mode=standalone phase=\(state.phase.rawValue) has_quota=\(snapshot != nil) host_ui=false status_quota=\(statusDisplay.showsQuotaInformation) floating_visible=\(floating.frame != nil) floating_enabled=\(floating.preferences.enabled) detail_visible=\(detailVisible) detail_fits_screen=\(detailFits)\n"
         try? diagnostic.write(to: root.appendingPathComponent("standalone-state.txt"), atomically: true, encoding: .utf8)
@@ -321,6 +353,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
+        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.unread.count))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         let floatingToggle = NSMenuItem(title: text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), action: #selector(floatingChanged), keyEquivalent: "")
         floatingToggle.target = self; floatingToggle.state = floating.preferences.enabled ? .on : .off
         menu.insertItem(floatingToggle, at: 2)
@@ -505,6 +538,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         render()
     }
     private func floatingHoverChanged(_ entered: Bool) {
+        if notificationBubble.isVisible { return }
         if !entered, menuRequiresPointerExit, !floatingMenuVisible {
             floatingInteraction.updatePointerInside(false); menuRequiresPointerExit = false
         }
@@ -526,6 +560,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if previous != floatingInteraction { render() }
     }
     private func showFloatingMenu() {
+        AppNotificationRouter.shared.updateEnvironment(canPresent: false)
         floatingMenuVisible = true; menuRequiresPointerExit = true
         floatingInteraction.dismissForContextMenu(); showingDetail = false; detailLocked = false
         detail.hide(); floatingHoverTimer?.invalidate(); floatingHoverTimer = nil
@@ -537,6 +572,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
         }
+        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.unread.count))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         floating.showMenu(menu)
     }
     @objc private func themeChanged(_ sender: NSPopUpButton) { defaults.set(["system", "light", "dark"][sender.indexOfSelectedItem], forKey: "standalone.theme"); render() }
@@ -551,6 +587,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
+        AppNotificationRouter.shared.stop(); unreadPanel.close(); DistributedNotificationCenter.default().removeObserver(self)
         experience?.stop()
         updates?.stop()
         stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil
