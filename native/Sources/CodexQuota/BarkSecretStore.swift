@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import LocalAuthentication
 
 @MainActor protocol BarkSecretStore: AnyObject {
     func read() throws -> String?
@@ -13,7 +14,8 @@ enum BarkSecretError: Error { case unavailable }
     private let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "QuotaBar.Bark", kSecAttrAccount as String: "device-key"]
     func read() throws -> String? {
         var q = query; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
-        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        let context = LAContext(); context.interactionNotAllowed = true
+        q[kSecUseAuthenticationContext as String] = context
         var result: CFTypeRef?
         let status = SecItemCopyMatching(q as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
