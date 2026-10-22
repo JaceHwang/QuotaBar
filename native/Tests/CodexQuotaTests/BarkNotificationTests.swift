@@ -29,6 +29,16 @@ import QuotaCore
         let c=BarkNotificationController(defaults:defaults,secrets:secrets,transport:transport,deliveries:BarkDeliveryStore(url:url)); defer { c.stop() }
         XCTAssertFalse(c.preferences.enabled)
     }
+
+    func testRestartDuplicateSuppressionDoesNotReportCapacityFailure() async {
+        let secrets=Secrets(), transport=Transport(), defaults=UserDefaults(suiteName:"BarkDuplicate.\(UUID())")!
+        secrets.key="fake-key"; defaults.set(try! JSONEncoder().encode(BarkPreferences(enabled:true)),forKey:"bark.preferences")
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at:url) }
+        let store=BarkDeliveryStore(url:url); XCTAssertTrue(store.reserve(identity:BarkEventIdentity(id:"attempted"),now:Date()))
+        let c=BarkNotificationController(defaults:defaults,secrets:secrets,transport:transport,deliveries:BarkDeliveryStore(url:url)); defer { c.stop() }
+        c.enqueue(ExperienceNotification(id:"attempted",kind:.update,epoch:nil,title:"Update",body:"",createdAt:Date()),valid:{true},accepted:{})
+        await c.waitUntilIdle(); XCTAssertEqual(transport.sends,0); XCTAssertEqual(c.status,.configured)
+    }
     func testUnconfiguredCannotEnableAndSaveDoesNotEnableOrSend() async {
         let (c, s, t) = controller(); defer { c.stop() }
         XCTAssertFalse(c.setEnabled(true)); XCTAssertFalse(c.preferences.enabled)

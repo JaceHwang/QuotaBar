@@ -111,7 +111,7 @@ import QuotaCore
                     let payload = try BarkPayload.encode(deviceKey: key, title: item.message.title, body: item.message.body)
                     let protected = Set(known.filter { $0.value.valid() }.map(\.key))
                     if !item.isTest {
-                        guard deliveries.reserve(identity: item.identity, now: now(), protected: protected) else { changed(deliveries.hasPersistenceError ? .persistenceFailure : .capacity); active = nil; continue }
+                        guard deliveries.reserve(identity: item.identity, now: now(), protected: protected) else { if deliveries.hasPersistenceError { changed(.persistenceFailure) }; active = nil; continue }
                     }
                     changed(.sending)
                     let result = await transport.send(payload)
