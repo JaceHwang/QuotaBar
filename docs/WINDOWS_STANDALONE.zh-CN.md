@@ -1,11 +1,11 @@
 # QuotaBar Windows 独立版
 
-Windows与macOS共用统一版本v1.1.0，已正式发布；2026-10-21用户确认新版四功能与B侧栏设置的两端实机测试通过，具体设备矩阵以进度记录为准。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/QuotaBar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
+Windows与macOS共用统一版本，准确版本以对应发布页和包内来源记录为准。用户已反馈四功能、侧栏设置及本次设置优化的实机测试通过；具体设备与未逐项执行的验收矩阵以进度记录为准。目标Windows 11 x64；自包含.NET和官方Codex 0.144.1，不需要预装CLI。正式包从[发布页](https://github.com/JaceHwang/QuotaBar/releases)获取，候选包来自Actions；请使用对应SHA256SUMS核对。Windows安装包未代码签名。状态与证据详见[开发进度](PROJECT_PROGRESS-standalone-app.md)。
 
 ## 安装、重开和恢复
 
 1. 校验下载ZIP的SHA256后解压到用户目录。保持完整QuotaBar目录结构，不能只复制exe。
-2. 双击 `QuotaBar/setup/QuotaBar.Setup.exe` 安装，或在PowerShell中执行 `& '.\QuotaBar\setup\QuotaBar.Setup.exe' install`。候选未签名；不要自动绕过系统安全提示。
+2. 双击 `QuotaBar/setup/QuotaBar.Setup.exe` 安装，或在PowerShell中执行 `& '.\QuotaBar\setup\QuotaBar.Setup.exe' install`。安装包未签名；不要自动绕过系统安全提示。
 3. 应用安装在 `%LOCALAPPDATA%\Programs\QuotaBar`，开始菜单中搜索QuotaBar即可重开。应用设置可开启登录时启动。
 4. 官方浏览器登录由你完成，凭据位于 `%LOCALAPPDATA%\QuotaBar\CodexHome`；不导入桌面账户。
 5. 升级仍从新解压目录执行setup。`rollback`恢复上一个包；`uninstall`删除活动入口并移入可恢复备份，账号和设置保留；`recover`恢复中断事务。运行setup时活动应用会先正常退出，必要时只终止匹配安装路径的自有应用。
