@@ -105,7 +105,7 @@ Commands: `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" dotnet build windows/
 
 **Files:** `docs/PROJECT_PROGRESS-standalone-app.md`, platform acceptance record, approved spec/this plan; board through utility only.
 
-- [ ] Check governance, commit verified changes by ownership, build macOS candidate with pinned official runtime and verify signature/source snapshot/DMG; isolated startup test uses temp data and no configured Bark.
-- [ ] Push only feature branch and create Draft PR targeting dependency branch or correct main base after checking live state; attach PR. Never merge/publish. Run existing native CI and inspect all checks. Fix CI failures with tests and repeat only relevant checks.
-- [ ] Verify Windows candidate if workflow produces it; record which build/CI/device checks ran. No real phone pushes or Key extraction; user config/test remains manual.
-- [ ] Update roadmap and board with implemented/local/CI/device/released distinctions; preserve previous installation unless user requests this candidate install. Deliver plan + implementation status and concise phone setup instructions.
+- [x] Check governance, commit verified changes by ownership, build macOS candidate with pinned official runtime and verify signature/source snapshot/DMG; isolated startup test uses temp data and no configured Bark.
+- [x] Push only feature branch and create Draft PR targeting dependency branch or correct main base after checking live state; attach PR. Never merge/publish. Run existing native CI and inspect all checks. Fix CI failures with tests and repeat only relevant checks.
+- [x] Verify Windows candidate if workflow produces it; record which build/CI/device checks ran. No real phone pushes or Key extraction; user config/test remains manual.
+- [x] Update roadmap and board with implemented/local/CI/device/released distinctions; preserve previous installation unless user requests this candidate install. Deliver plan + implementation status and concise phone setup instructions.
