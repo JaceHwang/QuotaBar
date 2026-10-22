@@ -57,7 +57,9 @@ internal sealed class SettingsWindow : Window {
     }
     StackPanel AccountView(bool dark) {
         var c=owner.Copy; var fg=Ui.Foreground(dark); var page=Page(c.Text("Account","账户","帳戶"),c.Text("Manage your official Codex account and quota.","管理官方 Codex 账号与额度。","管理官方 Codex 帳號與額度。"),dark);
-        var panel=new StackPanel(); accountName=Ui.Text("",16,fg); accountName.FontWeight=FontWeights.SemiBold; accountName.Margin=new Thickness(0,0,0,6); panel.Children.Add(accountName); status=Ui.Text("",12,SettingsVisual.Muted(dark)); status.LineHeight=22; panel.Children.Add(status); page.Children.Add(SettingsVisual.Card(panel,dark));
+        var panel=new StackPanel(); accountName=Ui.Text("",16,fg); accountName.FontWeight=FontWeights.SemiBold; accountName.Margin=new Thickness(12,0,0,0); accountName.VerticalAlignment=VerticalAlignment.Center;
+        var identityRow=new Grid { Margin=new Thickness(0,0,0,10) }; identityRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto }); identityRow.ColumnDefinitions.Add(new());
+        var accountIcon=new System.Windows.Shapes.Path { Data=Geometry.Parse("M 16,1 A 15,15 0 1 0 16,31 A 15,15 0 1 0 16,1 M 16,6 A 5,5 0 1 0 16,16 A 5,5 0 1 0 16,6 M 5,26 C 6,16 26,16 27,26"),Stroke=SettingsVisual.Muted(dark),StrokeThickness=1.6,Width=32,Height=32,Stretch=Stretch.Uniform,IsHitTestVisible=false }; identityRow.Children.Add(accountIcon); Grid.SetColumn(accountName,1); identityRow.Children.Add(accountName); panel.Children.Add(identityRow); status=Ui.Text("",12,SettingsVisual.Muted(dark)); status.LineHeight=22; panel.Children.Add(status); page.Children.Add(SettingsVisual.Card(panel,dark));
         accountActions.Clear();
         var actions=new WrapPanel { Margin=new Thickness(0,4,0,14) };
         void Add(string key,string title,Action action,Panel parent) { var button=Ui.Button(title,action); button.Tag="settings-account-"+key; accountActions[key]=button; parent.Children.Add(button); }

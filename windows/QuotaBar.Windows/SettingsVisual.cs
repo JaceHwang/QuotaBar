@@ -13,7 +13,7 @@ internal static class SettingsVisual {
  <Setter Property="Width" Value="8"/><Setter Property="Margin" Value="4,0,0,0"/>
  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
  <Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Focusable="False" Opacity="0"/></Track.DecreaseRepeatButton>
- <Track.Thumb><Thumb Background="{TemplateBinding Foreground}" MinHeight="24"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="{TemplateBinding Background}" CornerRadius="3"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+ <Track.Thumb><Thumb Background="{TemplateBinding Foreground}" MinHeight="24"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="{TemplateBinding Background}" Width="6" HorizontalAlignment="Center" CornerRadius="3"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
  <Track.IncreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Focusable="False" Opacity="0"/></Track.IncreaseRepeatButton>
  </Track></ControlTemplate></Setter.Value></Setter>
 </Style>
