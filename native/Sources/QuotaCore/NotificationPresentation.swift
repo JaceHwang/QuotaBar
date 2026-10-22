@@ -5,14 +5,16 @@ public enum NotificationDeliveryMode: String, Codable, Sendable, CaseIterable { 
     public var usesSystem: Bool { self == .system || self == .both }
 }
 public struct NotificationPresentationPreferences: Codable, Equatable, Sendable {
+    public var schema = 1
     public var mode: NotificationDeliveryMode
     public var pausedUntil: Date?
     public init(mode: NotificationDeliveryMode = .bubble, pausedUntil: Date? = nil) { self.mode = mode; self.pausedUntil = pausedUntil }
-    private enum CodingKeys: String, CodingKey { case mode, pausedUntil }
+    private enum CodingKeys: String, CodingKey { case schema, mode, pausedUntil }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         mode = (try? c.decode(NotificationDeliveryMode.self, forKey: .mode)) ?? .bubble
         pausedUntil = try? c.decode(Date.self, forKey: .pausedUntil)
+        if (try? c.decode(Int.self, forKey: .schema)) ?? 1 != 1 { mode = .bubble; pausedUntil = nil }
     }
     public func paused(now: Date) -> Bool { pausedUntil.map { $0 > now } ?? false }
 }
@@ -69,6 +71,7 @@ public struct NotificationPresentationState: Sendable {
         dismiss(id: id, read: false); return true
     }
     public mutating func suspend() { if let id = activeID { dismiss(id: id, read: false) } }
+    public mutating func forget(id: String) { if activeID == id { suspend() }; entries.removeAll { $0.message.id == id } }
     public mutating func cancel(epoch: String) {
         if entries.contains(where: { $0.message.id == activeID && $0.message.epoch == epoch }) { suspend() }
         entries.removeAll { $0.message.epoch == epoch }

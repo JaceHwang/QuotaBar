@@ -151,6 +151,9 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             experience.onCelebrate = { [weak self] in self?.floating.celebrate() }
             experience.onCancelCelebration = { [weak self] in self?.floating.cancelCelebration() }
             experience.onChange = { [weak self] in self?.render() }
+            experience.floatingVisible = { [weak self] in self?.floating.frame != nil }
+            experience.onShowUnread = { [weak self] in self?.showUnreadReminders() }
+            experience.onEnableFloating = { [weak self] in self?.setFloatingEnabled(true); self?.settings?.close(); self?.settings = nil; self?.showSettings() }
         }
         AppNotificationRouter.shared.openDetails = { [weak self] in
             guard let self else { return }

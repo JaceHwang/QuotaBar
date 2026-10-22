@@ -35,4 +35,32 @@ import QuotaCore
         router.cancelAuthenticationEpoch("a"); systemCompletion?(true); XCTAssertEqual(receipt, 1)
         router.stop()
     }
+    func testBothPreviewStillUsesBubbleWhenSystemPermissionDenied() throws {
+        let suite = "BubbleDenied.\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let router = AppNotificationRouter(defaults: defaults); router.configure(NotificationPresentationPreferences(mode: .both))
+        var displayed = 0
+        router.updateEnvironment(canPresent: true); router.presentBubble = { _ in displayed += 1; return true }; router.sendSystem = { _, done in done(false) }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer { try? FileManager.default.removeItem(at: root); router.stop() }
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { $0("denied") }, router: router)
+        func tree(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(tree) }
+        let button = try XCTUnwrap(tree(controller.makeSettingsView()).compactMap { $0 as? NSButton }.first { $0.title == "Send test notification" })
+        button.performClick(nil)
+        XCTAssertEqual(displayed, 1)
+        XCTAssertNil(defaults.data(forKey: "updates.policy"))
+    }
+
+    func testUpdateCanRearmAfterExplicitSnoozeCancellation() {
+        let defaults = UserDefaults(suiteName: "BubbleRearm.\(UUID())")!
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var shown = 0
+        router.presentBubble = { _ in true }; router.updateEnvironment(canPresent: true)
+        let m = ExperienceNotification(id: "quotabar-update-9.0.0", kind: .update, epoch: nil, title: "Update", body: "notes", createdAt: Date())
+        router.enqueue(m, valid: { true }, failed: {}, shown: { shown += 1 })
+        router.cancelMessage(id: m.id)
+        router.enqueue(m, valid: { true }, failed: {}, shown: { shown += 1 })
+        XCTAssertEqual(shown, 2)
+    }
+
 }

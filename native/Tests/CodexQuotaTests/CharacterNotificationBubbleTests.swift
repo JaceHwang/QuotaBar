@@ -53,5 +53,24 @@ import QuotaCore
             }
         }
     }
+    func testRealPassiveWindowKeepsFocusAndFitsWorkArea() throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let work = screen.visibleFrame
+        let b = CharacterNotificationBubble(); defer { b.dismiss() }
+        let before = NSApp.keyWindow
+        let m = ExperienceNotification(id: "passive", kind: .recovery, epoch: nil, title: "Quota restored", body: "5 hours remaining 100%", createdAt: Date())
+        XCTAssertTrue(b.show(message: m, anchor: CGRect(x: work.midX, y: work.midY, width: 180, height: 30), dark: false, language: .english))
+        XCTAssertEqual(NSApp.keyWindow, before)
+        XCTAssertTrue(work.insetBy(dx: 8, dy: 8).contains(b.panel.frame))
+        b.dismiss(); XCTAssertFalse(b.panel.isVisible)
+    }
+    func testLateButtonRetainsItsOriginalMessageID() {
+        let b = CharacterNotificationBubble(); var ids: [String] = []; b.onAction = { ids.append($0) }
+        let old = ExperienceNotification(id: "old", kind: .recovery, epoch: nil, title: "Old", body: "", createdAt: Date())
+        let first = b.content(message: old, dark: false, language: .english, width: 368)
+        _ = b.content(message: ExperienceNotification(id: "new", kind: .recovery, epoch: nil, title: "New", body: "", createdAt: Date()), dark: false, language: .english, width: 368)
+        tree(first).compactMap { $0 as? NSButton }.first { $0.title == "View details" }?.performClick(nil)
+        XCTAssertEqual(ids, ["old"])
+    }
     private func tree(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(tree) }
 }

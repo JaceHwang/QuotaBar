@@ -157,8 +157,8 @@ final class QuotaUpdateController: NSObject {
     }
 
     @objc func openRelease() { if let available { NSWorkspace.shared.open(available.releaseNotesURL) } }
-    @objc private func snooze() { var value = policy; if value.skippedVersion == available?.version { value.skippedVersion = nil }; value.snoozeUntil = Date().addingTimeInterval(86400); policy = value; status = text("Reminder postponed for 24 hours", "已延后提醒 24 小时", "已延後提醒 24 小時"); refreshView() }
-    @objc private func skip() { var value = policy; value.skippedVersion = available?.version; value.snoozeUntil = nil; policy = value; status = text("Version skipped", "已跳过此版本", "已跳過此版本"); refreshView() }
+    @objc private func snooze() { if let v = available?.version { AppNotificationRouter.shared.cancelMessage(id: "quotabar-update-\(v)") }; var value = policy; if value.skippedVersion == available?.version { value.skippedVersion = nil }; value.snoozeUntil = Date().addingTimeInterval(86400); policy = value; status = text("Reminder postponed for 24 hours", "已延后提醒 24 小时", "已延後提醒 24 小時"); refreshView() }
+    @objc private func skip() { if let v = available?.version { AppNotificationRouter.shared.cancelMessage(id: "quotabar-update-\(v)") }; var value = policy; value.skippedVersion = available?.version; value.snoozeUntil = nil; policy = value; status = text("Version skipped", "已跳过此版本", "已跳過此版本"); refreshView() }
     private func notifyIfNeeded() {
         guard !stopped, reminders, let release = available, policy.shouldNotify(release.version, now: now()) else { return }
         let attempted = policy

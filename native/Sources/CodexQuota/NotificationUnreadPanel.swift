@@ -1,6 +1,7 @@
 import AppKit
 import QuotaCore
 
+private final class UnreadStackView: NSStackView { override var isFlipped: Bool { true } }
 @MainActor final class NotificationUnreadPanel: NSObject {
     private var window: NSPanel?
     private var callbacks: [Int: () -> Void] = [:]
@@ -11,12 +12,12 @@ import QuotaCore
         panel.title = copy.text("Unread reminders · this run only", "未读提醒 · 仅本次运行", "未讀提醒 · 僅本次執行")
         panel.isReleasedWhenClosed = false
         let scroll = NSScrollView(frame: panel.contentView!.bounds); scroll.autoresizingMask = [.width, .height]; scroll.hasVerticalScroller = true
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 14; stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        let stack = UnreadStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 14; stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         let items = router.unread
         if items.isEmpty { stack.addArrangedSubview(NSTextField(labelWithString: copy.text("No unread reminders", "暂无未读提醒", "目前沒有未讀提醒"))) }
         for (i, item) in items.enumerated() {
             let column = NSStackView(); column.orientation = .vertical; column.alignment = .leading; column.spacing = 6
-            let title = NSTextField(labelWithString: item.message.title); title.font = .systemFont(ofSize: 13, weight: .semibold); column.addArrangedSubview(title)
+            let title = NSTextField(labelWithString: item.stale && item.message.kind == .bank ? copy.text("Earlier Bank reminder", "Bank 提醒记录", "Bank 提醒記錄") : item.message.title); title.font = .systemFont(ofSize: 13, weight: .semibold); column.addArrangedSubview(title)
             let formatter = DateFormatter(); formatter.timeStyle = .short
             column.addArrangedSubview(NSTextField(labelWithString: formatter.string(from: item.message.createdAt)))
             let body = item.stale ? copy.text("Earlier observation. View current quota for the latest status.", "此前观测的提醒，请查看最新额度状态。", "先前觀測的提醒，請查看最新額度狀態。") : item.message.body
@@ -34,6 +35,7 @@ import QuotaCore
         }
         stack.translatesAutoresizingMaskIntoConstraints = false; scroll.documentView = stack
         stack.widthAnchor.constraint(equalToConstant: 440).isActive = true
+        stack.layoutSubtreeIfNeeded(); stack.setFrameSize(NSSize(width: 440, height: max(380, stack.fittingSize.height)))
         panel.contentView?.addSubview(scroll); window = panel; panel.center(); panel.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
     func close() { window?.close(); window = nil; callbacks = [:] }

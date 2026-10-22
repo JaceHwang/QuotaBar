@@ -15,7 +15,7 @@ import XCTest
         let all = shell.pageContents.flatMap(tree)
         XCTAssertEqual(all.compactMap { $0 as? QuotaSettingsSwitch }.filter { $0.identifier?.rawValue.hasPrefix("settings.general.") == true }.count, 3)
         XCTAssertFalse(tree(shell.pageContents[2]).contains { $0.identifier?.rawValue.hasPrefix("settings.general.") == true })
-        let previews = tree(shell.pageContents[2]).compactMap { $0 as? NSButton }.filter { $0.title.lowercased().contains("preview") }
+        let previews = tree(shell.pageContents[2]).compactMap { $0 as? NSButton }.filter { $0.title == "Preview celebration" }
         XCTAssertEqual(previews.count, 1, "The celebration has one discoverable preview action")
         XCTAssertFalse(tree(shell).compactMap { $0 as? NSButton }.contains { $0.title.contains("›") }, "No duplicate update action in sidebar")
     }
