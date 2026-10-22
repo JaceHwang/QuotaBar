@@ -126,3 +126,9 @@ Four settings are enabled by default; saved opt-outs remain unchanged:
 - **Bank expiry reminder:** known available credits are grouped at72/24 hours before expiry. Missing dates are never guessed and credits are never redeemed automatically.
 
 Enabling either recovery notifications or celebrations permits one notification per confirmed recovery. macOS requests notification permission if undecided; OS notification and Focus settings still apply. Right-clicking the floating control hides quota details before opening its menu. See [privacy](docs/PRIVACY.md) and [troubleshooting](docs/TROUBLESHOOTING.md).
+
+### Development branch: character reminders (unreleased)
+
+The development branch routes quota recovery, Bank expiry and software update reminders into character speech bubbles beside the floating button. Select bubbles, system notifications, both, or off; existing reminder switches and skipped-version records are preserved. Hidden or locked screens retain unread reminders for the current run without opening the widget. Bubbles can be paused for an hour and do not automatically inherit system Focus. Previews use sample data.
+
+This is not part of the published v1.2.0. See the [validation record](docs/validation/2026-10-22-character-notification-bubbles.md) for platform evidence and remaining checks.
