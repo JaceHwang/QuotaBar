@@ -87,8 +87,9 @@ internal sealed class UpdateController : IDisposable {
         catch(Exception e) when(e is IOException or UnauthorizedAccessException) { SetStatus("Could not save update preferences","无法保存更新偏好","無法儲存更新偏好"); }
     }
     public void Open() { if(Available is { } release) Platform.OpenUrl(release.ReleaseNotesURL.AbsoluteUri); }
-    public void Snooze() { state=state with { Policy=state.Policy with { SkippedVersion=state.Policy.SkippedVersion==Available?.Version?null:state.Policy.SkippedVersion,SnoozeUntil=DateTimeOffset.UtcNow.AddDays(1) } }; SetStatus("Reminder postponed for 24 hours","已延后提醒 24 小时","已延後提醒 24 小時"); Persist(); Changed?.Invoke(); }
-    public void Skip() { state=state with { Policy=state.Policy with { SkippedVersion=Available?.Version,SnoozeUntil=null } }; SetStatus("Version skipped","已跳过此版本","已跳過此版本"); Persist(); Changed?.Invoke(); }
+    public void Snooze() { if(Available is { } release) owner.Notifications.CancelMessage("update-"+release.Version); pendingReminder=null; retryReminder=DateTimeOffset.MinValue; state=state with { Policy=state.Policy with { SkippedVersion=state.Policy.SkippedVersion==Available?.Version?null:state.Policy.SkippedVersion,SnoozeUntil=DateTimeOffset.UtcNow.AddDays(1) } }; SetStatus("Reminder postponed for 24 hours","已延后提醒 24 小时","已延後提醒 24 小時"); Persist(); Changed?.Invoke(); }
+    public void Skip() { if(Available is { } release) owner.Notifications.CancelMessage("update-"+release.Version); pendingReminder=null; state=state with { Policy=state.Policy with { SkippedVersion=Available?.Version,SnoozeUntil=null } }; SetStatus("Version skipped","已跳过此版本","已跳過此版本"); Persist(); Changed?.Invoke(); }
+    public bool ReminderValid(string version)=>!stopped && owner.Preferences.UpdateReminders && Available?.Version==version && state.Policy.SkippedVersion!=version && !(state.Policy.SnoozeUntil>DateTimeOffset.UtcNow);
     public void Notify() {
         if(stopped || !owner.Preferences.UpdateReminders || Available is not { } release || !state.Policy.ShouldNotify(release.Version,DateTimeOffset.UtcNow)) return;
         if(DateTimeOffset.UtcNow<retryReminder) return;

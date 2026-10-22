@@ -2,35 +2,90 @@ using Forms=System.Windows.Forms;
 namespace QuotaBar.Windows;
 internal sealed class AppNotificationRouter : IDisposable {
     readonly Forms.NotifyIcon tray;
-    readonly ExperienceNotificationQueue queue=new();
-    readonly DispatcherTimer timeout=new() { Interval=TimeSpan.FromSeconds(15) };
+    readonly ExperienceNotificationQueue systemQueue=new();
+    readonly NotificationPresentationState state=new();
+    readonly Dictionary<string,ExperienceNotification> messages=[];
+    readonly HashSet<string> receipted=[];
+    readonly HashSet<string> previews=[];
+    readonly DispatcherTimer nativeTimeout=new() { Interval=TimeSpan.FromSeconds(15) };
+    readonly DispatcherTimer bubbleTimer=new() { Interval=TimeSpan.FromMilliseconds(250) };
     readonly Func<ExperienceNotification,bool> valid;
     readonly Action<ExperienceNotification> clicked,shown;
-    ExperienceNotification? active;
-    public Action? Failed { get; set; }
-    bool stopped;
+    ExperienceNotification? nativeActive;
+    NotificationPresentationPreferences preferences=new();
+    bool stopped,canPresent;
+    public Action? Failed,HideBubble,UnreadChanged;
+    public Func<ExperienceNotification,bool>? PresentBubble;
+    internal Action<ExperienceNotification,Action<bool>>? SystemDelivery;
+    public bool HasActiveBubble=>state.ActiveId!=null;
+    public IReadOnlyList<NotificationUnreadItem> Unread=>state.Unread(DateTimeOffset.UtcNow).Where(i=>!i.Message.Id.StartsWith("preview-",StringComparison.Ordinal)).Select(i=>i with { Stale=i.Stale||!valid(i.Message) }).ToArray();
     public AppNotificationRouter(Forms.NotifyIcon tray,Func<ExperienceNotification,bool> valid,Action<ExperienceNotification> clicked,Action<ExperienceNotification> shown) {
         this.tray=tray; this.valid=valid; this.clicked=clicked; this.shown=shown;
-        tray.BalloonTipClicked+=Clicked; tray.BalloonTipShown+=Shown; tray.BalloonTipClosed+=Closed; timeout.Tick+=(_,_)=>Complete();
+        tray.BalloonTipClicked+=Clicked; tray.BalloonTipShown+=Shown; tray.BalloonTipClosed+=Closed;
+        nativeTimeout.Tick+=(_,_)=> { nativeTimeout.Stop(); nativeActive=null; DispatchSystem(); };
+        bubbleTimer.Tick+=(_,_)=>Tick();
     }
-    public void Enqueue(ExperienceNotification message) { if(stopped) return; queue.Enqueue(message); Dispatch(); }
+    public void Configure(NotificationPresentationPreferences value) { if(preferences==value) return; preferences=value; while(systemQueue.Next(DateTimeOffset.UtcNow)!=null) { } nativeActive=null; Suspend(); Dispatch(); }
+    public void UpdateEnvironment(bool visible) { canPresent=visible; if(!visible) Suspend(); else Dispatch(); }
+    public bool Preview(ExperienceNotification message) {
+        if(!canPresent||stopped) return false;
+        Suspend(); foreach(var item in state.Unread(DateTimeOffset.UtcNow)) state.Dismiss(item.Message.Id,false);
+        previews.Add(message.Id); Enqueue(message,true); return state.ActiveId==message.Id;
+    }
+    public void Enqueue(ExperienceNotification message)=>Enqueue(message,false);
+    void Enqueue(ExperienceNotification message,bool forceBubble) {
+        if(stopped||preferences.Mode==NotificationDeliveryMode.Off&&!forceBubble||messages.ContainsKey(message.Id)||!forceBubble&&!valid(message)||!message.Valid(DateTimeOffset.UtcNow)) return;
+        messages[message.Id]=message;
+        if(messages.Count>128) { var oldest=messages.Values.Where(m=>m.Id!=state.ActiveId&&m.Id!=nativeActive?.Id).OrderBy(m=>m.CreatedAt).First(); messages.Remove(oldest.Id); receipted.Remove(oldest.Id); }
+        if(preferences.UsesBubble||forceBubble) state.Enqueue(message,canPresent&&(!preferences.Paused(DateTimeOffset.UtcNow)||forceBubble),DateTimeOffset.UtcNow);
+        if(preferences.UsesSystem&&!forceBubble) systemQueue.Enqueue(message);
+        UnreadChanged?.Invoke(); Dispatch(); DispatchSystem();
+    }
+    void Receipt(ExperienceNotification message) { if(stopped||!messages.ContainsKey(message.Id)||!valid(message)||!receipted.Add(message.Id)) return; shown(message); }
     void Dispatch() {
-        if(stopped || active is not null || timeout.IsEnabled) return;
-        while(queue.Next(DateTimeOffset.UtcNow) is { } next) {
+        if(stopped||(!preferences.UsesBubble||preferences.Paused(DateTimeOffset.UtcNow))&&previews.Count==0||!canPresent) return;
+        while(state.Next(true,DateTimeOffset.UtcNow) is { } message) {
+            if(!valid(message)&&!previews.Contains(message.Id)) { state.Dismiss(message.Id,false); continue; }
+            if(PresentBubble?.Invoke(message)!=true) { state.Suspend(); break; }
+            state.Shown(message.Id,DateTimeOffset.UtcNow); Receipt(message); bubbleTimer.Start(); break;
+        }
+    }
+    void Tick() {
+        if(state.ActiveId is { } id&&(!messages.TryGetValue(id,out var m)||!valid(m)&&!previews.Contains(id))) { state.Dismiss(id,false); HideBubble?.Invoke(); }
+        if(state.Tick(DateTimeOffset.UtcNow)) { previews.Clear(); HideBubble?.Invoke(); UnreadChanged?.Invoke(); }
+        if(state.ActiveId==null) { bubbleTimer.Stop(); Dispatch(); }
+    }
+    public void SetInteracting(bool value)=>state.SetInteracting(value,DateTimeOffset.UtcNow);
+    public void Suspend() { previews.Clear(); state.Suspend(); bubbleTimer.Stop(); HideBubble?.Invoke(); }
+    public void Dismiss(string id,bool read) {
+        var active=state.ActiveId==id; state.Dismiss(id,read); previews.Remove(id); if(active) { bubbleTimer.Stop(); HideBubble?.Invoke(); } UnreadChanged?.Invoke(); Dispatch();
+    }
+    public void ActivateLatest(string id) { if(!messages.TryGetValue(id,out var m)) return; if(m.Kind==ExperienceNotificationKind.Update) { Activate(id); return; } Dismiss(id,true); clicked(m); }
+    public void Activate(string id) { if(messages.TryGetValue(id,out var message)&&(valid(message)||previews.Contains(id))) { Receipt(message); Suspend(); state.Dismiss(id,true); UnreadChanged?.Invoke(); clicked(message); } else Dismiss(id,true); }
+    void DispatchSystem() {
+        if(stopped||!preferences.UsesSystem||nativeTimeout.IsEnabled) return;
+        while(systemQueue.Next(DateTimeOffset.UtcNow) is { } next) {
             if(!valid(next)) continue;
-            active=next; timeout.Start();
-            try { tray.ShowBalloonTip(10000,next.Title,next.Body,Forms.ToolTipIcon.Info); }
-            catch(InvalidOperationException) { active=null; timeout.Stop(); Failed?.Invoke(); continue; }
+            nativeActive=next; nativeTimeout.Start();
+            try { if(SystemDelivery is { } send) send(next,success=> { if(stopped||!messages.ContainsKey(next.Id)||!valid(next)) return; if(success && preferences.UsesSystem && next.Valid(DateTimeOffset.UtcNow)) Receipt(next); else if(!success) Failed?.Invoke(); }); else tray.ShowBalloonTip(10000,next.Title,next.Body,Forms.ToolTipIcon.Info); }
+            catch(InvalidOperationException) { nativeActive=null; nativeTimeout.Stop(); Failed?.Invoke(); continue; }
             break;
         }
     }
-    void Shown(object? sender,EventArgs e) { if(active is { } message && valid(message)) shown(message); }
-    void Clicked(object? sender,EventArgs e) { if(active is { } message) clicked(message); Complete(); }
-    void Closed(object? sender,EventArgs e)=>Complete();
-    void Complete() { timeout.Stop(); active=null; Dispatch(); }
-    public void CancelAuthenticationEpoch(string epoch) {
-        queue.Cancel(epoch);
-        if(active?.Epoch==epoch) { active=null; /* leave timeout running so a trailing native click cannot route to the next message */ }
+    void Shown(object? sender,EventArgs e) { if(nativeActive is { } m&&m.Valid(DateTimeOffset.UtcNow)) Receipt(m); }
+    void Clicked(object? sender,EventArgs e) { if(nativeActive is { } m) Activate(m.Id); nativeActive=null; /* cooldown guards trailing native events */ }
+    void Closed(object? sender,EventArgs e) { nativeActive=null; }
+    public void CancelMessage(string id) {
+        var active=state.ActiveId==id; state.Forget(id); systemQueue.CancelId(id); messages.Remove(id); receipted.Remove(id); previews.Remove(id);
+        if(nativeActive?.Id==id) nativeActive=null;
+        if(active) { HideBubble?.Invoke(); bubbleTimer.Stop(); } UnreadChanged?.Invoke();
     }
-    public void Dispose() { stopped=true; timeout.Stop(); active=null; tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }
+    public void CancelAuthenticationEpoch(string epoch) {
+        systemQueue.Cancel(epoch); var active=state.ActiveId;
+        state.Cancel(epoch); foreach(var id in messages.Values.Where(m=>m.Epoch==epoch).Select(m=>m.Id).ToArray()) { messages.Remove(id); receipted.Remove(id); }
+        if(nativeActive?.Epoch==epoch) nativeActive=null;
+        if(active!=state.ActiveId) { HideBubble?.Invoke(); bubbleTimer.Stop(); }
+        UnreadChanged?.Invoke(); Dispatch();
+    }
+    public void Dispose() { if(stopped) return; stopped=true; state.Stop(); nativeTimeout.Stop(); bubbleTimer.Stop(); nativeActive=null; HideBubble?.Invoke(); messages.Clear(); receipted.Clear(); previews.Clear(); tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }
 }

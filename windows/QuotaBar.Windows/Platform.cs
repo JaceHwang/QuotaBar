@@ -14,6 +14,12 @@ internal static class Platform {
     [DllImport("user32.dll",SetLastError=true)] static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int w,int h,uint flags);
     [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr hwnd,int index);
     [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")] static extern IntPtr SetWindowLongPtr(IntPtr hwnd,int index,IntPtr value);
+    [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hwnd,int attribute,out int value,int size);
+    public static bool OnCurrentDesktop(Window window) {
+        if(!window.IsVisible) return false;
+        var handle=new WindowInteropHelper(window).Handle;
+        return handle!=IntPtr.Zero && (DwmGetWindowAttribute(handle,14,out var cloaked,4)!=0 || cloaked==0);
+    }
     public static Point Cursor { get { GetCursorPos(out var p); return new(p.X,p.Y); } }
     public static Rect Bounds(Window w) {
         if(!w.IsVisible) return Rect.Empty;

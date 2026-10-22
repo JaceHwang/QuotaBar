@@ -29,6 +29,34 @@ internal static class Program {
         var prefs=new Preferences(); var copy=new Copy("zh-CN");
         var button=new FloatingWindow(); var detail=new DetailWindow();
         try {
+            using(var tray = new System.Windows.Forms.NotifyIcon()) {
+                var receipts=0; var presentations=0;
+                using var router=new AppNotificationRouter(tray,_=>true,_=>{},_=>receipts++);
+                router.PresentBubble=_=> { presentations++; return true; };
+                var m=new ExperienceNotification("hidden",ExperienceNotificationKind.Recovery,"a","Restored","100%",DateTimeOffset.UtcNow);
+                router.Enqueue(m); router.UpdateEnvironment(true);
+                Check(receipts==0&&presentations==0&&router.Unread.Count==1,"hidden arrival does not replay or receipt");
+                router.Enqueue(m with { Id="visible" }); Check(receipts==1&&presentations==1,"visible receipt once");
+                router.CancelAuthenticationEpoch("a"); Check(router.Unread.Count==0,"cancel clears unread");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Both });
+                Action<bool>? systemDone=null; router.SystemDelivery=(_,done)=>systemDone=done;
+                router.Enqueue(m with { Id="both" }); systemDone?.Invoke(true);
+                Check(receipts==2,"both channels receipt once"); router.CancelAuthenticationEpoch("a"); systemDone?.Invoke(true); Check(receipts==2,"late system callback after cancellation ignored");
+            }
+            using(var bubble = new CharacterNotificationBubble()) {
+                var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
+                foreach(var dark in new[]{false,true}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
+                    bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(368,180)); bubble.Arrange(new Rect(0,0,368,180));
+                    Check(!bubble.ShowActivated && !bubble.ShowInTaskbar,"bubble is passive");
+                    Check(Tree(bubble).OfType<Button>().Count()==2,"bubble has two distinct actions");
+                    Check(Tree(bubble).OfType<QuotaMoodView>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
+                    var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
+                    foreach(var scale in new[]{1d,1.5d,2d}) {
+                        var bitmap=new RenderTargetBitmap((int)(368*scale),(int)(180*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(bubble.Content as System.Windows.Media.Visual);
+                        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-{language}-{dark}-{scale}.png")); encoder.Save(file);
+                    }
+                }
+            }
             var clicks=0; var closes=0;
             button.Primary+=()=>clicks++;
             button.CloseRequested+=()=> { closes++; prefs=prefs with { FloatingEnabled=false }; button.Render(quota,state,prefs,copy,false); };

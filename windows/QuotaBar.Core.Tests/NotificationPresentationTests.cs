@@ -20,6 +20,8 @@ static class NotificationPresentationTests {
         Check(NotificationBubbleLayout.Place(new(0,0,10,30),new(0,0,200,100),368,150)==null,"narrow");
         var pref=JsonSerializer.Deserialize<Preferences>("{\"UpdateReminders\":false,\"Experience\":{\"Moods\":false}}")!.Validated();
         Check(pref.Notifications.Mode==NotificationDeliveryMode.Bubble&&!pref.UpdateReminders&&!pref.Experience.Moods,"migration preserves false");
+        var invalid=JsonSerializer.Deserialize<Preferences>("{\"UpdateReminders\":false,\"Experience\":{\"Moods\":false},\"Notifications\":{\"Mode\":\"invalid\"}}")!.Validated();
+        Check(invalid.Notifications.Mode==NotificationDeliveryMode.Bubble&&!invalid.Experience.Moods,"invalid channel preserves opt-out");
         var fixture=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"../../../../../contracts/notifications/presentation-sequences.json")));
         foreach(var row in fixture.RootElement.EnumerateArray()) {
             var s=new NotificationPresentationState(); var id=row.GetProperty("id").GetString()!; s.Enqueue(M(id),row.GetProperty("visible").GetBoolean(),now);

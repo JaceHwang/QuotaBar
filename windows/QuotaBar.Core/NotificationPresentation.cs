@@ -1,12 +1,24 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 namespace QuotaBar.Core;
+[JsonConverter(typeof(NotificationDeliveryModeConverter))]
 public enum NotificationDeliveryMode { Bubble,System,Both,Off }
+public sealed class NotificationDeliveryModeConverter : JsonConverter<NotificationDeliveryMode> {
+    public override NotificationDeliveryMode Read(ref Utf8JsonReader reader,Type type,JsonSerializerOptions options) {
+        if(reader.TokenType==JsonTokenType.Number && reader.TryGetInt32(out var n) && Enum.IsDefined(typeof(NotificationDeliveryMode),n)) return (NotificationDeliveryMode)n;
+        if(reader.TokenType==JsonTokenType.String && Enum.TryParse<NotificationDeliveryMode>(reader.GetString(),true,out var mode) && Enum.IsDefined(mode)) return mode;
+        reader.Skip(); return NotificationDeliveryMode.Bubble;
+    }
+    public override void Write(Utf8JsonWriter writer,NotificationDeliveryMode value,JsonSerializerOptions options)=>writer.WriteNumberValue((int)value);
+}
 public sealed record NotificationPresentationPreferences {
+    public int Schema { get; init; }=1;
     public NotificationDeliveryMode Mode { get; init; }=NotificationDeliveryMode.Bubble;
     public DateTimeOffset? PausedUntil { get; init; }
     public bool UsesBubble=>Mode is NotificationDeliveryMode.Bubble or NotificationDeliveryMode.Both;
     public bool UsesSystem=>Mode is NotificationDeliveryMode.System or NotificationDeliveryMode.Both;
     public bool Paused(DateTimeOffset now)=>PausedUntil>now;
-    public NotificationPresentationPreferences Validated()=>Enum.IsDefined(Mode)?this:this with { Mode=NotificationDeliveryMode.Bubble };
+    public NotificationPresentationPreferences Validated()=>Schema==1&&Enum.IsDefined(Mode)?this:new();
 }
 public sealed record NotificationUnreadItem(ExperienceNotification Message,bool Stale);
 public sealed class NotificationPresentationState {
@@ -34,6 +46,7 @@ public sealed class NotificationPresentationState {
     public void SetInteracting(bool value,DateTimeOffset now) { if(ActiveId==null||interacting==value) return; if(value) { if(deadline is { } d) remaining=d>now?d-now:TimeSpan.Zero; deadline=null; } else deadline=now+remaining; interacting=value; }
     public bool Tick(DateTimeOffset now) { Prune(now); if(ActiveId is not string id||deadline is not { } d||now<d) return false; Dismiss(id,false); return true; }
     public void Suspend() { if(ActiveId is { } id) Dismiss(id,false); }
+    public void Forget(string id) { if(ActiveId==id) Suspend(); entries.RemoveAll(e=>e.Message.Id==id); }
     public void Cancel(string epoch) { if(entries.Any(e=>e.Message.Id==ActiveId&&e.Message.Epoch==epoch)) Suspend(); entries.RemoveAll(e=>e.Message.Epoch==epoch); }
     public IReadOnlyList<NotificationUnreadItem> Unread(DateTimeOffset now) { Prune(now); return entries.Where(e=>!e.Read).Reverse().Select(e=>new NotificationUnreadItem(e.Message,!e.Message.Valid(now))).ToArray(); }
     public void Stop() { Suspend(); entries.Clear(); stopped=true; }

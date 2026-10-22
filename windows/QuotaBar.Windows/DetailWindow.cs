@@ -6,6 +6,10 @@ internal sealed class DetailWindow : Window {
     readonly ScrollViewer scroll=new() { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
     string? avatarKey;
     FrameworkElement? avatar;
+    public void FocusBank() {
+        static IEnumerable<DependencyObject> Tree(DependencyObject root) { yield return root; for(var i=0;i<VisualTreeHelper.GetChildrenCount(root);i++) foreach(var child in Tree(VisualTreeHelper.GetChild(root,i))) yield return child; }
+        Tree(this).OfType<TextBlock>().FirstOrDefault(t=>t.Text.StartsWith("Bank",StringComparison.Ordinal))?.BringIntoView();
+    }
     public event Action? LockRequested,SettingsRequested;
     public event Action<double>? HeightChanged;
     public DetailWindow() {
