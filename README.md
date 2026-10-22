@@ -54,6 +54,8 @@ Check for updates from the menu or settings, view release notes, postpone a remi
 
 <img src="docs/images/macos-updates-en.png" alt="Actual macOS update settings showing version 1.0.1 and update-check options" width="510" />
 
+The settings refinement in development uses grouped rows, trailing switches, state-aware account actions and a single celebration preview. Runtime reload lives under Troubleshooting. Public v1.1.0 packages retain their released interface.
+
 ## Installation
 
 Both platforms share **v1.1.0**. Download the package and checksum/supporting files from the [latest release](https://github.com/JaceHwang/QuotaBar/releases/latest), and verify the checksum before installing.

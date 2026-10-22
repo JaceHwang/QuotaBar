@@ -67,19 +67,19 @@ final class QuotaUpdateViewTests: XCTestCase {
         for (name, appearanceName) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             let view = controller.makeSettingsView()
             let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 490, height: 260), styleMask: [.titled], backing: .buffered, defer: false)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 490, height: 460), styleMask: [.titled], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false; window.appearance = appearance
             let root = try XCTUnwrap(window.contentView); root.wantsLayer = true
             appearance.performAsCurrentDrawingAppearance { root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
-            view.frame = NSRect(x: 20, y: 20, width: 450, height: 220); root.addSubview(view)
+            view.frame = NSRect(x: 20, y: 20, width: 450, height: 420); root.addSubview(view)
             window.orderFront(nil); view.layoutSubtreeIfNeeded(); root.displayIfNeeded()
             defer { window.close() }
             XCTAssertTrue(descendants(view).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("开发候选") })
-            let controls = descendants(view).compactMap { $0 as? NSButton }
-            XCTAssertEqual(controls.first { $0.title == "自动检查更新" }?.state, .on)
-            XCTAssertEqual(controls.first { $0.title == "更新提醒" }?.state, .off)
-            let automatic = try XCTUnwrap(controls.first { $0.title == "自动检查更新" })
-            automatic.performClick(nil)
+            let controls = descendants(view).compactMap { $0 as? QuotaSettingsSwitch }
+            XCTAssertEqual(controls.first { $0.accessibilityLabel() == "自动检查更新" }?.state, .on)
+            XCTAssertEqual(controls.first { $0.accessibilityLabel() == "更新提醒" }?.state, .off)
+            let automatic = try XCTUnwrap(controls.first { $0.accessibilityLabel() == "自动检查更新" })
+            automatic.state = .off; NSApp.sendAction(automatic.action!, to: automatic.target, from: automatic)
             XCTAssertTrue(defaults.bool(forKey: "updates.autoDisabled"))
             defaults.set(false, forKey: "updates.autoDisabled")
             if let path = ProcessInfo.processInfo.environment["CUS_UPDATE_VISUAL_OUTPUT_DIR"] {

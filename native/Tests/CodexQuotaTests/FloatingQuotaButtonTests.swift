@@ -1,9 +1,58 @@
 import AppKit
 import XCTest
+import QuotaCore
 @testable import CodexQuota
 
 @MainActor
 final class FloatingQuotaButtonTests: XCTestCase {
+    func testFullResetDatesFitBesideHoverCloseInEveryLanguage() throws {
+        let name = "FloatingDates.\(UUID())"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let button = FloatingQuotaButton(preferences: FloatingQuotaPreferences(defaults: defaults))
+        defer { button.hide() }
+        let samples = [
+            ("5 小时 100% · 10月22日 16:33", "7 天 69% · 10月28日 10:04"),
+            ("5 小時 100% · 10月22日 16:33", "7 天 69% · 10月28日 10:04"),
+            ("5 hours 100% · Oct 22, 16:33", "7 days 69% · Oct 28, 10:04")
+        ]
+        button.setExperience(mood: .good, enabled: true)
+        for (index, sample) in samples.enumerated() {
+            for dark in [false, true] {
+                button.show(summary: ResetIndicatorSummary(primary: sample.0, secondary: sample.1, primaryRemainingPercent: 100, secondaryRemainingPercent: 69), theme: dark ? .dark : .light, tooltip: "", fallback: "", dimmed: false)
+                button.interaction.onHover?(true)
+                let label = try XCTUnwrap(button.interaction.subviews.compactMap { $0 as? NSTextField }.first)
+                let required = try XCTUnwrap(label.cell).cellSize
+                XCTAssertGreaterThanOrEqual(label.frame.width, ceil(required.width), "Clipped date: \(sample.0); attributed measurement=\(label.attributedStringValue.size())")
+                XCTAssertLessThanOrEqual(label.frame.maxX + 6, button.closeButton.frame.minX)
+                XCTAssertEqual(button.frame?.height, 30)
+                if let directory = ProcessInfo.processInfo.environment["QUOTABAR_TEST_ARTIFACTS"] {
+                    try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+                    let rep = try XCTUnwrap(button.interaction.bitmapImageRepForCachingDisplay(in: button.interaction.bounds))
+                    (dark ? CodexInterfaceTheme.dark : .light).appKitAppearance.performAsCurrentDrawingAppearance {
+                        button.interaction.cacheDisplay(in: button.interaction.bounds, to: rep)
+                    }
+                    let image = NSImage(size: button.interaction.bounds.size, flipped: false) { bounds in
+                        (dark ? NSColor(calibratedWhite: 0.15, alpha: 1) : .white).setFill()
+                        bounds.fill()
+                        NSImage(cgImage: rep.cgImage!, size: bounds.size).draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
+                        return true
+                    }
+                    let bitmap = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
+                    try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: directory).appendingPathComponent("floating-\(index)-\(dark).png"))
+                }
+            }
+        }
+    }
+    func testLongStatusFitsWithoutAnArbitraryWidthCap() throws {
+        let name = "FloatingStatus.\(UUID())", defaults = UserDefaults(suiteName: "FloatingStatus.temporary")!
+        defer { defaults.removePersistentDomain(forName: "FloatingStatus.temporary") }
+        let button = FloatingQuotaButton(preferences: FloatingQuotaPreferences(defaults: defaults))
+        defer { button.hide() }
+        button.show(summary: nil, theme: .light, tooltip: "", fallback: "Waiting for the account quota to refresh after reconnecting", dimmed: false)
+        let label = try XCTUnwrap(button.interaction.subviews.compactMap { $0 as? NSTextField }.first)
+        XCTAssertGreaterThanOrEqual(label.frame.width, ceil(try XCTUnwrap(label.cell).cellSize.width), name)
+    }
     func testHoverCloseRoutesSeparatelyAndHidesPersistently() {
         let name = "FloatingQuotaButtonTests.\(UUID())"
         let defaults = UserDefaults(suiteName: name)!
