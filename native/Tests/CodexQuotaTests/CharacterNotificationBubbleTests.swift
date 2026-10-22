@@ -36,6 +36,9 @@ import QuotaCore
             let needed = (body as NSString).boundingRect(with: CGSize(width: label.frame.width, height: 1000), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: try XCTUnwrap(label.font)]).height
             XCTAssertGreaterThanOrEqual(label.frame.height, ceil(needed))
             XCTAssertLessThanOrEqual(label.frame.maxY, 138)
+            let buttons = tree(view).compactMap { $0 as? NSButton }.sorted { $0.frame.minX < $1.frame.minX }
+            XCTAssertLessThanOrEqual(buttons[0].frame.maxX + 8, buttons[1].frame.minX)
+            XCTAssertTrue(buttons.allSatisfy { $0.frame.maxX <= label.superview!.bounds.maxX - 12 })
         }
     }
     func testAcknowledgeAndViewAreDistinct() {
