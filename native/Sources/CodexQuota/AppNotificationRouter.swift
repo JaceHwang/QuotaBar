@@ -3,16 +3,42 @@ import UserNotifications
 import QuotaCore
 
 @MainActor final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = AppNotificationRouter()
+    static let shared = AppNotificationRouter(defaults: .standard)
     let center: UNUserNotificationCenter?
+    private let defaults: UserDefaults
+    private var state = NotificationPresentationState()
+    private struct Delivery { let message: ExperienceNotification; let valid: () -> Bool; let failed: () -> Void; let shown: () -> Void; let action: (() -> Void)? }
+    private var deliveries: [String: Delivery] = [:]
+    private var received: Set<String> = []
+    private var canPresent = false
+    private var timer: Timer?
+    private var stopped = false
+    var presentBubble: ((ExperienceNotification) -> Bool)?
+    var hideBubble: (() -> Void)?
+    var onUnreadChange: (() -> Void)?
     var openDetails: (() -> Void)?
-    private var tasks: [String: (String?, Task<Void, Never>)] = [:]
-    private var delivered: [String: String] = [:]
-    private override init() {
+    var openBank: (() -> Void)?
+    var sendSystem: ((ExperienceNotification, @escaping (Bool) -> Void) -> Void)?
+    var preferences: NotificationPresentationPreferences {
+        defaults.data(forKey: "notifications.presentation").flatMap { try? JSONDecoder().decode(NotificationPresentationPreferences.self, from: $0) } ?? NotificationPresentationPreferences()
+    }
+    var unread: [NotificationUnreadItem] {
+        state.unread(now: Date()).map { item in
+            NotificationUnreadItem(message: item.message, stale: item.stale || !(deliveries[item.message.id]?.valid() ?? false))
+        }
+    }
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
         center = Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil ? UNUserNotificationCenter.current() : nil
-        super.init(); center?.delegate = self
+        super.init()
+        if center != nil { center?.delegate = self }
+    }
+    func configure(_ value: NotificationPresentationPreferences) {
+        defaults.set(try? JSONEncoder().encode(value), forKey: "notifications.presentation")
+        suspend(); dispatch()
     }
     func requestPermission(completion: @escaping (String) -> Void) {
+        guard preferences.mode.usesSystem else { completion(""); return }
         Task {
             guard let center else { completion("unavailable"); return }
             let settings = await center.notificationSettings()
@@ -25,40 +51,88 @@ import QuotaCore
             catch { completion("unavailable") }
         }
     }
-    func enqueue(_ message: ExperienceNotification, valid: @escaping () -> Bool, failed: @escaping () -> Void) {
-        guard tasks[message.id] == nil else { return }
-        let task = Task { [weak self] in
-            guard let self else { return }
-            defer { tasks[message.id] = nil }
-            guard let center else { failed(); return }
-            let permission = await center.notificationSettings()
-            guard !Task.isCancelled, message.valid(now: Date()), valid() else { return }
-            guard permission.authorizationStatus == .authorized else { failed(); return }
-            let content = UNMutableNotificationContent(); content.title = message.title; content.body = message.body
-            content.userInfo = ["kind": String(describing: message.kind), "epoch": message.epoch ?? ""]
-            do {
-                try await center.add(UNNotificationRequest(identifier: message.id, content: content, trigger: nil))
-                guard !Task.isCancelled, valid() else { center.removeDeliveredNotifications(withIdentifiers: [message.id]); return }
-                if let epoch = message.epoch { delivered[message.id] = epoch }
-                if delivered.count > 128 { delivered.removeValue(forKey: delivered.keys.sorted().first!) }
-            } catch { failed() }
+    func enqueue(_ m: ExperienceNotification, valid: @escaping () -> Bool, failed: @escaping () -> Void, shown: @escaping () -> Void = {}, action: (() -> Void)? = nil) {
+        guard !stopped, deliveries[m.id] == nil, preferences.mode != .off, valid(), m.valid(now: Date()) else { return }
+        deliveries[m.id] = Delivery(message: m, valid: valid, failed: failed, shown: shown, action: action)
+        if deliveries.count > 128, let oldest = deliveries.values.filter({ $0.message.id != state.activeID }).min(by: { $0.message.createdAt < $1.message.createdAt }) { deliveries.removeValue(forKey: oldest.message.id); received.remove(oldest.message.id) }
+        if preferences.mode.usesBubble { state.enqueue(m, canPresent: canPresent && !preferences.paused(now: Date()), now: Date()) }
+        if preferences.mode.usesSystem {
+            let done: (Bool) -> Void = { [weak self] success in
+                guard let self, !stopped, let d = deliveries[m.id], d.valid(), m.valid(now: Date()) else { return }
+                if success { receipt(m.id) } else { d.failed() }
+            }
+            if let sendSystem { sendSystem(m, done) } else { deliverSystem(m, done: done) }
         }
-        tasks[message.id] = (message.epoch, task)
+        onUnreadChange?(); dispatch()
+    }
+    private func deliverSystem(_ m: ExperienceNotification, done: @escaping (Bool) -> Void) {
+        Task { [weak self] in
+            guard let self, let center else { done(false); return }
+            let permission = await center.notificationSettings()
+            guard !stopped, deliveries[m.id]?.valid() == true, m.valid(now: Date()), preferences.mode.usesSystem else { return }
+            guard permission.authorizationStatus == .authorized || permission.authorizationStatus == .provisional else { done(false); return }
+            let content = UNMutableNotificationContent(); content.title = m.title; content.body = m.body
+            content.userInfo = ["id": m.id, "kind": String(describing: m.kind), "epoch": m.epoch ?? ""]
+            do {
+                try await center.add(UNNotificationRequest(identifier: m.id, content: content, trigger: nil))
+                guard !stopped, deliveries[m.id]?.valid() == true else { center.removeDeliveredNotifications(withIdentifiers: [m.id]); return }
+                done(true)
+            } catch { done(false) }
+        }
+    }
+    private func receipt(_ id: String) {
+        guard !received.contains(id), let d = deliveries[id], d.valid() else { return }
+        received.insert(id); d.shown()
+    }
+    func updateEnvironment(canPresent: Bool) {
+        self.canPresent = canPresent
+        if !canPresent { suspend() } else { dispatch() }
+    }
+    private func dispatch() {
+        guard !stopped, preferences.mode.usesBubble, !preferences.paused(now: Date()), canPresent else { return }
+        while let m = state.next(canPresent: true, now: Date()) {
+            guard deliveries[m.id]?.valid() == true else { state.dismiss(id: m.id, read: false); continue }
+            guard presentBubble?(m) == true else { state.suspend(); break }
+            state.shown(id: m.id, now: Date()); receipt(m.id)
+            timer?.invalidate()
+            timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
+            RunLoop.main.add(timer!, forMode: .common)
+            break
+        }
+    }
+    func tick() {
+        if let id = state.activeID, deliveries[id]?.valid() != true { state.dismiss(id: id, read: false); hideBubble?() }
+        if state.tick(now: Date()) { hideBubble?(); onUnreadChange?() }
+        if state.activeID == nil { timer?.invalidate(); timer = nil; dispatch() }
+    }
+    func setInteracting(_ value: Bool) { state.setInteracting(value, now: Date()) }
+    func dismiss(id: String, read: Bool) {
+        let active = state.activeID == id
+        state.dismiss(id: id, read: read)
+        if active { hideBubble?(); timer?.invalidate(); timer = nil }
+        onUnreadChange?(); dispatch()
+    }
+    func suspend() { state.suspend(); timer?.invalidate(); timer = nil; hideBubble?() }
+    func activate(id: String) {
+        guard let d = deliveries[id], d.valid() else { dismiss(id: id, read: true); return }
+        dismiss(id: id, read: true)
+        if let action = d.action { action() }
+        else if d.message.kind == .bank { (openBank ?? openDetails)?() }
+        else { openDetails?() }
     }
     func cancelAuthenticationEpoch(_ epoch: String) {
-        for (_, value) in tasks where value.0 == epoch { value.1.cancel() }
-        let ids = delivered.filter { $0.value == epoch }.map(\.key)
-        center?.removeDeliveredNotifications(withIdentifiers: ids)
-        delivered = delivered.filter { $0.value != epoch }
+        let ids = deliveries.values.filter { $0.message.epoch == epoch }.map { $0.message.id }
+        let active = ids.contains(state.activeID ?? "")
+        state.cancel(epoch: epoch)
+        for id in ids { deliveries.removeValue(forKey: id); received.remove(id) }
+        center?.removeDeliveredNotifications(withIdentifiers: ids); center?.removePendingNotificationRequests(withIdentifiers: ids)
+        if active { hideBubble?(); timer?.invalidate(); timer = nil }
+        onUnreadChange?(); dispatch()
     }
+    func stop() { stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = [] }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        let info = response.notification.request.content.userInfo
-        let version = info["version"] as? String, kind = info["kind"] as? String
-        Task { @MainActor [weak self] in
-            if let version, (try? UpdateFeed.versionParts(version)) != nil,
-               let url = URL(string: "https://github.com/JaceHwang/QuotaBar/releases/tag/v\(version)") { NSWorkspace.shared.open(url) }
-            else if kind == "recovery" || kind == "bank" || kind == "test" { self?.openDetails?() }
-        }
+        let id = response.notification.request.content.userInfo["id"] as? String
+        Task { @MainActor [weak self] in if let id { self?.activate(id: id) } }
         completionHandler()
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) { completionHandler([.banner, .list]) }

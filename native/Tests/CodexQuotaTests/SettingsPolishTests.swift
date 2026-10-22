@@ -121,7 +121,9 @@ import XCTest
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
         defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
         var language = CodexDisplayLanguage.english
-        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { language }, requestPermission: { $0("denied") })
+        let router = AppNotificationRouter(defaults: defaults); router.configure(NotificationPresentationPreferences(mode: .system))
+        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { language }, requestPermission: { $0("denied") }, router: router)
+        experience.permission()
         _ = experience.makeSettingsView()
         language = .traditionalChinese
         let rebuilt = experience.makeSettingsView()

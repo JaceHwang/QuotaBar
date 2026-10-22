@@ -19,6 +19,7 @@ public struct NotificationPresentationPreferences: Codable, Equatable, Sendable 
 public struct NotificationUnreadItem: Sendable {
     public let message: ExperienceNotification
     public var stale: Bool
+    public init(message: ExperienceNotification, stale: Bool) { self.message = message; self.stale = stale }
 }
 /// Pure presentation state. All clocks and actual delivery live in native adapters.
 public struct NotificationPresentationState: Sendable {

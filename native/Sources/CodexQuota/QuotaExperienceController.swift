@@ -8,7 +8,7 @@ import QuotaCore
     private var sequence = 0
     private var lastObservation: QuotaObservation?
     private let language: () -> CodexDisplayLanguage
-    private let router = AppNotificationRouter.shared
+    private let router: AppNotificationRouter
     private weak var statusLabel: NSTextField?
     private var storageReady = true
     private var notificationMessage: (String, String, String)?
@@ -21,14 +21,15 @@ import QuotaCore
     var onCelebrate: (() -> Void)?
     var onCancelCelebration: (() -> Void)?
     var preferences: QuotaExperiencePreferences { engine.preferences }
-    init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil) {
+    init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil, router: AppNotificationRouter? = nil) {
+        self.router = router ?? .shared
         self.requestNotificationPermission = requestPermission ?? { AppNotificationRouter.shared.requestPermission(completion: $0) }
         self.defaults = defaults; self.language = language; store = QuotaExperienceStore(url: root.appendingPathComponent("experience-state.json"))
         let state = store.load(); engine = QuotaExperienceEngine(state: state, suppressFirstBank: store.corrupted)
         super.init()
         let prefs = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
         engine.configure(prefs); persist()
-        if prefs.recoveryNotificationEnabled || prefs.bank { permission() }
+        // No startup permission prompt; only explicit system-channel choices request permission.
     }
     private var copy: ExperienceCopy { ExperienceCopy(language()) }
     private func setNotificationStatus(_ message: (String, String, String)?) {
@@ -130,13 +131,16 @@ import QuotaCore
         if on && (sender.tag == 1 || sender.tag == 2 || sender.tag == 3) { permission() }
         onChange?()
     }
-    private func permission() { requestNotificationPermission { [weak self] result in
+    func permission() {
+        guard router.preferences.mode.usesSystem else { return }
+        requestNotificationPermission { [weak self] result in
         guard let self else { return }
         setNotificationStatus(result.isEmpty ? nil : ("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知"))
     } }
     @objc private func preview() { onCelebrate?(); testNotification() }
     @objc private func testNotification() {
-        router.requestPermission { [weak self] result in
+        if !router.preferences.mode.usesSystem { enqueue(.test, title: copy.text("Example notification", "示例通知", "範例通知"), body: copy.text("Example only — reminder history is unchanged.", "示例提醒，不改变真实额度及提醒记录。", "範例提醒，不改變真實額度及提醒記錄。")); return }
+        requestNotificationPermission { [weak self] result in
             guard let self else { return }
             if result.isEmpty { enqueue(.test, title: "QuotaBar " + copy.text("test notification", "测试通知", "測試通知"), body: copy.text("Example only — your quota and reminder history are unchanged.", "这是一条示例通知，不改变真实额度及提醒记录。", "這是一條範例通知，不改變真實額度及提醒記錄。")) }
             else { setNotificationStatus(("System notifications unavailable", "系统提醒不可用", "系統提醒不可用")) }

@@ -149,39 +149,26 @@ final class QuotaUpdateController: NSObject {
     @objc private func remindersChanged(_ sender: QuotaSettingsSwitch) {
         defaults.set(sender.state == .on, forKey: "updates.reminders")
         guard sender.state == .on else { return }
-        guard let center = notificationCenter else { status = text("System reminders require the installed app", "系统提醒需要安装后的应用", "系統提醒需要安裝後的應用"); refreshView(); return }
-        Task { [weak self] in
-            do {
-                let granted = try await center.requestAuthorization(options: [.alert])
-                if !granted { self?.status = self?.text("System notifications are disabled; updates remain visible here", "系统提醒已关闭，可在此查看更新", "系統提醒已關閉，可在此查看更新") ?? "" }
-            }
-            catch { self?.status = self?.text("Notifications unavailable", "系统提醒不可用", "系統提醒不可用") ?? "" }
-            guard self?.stopped == false else { return }
-            self?.refreshView(); self?.notifyIfNeeded()
+        AppNotificationRouter.shared.requestPermission { [weak self] result in
+            guard let self else { return }
+            if !result.isEmpty { status = text("System notifications unavailable; bubbles remain available", "系统通知不可用，仍可使用气泡提醒", "系統通知無法使用，仍可使用氣泡提醒") }
+            refreshView(); notifyIfNeeded()
         }
     }
+
     @objc func openRelease() { if let available { NSWorkspace.shared.open(available.releaseNotesURL) } }
     @objc private func snooze() { var value = policy; if value.skippedVersion == available?.version { value.skippedVersion = nil }; value.snoozeUntil = Date().addingTimeInterval(86400); policy = value; status = text("Reminder postponed for 24 hours", "已延后提醒 24 小时", "已延後提醒 24 小時"); refreshView() }
     @objc private func skip() { var value = policy; value.skippedVersion = available?.version; value.snoozeUntil = nil; policy = value; status = text("Version skipped", "已跳过此版本", "已跳過此版本"); refreshView() }
     private func notifyIfNeeded() {
-        guard !stopped, reminders, let release = available, policy.shouldNotify(release.version, now: Date()), notifyTask == nil else { return }
-        notifyTask = Task { [weak self] in
-            guard let self else { return }; defer { notifyTask = nil }
-            guard let center = notificationCenter else { return }
-            let settings = await center.notificationSettings()
-            guard !stopped, settings.authorizationStatus == .authorized, reminders, available == release, policy.shouldNotify(release.version, now: Date()), !Task.isCancelled else { return }
-            let content = UNMutableNotificationContent(); content.title = "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version
-            content.body = release.notificationSummary ?? text("Click to view release notes", "点击查看更新说明", "點擊查看更新說明")
-            // The release URL was validated by the feed parser; do not trust arbitrary notification payload URLs.
-            content.userInfo = ["version": release.version]
-            let attempted = policy
-            do {
-                try await center.add(UNNotificationRequest(identifier: "quotabar-update-\(release.version)", content: content, trigger: nil))
-                guard !stopped, reminders, available == release, policy.skippedVersion != release.version else {
-                    center.removeDeliveredNotifications(withIdentifiers: ["quotabar-update-\(release.version)"]); return
-                }
-                var value = policy; value.recordNotification(release.version, attempted: attempted); policy = value
-            } catch { status = text("System reminder unavailable; view update here", "系统提醒不可用，可在此查看更新", "系統提醒不可用，可在此查看更新"); refreshView() }
-        }
+        guard !stopped, reminders, let release = available, policy.shouldNotify(release.version, now: now()) else { return }
+        let attempted = policy
+        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now())
+        AppNotificationRouter.shared.enqueue(message, valid: { [weak self] in
+            guard let self else { return false }
+            return !stopped && reminders && available == release && policy.skippedVersion != release.version && (policy.snoozeUntil.map { $0 <= now() } ?? true)
+        }, failed: { [weak self] in self?.status = self?.text("System reminder unavailable", "系统提醒不可用", "系統提醒無法使用") ?? ""; self?.refreshView() }, shown: { [weak self] in
+            guard let self else { return }
+            var value = policy; value.recordNotification(release.version, attempted: attempted); policy = value
+        }, action: { NSWorkspace.shared.open(release.releaseNotesURL) })
     }
 }
