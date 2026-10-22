@@ -24,7 +24,7 @@ import AppKit
     private(set) var selectedPage = 2
     override var isFlipped: Bool { true }
     init(pages: [QuotaSettingsPage], version: String, updateTitle: String = "Check for updates") {
-        precondition(pages.count == 4)
+        precondition(pages.count >= 4)
         self.pages = pages; versionLabel = NSTextField(labelWithString: "v" + version)
         super.init(frame: NSRect(x: 0, y: 0, width: 1000, height: 680))
         addSubview(sidebar); sidebar.addSubview(brand); sidebar.addSubview(versionLabel)

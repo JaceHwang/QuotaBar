@@ -26,6 +26,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var identity: AccountIdentity?
     private var experience: QuotaExperienceController?
     private var updates: QuotaUpdateController?
+    private var bark: BarkNotificationController?
     private var settings: NSWindow?
     private var statusLabel: NSTextField?
     private weak var accountIdentityLabel: NSTextField?
@@ -52,10 +53,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private let statusDisplay: StatusItemDisplayPreferences
     private let root: URL
 
-    init(updateController: QuotaUpdateController? = nil, experienceController: QuotaExperienceController? = nil, defaults: UserDefaults = .standard, root: URL? = nil) {
+    init(updateController: QuotaUpdateController? = nil, experienceController: QuotaExperienceController? = nil, barkController: BarkNotificationController? = nil, defaults: UserDefaults = .standard, root: URL? = nil) {
         self.defaults = defaults; self.root = root ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexUsageSidebar")
         floating = FloatingQuotaButton(preferences: FloatingQuotaPreferences(defaults: defaults)); statusDisplay = StatusItemDisplayPreferences(defaults: defaults)
-        updates = updateController; experience = experienceController; super.init()
+        updates = updateController; experience = experienceController; bark = barkController; super.init()
     }
 
     private var language: CodexDisplayLanguage {
@@ -160,6 +161,15 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             if snapshot == nil { showSettings() } else { detailFromFloating = false; showingDetail = true; render(); refresh() }
         }
         let router = AppNotificationRouter.shared
+        // LaunchServices' isolated-home smoke host must never open the login Keychain.
+        if bark == nil, ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"] == nil {
+            bark = BarkNotificationController(defaults: defaults, secrets: KeychainBarkSecretStore(), transport: BarkPushClient(), deliveries: BarkDeliveryStore(url: root.appendingPathComponent("bark-deliveries.json")))
+        }
+        router.bark = bark
+        bark?.onConfigurationChange = { [weak self] in
+            guard let self else { return }
+            bark?.suppress(updates?.currentMobileIdentities ?? [], valid: { [weak self] identity in self?.updates?.currentMobileIdentities.contains(identity) == true })
+        }
         router.openBank = { [weak self] in router.openDetails?(); self?.detail.focusBank() }
         router.presentBubble = { [weak self] message in
             guard let self, let anchor = floating.frame, floating.isOnActiveSpace else { return false }
@@ -453,7 +463,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
         let updatePage = column()
         if let updates { QuotaSettingsStyle.fill(updates.makeSettingsView(), in: updatePage) }
-        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage)]
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: BarkSettingsView(controller: bark, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }))]
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
         let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? updates?.currentVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }

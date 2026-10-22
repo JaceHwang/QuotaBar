@@ -132,7 +132,7 @@ import QuotaCore
     @objc private func changed(_ sender: QuotaSettingsSwitch) {
         var p = preferences; let on = sender.state == .on
         switch sender.tag { case 0: p.moods = on; case 1: p.recovery = on; case 2: p.celebration = on; default: p.bank = on }
-        engine.configure(p); defaults.set(try? JSONEncoder().encode(p), forKey: "experience.preferences")
+        engine.configure(p); defaults.set(try? JSONEncoder().encode(p), forKey: "experience.preferences"); router.bark?.cancelInvalid()
         if !p.celebration { onCancelCelebration?() }
         if on && (sender.tag == 1 || sender.tag == 2 || sender.tag == 3) { permission() }
         onChange?()

@@ -27,6 +27,10 @@ final class QuotaUpdateController: NSObject {
     private var etag: String?
     private var status = ""
     var currentVersion: String { version }
+    var currentMobileIdentities: [BarkEventIdentity] {
+        guard let available else { return [] }
+        return [BarkEventIdentity(id: "quotabar-update-" + available.version, generation: policy.snoozeUntil.map { "snooze:\(Int64(($0.timeIntervalSince1970 * 1000).rounded()))" } ?? "initial")]
+    }
     var isChecking: Bool { request != nil }
     var statusText: String { status }
     private(set) var available: UpdateRelease?
@@ -148,7 +152,7 @@ final class QuotaUpdateController: NSObject {
     @objc private func autoChanged(_ sender: QuotaSettingsSwitch) { defaults.set(sender.state != .on, forKey: "updates.autoDisabled"); if sender.state == .on { nextCheck = .distantPast; check() } }
     @objc private func remindersChanged(_ sender: QuotaSettingsSwitch) {
         defaults.set(sender.state == .on, forKey: "updates.reminders")
-        guard sender.state == .on else { return }
+        guard sender.state == .on else { if let v = available?.version { AppNotificationRouter.shared.cancelMessage(id: "quotabar-update-\(v)") }; return }
         AppNotificationRouter.shared.requestPermission { [weak self] result in
             guard let self else { return }
             if !result.isEmpty { status = text("System notifications unavailable; bubbles remain available", "系统通知不可用，仍可使用气泡提醒", "系統通知無法使用，仍可使用氣泡提醒") }
@@ -163,7 +167,7 @@ final class QuotaUpdateController: NSObject {
     private func notifyIfNeeded() {
         guard !stopped, reminders, let release = available, policy.shouldNotify(release.version, now: now()) else { return }
         let attempted = policy
-        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now())
+        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now(), reminderGeneration: attempted.snoozeUntil.map { "snooze:\(Int64(($0.timeIntervalSince1970 * 1000).rounded()))" } ?? "initial")
         AppNotificationRouter.shared.enqueue(message, valid: { [weak self] in
             guard let self else { return false }
             return !stopped && reminders && available == release && policy.skippedVersion != release.version && (policy.snoozeUntil.map { $0 <= now() } ?? true)

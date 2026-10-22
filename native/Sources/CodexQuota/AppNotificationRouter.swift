@@ -9,6 +9,8 @@ import QuotaCore
     private var state = NotificationPresentationState()
     private struct Delivery { let message: ExperienceNotification; let valid: () -> Bool; let failed: () -> Void; let shown: () -> Void; let action: (() -> Void)? }
     private var deliveries: [String: Delivery] = [:]
+    var bark: BarkNotificationController?
+    private var sharedReceived: Set<BarkEventIdentity> = []
     private var received: Set<String> = []
     private var previews: Set<String> = []
     private var consumed: Set<String> = []
@@ -47,7 +49,7 @@ import QuotaCore
         let retry = candidates.filter { !received.contains($0.message.id) && !consumed.contains($0.message.id) }
         failedDeliveries = []
         for d in retry {
-            cancelMessage(id: d.message.id)
+            cancelMessage(id: d.message.id, cancelMobile: false)
             if d.valid(), d.message.valid(now: Date()) { enqueue(d.message, valid: d.valid, failed: d.failed, shown: d.shown, action: d.action) }
         }
     }
@@ -75,8 +77,15 @@ import QuotaCore
     }
     func enqueue(_ input: ExperienceNotification, valid: @escaping () -> Bool, failed: @escaping () -> Void, shown: @escaping () -> Void = {}, action: (() -> Void)? = nil, forceBubble: Bool = false) {
         var m = input; m.deliveryToken = UUID().uuidString
-        guard !stopped, deliveries[m.id] == nil, (preferences.mode != .off || forceBubble), valid(), m.valid(now: Date()) else { return }
-        deliveries[m.id] = Delivery(message: m, valid: valid, failed: failed, shown: shown, action: action)
+        guard !stopped, valid(), m.valid(now: Date()) else { return }
+        let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
+        let sharedShown = { [weak self] in
+            guard let self, !self.sharedReceived.contains(identity), valid() else { return }
+            self.sharedReceived.insert(identity); shown()
+        }
+        if !forceBubble { bark?.enqueue(m, valid: valid, accepted: sharedShown) }
+        guard deliveries[m.id] == nil, (preferences.mode != .off || forceBubble) else { return }
+        deliveries[m.id] = Delivery(message: m, valid: valid, failed: failed, shown: sharedShown, action: action)
         if deliveries.count > 128, let oldest = deliveries.values.filter({ $0.message.id != state.activeID }).min(by: { $0.message.createdAt < $1.message.createdAt }) { deliveries.removeValue(forKey: oldest.message.id); received.remove(oldest.message.id) }
         if preferences.mode.usesBubble || forceBubble { state.enqueue(m, canPresent: canPresent && (!preferences.paused(now: Date()) || forceBubble), now: Date()) }
         if preferences.mode.usesSystem && !forceBubble {
@@ -157,7 +166,8 @@ import QuotaCore
         else if d.message.kind == .bank { (openBank ?? openDetails)?() }
         else { openDetails?() }
     }
-    func cancelMessage(id: String) {
+    func cancelMessage(id: String, cancelMobile: Bool = true) {
+        if cancelMobile { bark?.cancel(id: id) }
         let active = state.activeID == id
         if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; if cancelledTokens.count > 256 { cancelledTokens = Set(cancelledTokens.sorted().suffix(128)) }
         let identifiers = [id, id + "." + (deliveries[id]?.message.deliveryToken ?? "")]
@@ -167,6 +177,7 @@ import QuotaCore
         onUnreadChange?()
     }
     func cancelAuthenticationEpoch(_ epoch: String) {
+        bark?.cancel(epoch: epoch)
         let ids = deliveries.values.filter { $0.message.epoch == epoch }.map { $0.message.id }
         let active = ids.contains(state.activeID ?? "")
         let identifiers = ids.flatMap { [$0, $0 + "." + (deliveries[$0]?.message.deliveryToken ?? "")] }
@@ -178,7 +189,7 @@ import QuotaCore
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?(); dispatch()
     }
-    func stop() { stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = []; consumed = []; cancelledTokens = []; failedDeliveries = [] }
+    func stop() { bark?.stop(); stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = []; consumed = []; cancelledTokens = []; failedDeliveries = [] }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let id = response.notification.request.content.userInfo["id"] as? String
         let version = response.notification.request.content.userInfo["version"] as? String

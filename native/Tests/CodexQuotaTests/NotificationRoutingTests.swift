@@ -93,6 +93,10 @@ import QuotaCore
         router.enqueue(m, valid: { true }, failed: {}, shown: { shown += 1 })
         router.cancelMessage(id: m.id)
         router.enqueue(m, valid: { true }, failed: {}, shown: { shown += 1 })
+        XCTAssertEqual(shown, 1, "Ordinary cancellation does not create a new semantic generation")
+        router.cancelMessage(id: m.id)
+        let rearmed = ExperienceNotification(id: m.id, kind: .update, epoch: nil, title: m.title, body: m.body, createdAt: Date(), reminderGeneration: "snooze:1234")
+        router.enqueue(rearmed, valid: { true }, failed: {}, shown: { shown += 1 })
         XCTAssertEqual(shown, 2)
     }
 

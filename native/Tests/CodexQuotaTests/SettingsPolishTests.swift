@@ -73,7 +73,7 @@ import XCTest
             for dark in [false, true] {
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 window.makeKeyAndOrderFront(nil)
-                for page in 0..<4 {
+                for page in shell.pageContents.indices {
                     window.setContentSize(NSSize(width: 900, height: 650)); shell.selectPage(page); shell.layoutSubtreeIfNeeded()
                     let scroll = try XCTUnwrap(shell.subviews.compactMap { $0 as? NSScrollView }.first)
                     let document = try XCTUnwrap(scroll.documentView)
@@ -93,6 +93,11 @@ import XCTest
                         let rect = control.superview!.convert(control.alignmentRect(forFrame: control.frame), to: document)
                         XCTAssertGreaterThanOrEqual(rect.minX, -1)
                         XCTAssertLessThanOrEqual(rect.maxX, document.bounds.width + 1, "Minimum width must not clip controls")
+                    }
+                    if let directory = ProcessInfo.processInfo.environment["QUOTABAR_TEST_ARTIFACTS"] {
+                        let bitmap = try XCTUnwrap(shell.bitmapImageRepForCachingDisplay(in: shell.bounds))
+                        window.appearance?.performAsCurrentDrawingAppearance { shell.cacheDisplay(in: shell.bounds, to: bitmap) }
+                        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: directory).appendingPathComponent("polish-narrow-\(language.rawValue)-\(dark)-page\(page).png"))
                     }
                     document.scroll(NSPoint(x: 0, y: max(0, document.bounds.height - scroll.contentSize.height)))
                     scroll.reflectScrolledClipView(scroll.contentView)
