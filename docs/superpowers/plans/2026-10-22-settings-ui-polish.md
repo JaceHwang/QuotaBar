@@ -25,3 +25,7 @@ Spec: docs/superpowers/specs/2026-10-22-settings-ui-research.md. User approved i
 - Synchronize roadmap/board with exact local/CI/device status. Do not publish or merge without new authorization.
 
 Review focus: hidden vs inactive action lifecycle; stale control references after rebuilding; live theme/language/preferences synchronization; offscreen controls, constraint conflicts, wrapping and scroll reachability; preview semantics, notification denial; queued update actions and checking state. No settings change may reset event baselines or lose persisted opt-outs.
+
+## Outcome (2026-10-22)
+
+Tasks1–4 implemented and verified. Source1cc9971 CI39721503294 and governance39721503231 passed; local207 Swift tests and WindowsCore14/14 plus native cross-build passed. Windows accessibility persistence test failed atda0a99e before the Checked/Unchecked fix and passed at2dc2319 and1cc9971. Independent review important findings closed. Final Mac candidate2dc2319 installed; its84-file native snapshot matches current source. Draft PR46 retained; no merge/public release. Details and explicit unrun device matrices: docs/validation/2026-10-22-settings-ui-polish.md.

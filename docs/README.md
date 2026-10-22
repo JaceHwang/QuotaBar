@@ -1,6 +1,6 @@
 # QuotaBar 文档索引
 
-当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。v1.1.0已发布额度表情、恢复提醒、庆祝、Bank提醒及B侧栏设置；两端原生CI、用户实机反馈、公开资产与更新清单核验记录齐全。文档更新日期：2026-10-21。
+当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。v1.1.0已发布额度表情、恢复提醒、庆祝、Bank提醒及B侧栏设置；两端原生CI、用户实机反馈、公开资产与更新清单核验记录齐全。开发分支另有设置子页优化与浮窗文字裁切修复，尚未公开发布。文档更新日期：2026-10-22。
 
 | 文档 | 用途 |
 | --- | --- |
@@ -11,6 +11,7 @@
 | [故障处理](TROUBLESHOOTING.md) | 找不到应用、显示模式、登录、更新和退出 |
 | [仓库治理](GOVERNANCE.md) | 开发分支、检查、Release Please 和资产验证 |
 | [开发进度](PROJECT_PROGRESS-standalone-app.md) | 双平台全周期路线、当前功能详细基线、Windows W0–W6迁移/验收指南和里程碑证据 |
+| [设置优化验收](validation/2026-10-22-settings-ui-polish.md) | 2026-10-22四页设置布局、原生开关、UIA/语言回归与本机候选证据 |
 | [额度体验验收](validation/quota-experiences.md) | 四功能、B界面、默认值、两端候选与用户设备反馈 |
 | [v1.1.0 发布记录](releases/quota-experiences-v1.1.0.md) | 本轮统一版本更新内容、准确tag与正式资产验收状态 |
 | [macOS 验收](validation/macos-standalone.md) | 本地/CI/设备/发布证据与未验证矩阵 |
