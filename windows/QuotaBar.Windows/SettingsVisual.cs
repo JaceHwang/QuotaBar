@@ -54,7 +54,7 @@ internal static class SettingsVisual {
  <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="focus" Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="track" Property="Background" Value="#30BC58"/><Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger></ControlTemplate.Triggers>
 </ControlTemplate>
 """);
-        System.Windows.Automation.AutomationProperties.SetName(box,title); box.Click+=(_,_)=>changed(box.IsChecked==true); return box;
+        System.Windows.Automation.AutomationProperties.SetName(box,title); box.Checked+=(_,_)=>changed(true); box.Unchecked+=(_,_)=>changed(false); return box;
     }
 }
 internal sealed class SettingsIllustration : FrameworkElement {

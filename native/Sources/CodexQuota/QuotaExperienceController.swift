@@ -11,7 +11,11 @@ import QuotaCore
     private let router = AppNotificationRouter.shared
     private weak var statusLabel: NSTextField?
     private var storageReady = true
-    private var notificationStatus = ""
+    private var notificationMessage: (String, String, String)?
+    private var notificationStatus: String {
+        guard let message = notificationMessage else { return "" }
+        return copy.text(message.0, message.1, message.2)
+    }
     private let requestNotificationPermission: (@escaping (String) -> Void) -> Void
     var onChange: (() -> Void)?
     var onCelebrate: (() -> Void)?
@@ -27,12 +31,12 @@ import QuotaCore
         if prefs.recoveryNotificationEnabled || prefs.bank { permission() }
     }
     private var copy: ExperienceCopy { ExperienceCopy(language()) }
-    private func setNotificationStatus(_ message: String) {
-        notificationStatus = message; statusLabel?.stringValue = message; statusLabel?.isHidden = message.isEmpty
+    private func setNotificationStatus(_ message: (String, String, String)?) {
+        notificationMessage = message; statusLabel?.stringValue = notificationStatus; statusLabel?.isHidden = notificationStatus.isEmpty
     }
     @discardableResult private func persist() -> Bool {
         do { try store.save(engine.state); storageReady = true; return true }
-        catch { storageReady = false; setNotificationStatus(copy.text("Could not save reminder state; no alert sent", "无法保存提醒状态，本次未发提醒", "無法儲存提醒狀態，本次未發提醒")); return false }
+        catch { storageReady = false; setNotificationStatus(("Could not save reminder state; no alert sent", "无法保存提醒状态，本次未发提醒", "無法儲存提醒狀態，本次未發提醒")); return false }
     }
     func resetBaseline() { router.cancelAuthenticationEpoch(engine.state.epoch); engine.resetBaseline(); lastObservation = nil; onCancelCelebration?() }
     func accountCleared() {
@@ -62,7 +66,7 @@ import QuotaCore
             guard preferences.bank, let latest = lastObservation else { return false }
             return engine.bankEventsAreCurrent(bank, observation: latest, now: Date())
         }, failed: { [weak self] in
-            guard let self else { return }; setNotificationStatus(copy.text("System notifications unavailable; check system settings", "系统提醒不可用，请检查系统设置", "系統提醒不可用，請檢查系統設定"))
+            guard let self else { return }; setNotificationStatus(("System notifications unavailable; check system settings", "系统提醒不可用，请检查系统设置", "系統提醒不可用，請檢查系統設定"))
         })
     }
     func stop() { router.cancelAuthenticationEpoch(engine.state.epoch); onCancelCelebration?() }
@@ -127,14 +131,15 @@ import QuotaCore
         onChange?()
     }
     private func permission() { requestNotificationPermission { [weak self] result in
-        guard let self else { return }; notificationStatus = result.isEmpty ? "" : copy.text("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知"); statusLabel?.stringValue = notificationStatus; statusLabel?.isHidden = notificationStatus.isEmpty
+        guard let self else { return }
+        setNotificationStatus(result.isEmpty ? nil : ("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知"))
     } }
     @objc private func preview() { onCelebrate?(); testNotification() }
     @objc private func testNotification() {
         router.requestPermission { [weak self] result in
             guard let self else { return }
             if result.isEmpty { enqueue(.test, title: "QuotaBar " + copy.text("test notification", "测试通知", "測試通知"), body: copy.text("Example only — your quota and reminder history are unchanged.", "这是一条示例通知，不改变真实额度及提醒记录。", "這是一條範例通知，不改變真實額度及提醒記錄。")) }
-            else { setNotificationStatus(copy.text("System notifications unavailable", "系统提醒不可用", "系統提醒不可用")) }
+            else { setNotificationStatus(("System notifications unavailable", "系统提醒不可用", "系統提醒不可用")) }
         }
     }
 }

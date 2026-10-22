@@ -116,5 +116,17 @@ import XCTest
         _ = toggle.accessibilityPerformPress()
         XCTAssertTrue(experience.preferences.moods)
     }
+    func testPermissionGuidanceUsesCurrentLanguageAfterRebuilding() throws {
+        let suite = "SettingsPermissionLanguage.\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        var language = CodexDisplayLanguage.english
+        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { language }, requestPermission: { $0("denied") })
+        _ = experience.makeSettingsView()
+        language = .traditionalChinese
+        let rebuilt = experience.makeSettingsView()
+        XCTAssertTrue(tree(rebuilt).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("系統提醒不可用") })
+        XCTAssertFalse(tree(rebuilt).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Notifications unavailable") })
+    }
     private func tree(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(tree) }
 }
