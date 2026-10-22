@@ -19,9 +19,23 @@ import QuotaCore
             XCTAssertEqual(actions.count, 2)
             XCTAssertTrue(actions.contains { $0.title == "查看 Bank" })
             XCTAssertTrue(actions.contains { $0.title == "知道了" })
+            let primary = try XCTUnwrap(actions.first { $0.identifier?.rawValue == "notification.primary" })
+            XCTAssertEqual(primary.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor, .white)
             XCTAssertNil(all.compactMap { $0 as? QuotaMoodView }.first?.hitTest(.zero))
             let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds)); view.cacheDisplay(in: view.bounds, to: rep)
             XCTAssertNotNil(rep.representation(using: .png, properties: [:]))
+        }
+    }
+    func testFourLineBankBodyFitsBeforeActions() throws {
+        let body = "72 hours: 2 credits\n24 hours: 1 credit\nEarliest expiry:\n2026/10/23 14:00"
+        let bubble = CharacterNotificationBubble()
+        let message = ExperienceNotification(id: "four-lines", kind: .bank, epoch: nil, title: "Bank credits expiring", body: body, createdAt: Date())
+        for width: CGFloat in [308, 368] {
+            let view = bubble.content(message: message, dark: false, language: .english, width: width)
+            let label = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.stringValue == body })
+            let needed = (body as NSString).boundingRect(with: CGSize(width: label.frame.width, height: 1000), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: try XCTUnwrap(label.font)]).height
+            XCTAssertGreaterThanOrEqual(label.frame.height, ceil(needed))
+            XCTAssertLessThanOrEqual(label.frame.maxY, 138)
         }
     }
     func testAcknowledgeAndViewAreDistinct() {
@@ -44,7 +58,7 @@ import QuotaCore
             for dark in [false, true] {
                 for kind in [ExperienceNotificationKind.recovery, .bank, .update, .test] {
                     let title = kind == .bank ? copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期") : copy.text("QuotaBar reminder", "QuotaBar 提醒", "QuotaBar 提醒")
-                    let body = kind == .bank ? copy.text("2 known reset credits expire within 24 hours; earliest: 2026/10/23 14:00", "已知 2 次重置权益将在 24 小时内到期，最近：2026/10/23 14:00", "已知 2 次重置權益將在 24 小時內到期，最近：2026/10/23 14:00") : copy.text("5 hours remaining 100%; 7 days remaining 36%", "5 小时额度剩余 100%；7 天额度剩余 36%", "5 小時額度剩餘 100%；7 天額度剩餘 36%")
+                    let body = kind == .bank ? copy.text("72 hours: 2 credits; 24 hours: 1 credit. Earliest expiry: 2026/10/23 14:00", "72 小时内 2 次；24 小时内 1 次。最近到期：2026/10/23 14:00", "72 小時內 2 次；24 小時內 1 次。最近到期：2026/10/23 14:00") : copy.text("5 hours remaining 100%; 7 days remaining 36%", "5 小时额度剩余 100%；7 天额度剩余 36%", "5 小時額度剩餘 100%；7 天額度剩餘 36%")
                     let message = ExperienceNotification(id: "render", kind: kind, epoch: nil, title: title, body: body, createdAt: Date())
                     let view = bubble.content(message: message, dark: dark, language: language, width: 368)
                     let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds)); view.cacheDisplay(in: view.bounds, to: rep)

@@ -57,6 +57,14 @@ internal static class Program {
                 var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
                 foreach(var dark in new[]{false,true}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
                     bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(368,180)); bubble.Arrange(new Rect(0,0,368,180));
+                    var fourLines="72 hours: 2 credits\n24 hours: 1 credit\nEarliest expiry:\n2026/10/23 14:00";
+                    bubble.Build(m with { Body=fourLines },dark,new Copy(language));
+                    var bodyText=Tree(bubble).OfType<TextBlock>().Single(t=>t.Text==fourLines);
+                    var formatted=new FormattedText(fourLines,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(bodyText.FontFamily,bodyText.FontStyle,bodyText.FontWeight,bodyText.FontStretch),bodyText.FontSize,Brushes.Black,1);
+                    Check(bodyText.Height>=Math.Ceiling(formatted.Height),"four-line body fits without clipping");
+                    var copyForBubble=new Copy(language);
+                    m=m with { Title=copyForBubble.Text("Bank credits expiring","Bank 权益即将到期","Bank 權益即將到期"), Body=copyForBubble.Text("72 hours: 2 credits; 24 hours: 1 credit. Earliest expiry: 2026/10/23 14:00","72 小时内 2 次；24 小时内 1 次。最近到期：2026/10/23 14:00","72 小時內 2 次；24 小時內 1 次。最近到期：2026/10/23 14:00") };
+                    bubble.Build(m,dark,copyForBubble);
                     Check(!bubble.ShowActivated && !bubble.ShowInTaskbar,"bubble is passive");
                     Check(Tree(bubble).OfType<Button>().Count()==2,"bubble has two distinct actions");
                     Check(Tree(bubble).OfType<QuotaMoodView>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
