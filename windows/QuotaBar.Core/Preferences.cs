@@ -3,6 +3,7 @@ using System.Text.Json;
 namespace QuotaBar.Core;
 public sealed record Preferences {
     public int Schema { get; init; }=1;
+    public NotificationPresentationPreferences Notifications { get; init; }=new();
     public QuotaExperiencePreferences Experience { get; init; }=new();
     public bool AutomaticUpdates { get; init; }=true;
     public bool UpdateReminders { get; init; }=false;
@@ -15,6 +16,7 @@ public sealed record Preferences {
     public string Language { get; init; }="system";
     public Preferences Validated() => this with {
         Experience=Experience??new(),
+        Notifications=(Notifications??new()).Validated(),
         FloatingX=FloatingX is double x && double.IsFinite(x)?x:null,
         FloatingY=FloatingY is double y && double.IsFinite(y)?y:null,
         DetailHeight=double.IsFinite(DetailHeight)?Math.Max(220,DetailHeight):580,

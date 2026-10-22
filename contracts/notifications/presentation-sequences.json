@@ -1,0 +1,4 @@
+[
+  {"id":"visible","visible":true,"expected":"visible"},
+  {"id":"hidden","visible":false,"expected":null}
+]
