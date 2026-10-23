@@ -35,6 +35,7 @@ static class InstallerTests {
             legacyEnabled=true;
             var upgradeFailure=new TransactionInstaller(target,new InstallHooks(()=>{},()=>false,(_,_)=>throw new IOException("persistent shortcut failure"),()=>{},()=>new LegacyState(legacyEnabled,false,[]),()=>legacyEnabled=false,s=>legacyEnabled=s.PluginEnabled==true));
             Throws(()=>upgradeFailure.Install(one));
+            Check(upgradeFailure.RecoveryPending,"incomplete recovery retains journal for manual recovery");
             Check(legacyEnabled && File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","legacy restored even when old application activation still fails");
         } finally { Directory.Delete(root,true); }
     }

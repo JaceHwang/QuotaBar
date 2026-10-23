@@ -7,6 +7,15 @@ internal static class ApplicationUpdateOperationTests {
         public void Flush() { while(queue.TryDequeue(out var next)) next(); }
     }
     public static async Task Run() {
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCleanup=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleaned=false;
+        var quitting=new ApplicationUpdateOperation(async (_,_,cancel)=> { entered.SetResult(); try { await Task.Delay(Timeout.Infinite,cancel); } finally { await releaseCleanup.Task; } },abandon:_=>cleaned=true);
+        quitting.Start("2.0.0"); await entered.Task;
+        var cleanup=quitting.WaitForCleanup(); await Task.Delay(30);
+        if(cleanup.IsCompleted || cleaned) throw new Exception("Quit completed before cancellation cleanup");
+        releaseCleanup.SetResult(); await cleanup;
+        if(!cleaned) throw new Exception("Quit skipped owned helper cleanup");
         var paused=new PausedContext(); var earlyPermits=0;
         var awaitingUi=new ApplicationUpdateOperation((_,_,_)=>Task.CompletedTask,paused,commit:_=>earlyPermits++);
         awaitingUi.Start("2.0.0"); await Task.Delay(40); if(earlyPermits!=0) throw new Exception("Helper permission committed before UI handoff");

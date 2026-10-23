@@ -43,6 +43,7 @@ public sealed class TransactionInstaller {
     private sealed record Journal(string Target,string Stage,string Backup,bool HadPrevious,bool Startup,string? PreviousHistory,LegacyState? Legacy);
     private sealed record History(string Backup,bool Startup);
     readonly string target,store,journalPath,historyPath;
+    public bool RecoveryPending=>File.Exists(journalPath);
     readonly InstallHooks hooks;
     public TransactionInstaller(string target,InstallHooks hooks) {
         this.target=Path.GetFullPath(target); this.hooks=hooks;

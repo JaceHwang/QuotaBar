@@ -5,6 +5,7 @@ public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpd
     readonly SynchronizationContext? context=dispatch??SynchronizationContext.Current;
     CancellationTokenSource? cancellation;
     long generation;
+    readonly HashSet<Task> workers=new();
     ApplicationUpdateProgress progress=new(ApplicationUpdatePhase.Idle,0,0,null);
     public string? TargetVersion { get; private set; }
     public ApplicationUpdateProgress Progress { get { lock(gate) return progress; } }
@@ -16,7 +17,8 @@ public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpd
         long id; CancellationTokenSource source;
         lock(gate) { if(Busy(progress.Phase)) return; id=++generation; TargetVersion=version; cancellation=source=new(); progress=new(ApplicationUpdatePhase.Resolving,0,0,null); }
         Notify(Changed);
-        _=Task.Run(async ()=> {
+        Task worker;
+        lock(gate) { worker=Task.Run(async ()=> {
             try {
                 await execute(version,update=> { lock(gate) { if(id!=generation || !CanCancel(progress.Phase)) return; progress=update; } Notify(Changed); },source.Token);
                 await DeliverCompletion(()=> {
@@ -27,7 +29,12 @@ public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpd
                 lock(gate) { if(id!=generation) return; progress=new(source.IsCancellationRequested?ApplicationUpdatePhase.Cancelled:ApplicationUpdatePhase.Failed,0,0,null); cancellation=null; }
                 Notify(Changed);
             } finally { try { abandon?.Invoke(source.Token); } finally { source.Dispose(); } }
-        });
+        }); workers.Add(worker); }
+        _=worker.ContinueWith(done=> { lock(gate) workers.Remove(done); },TaskScheduler.Default);
+    }
+    public async Task WaitForCleanup() {
+        Cancel(); Task[] pending; lock(gate) pending=workers.ToArray();
+        await Task.WhenAll(pending);
     }
     async Task DeliverCompletion(Action action,CancellationToken cancel) {
         if(context is null) { cancel.ThrowIfCancellationRequested(); action(); return; }

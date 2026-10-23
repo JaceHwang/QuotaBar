@@ -14,7 +14,7 @@ def wait(path,process,seconds=20):
         if process.poll() is not None: raise AssertionError('Helper exited before receipt')
         time.sleep(.05)
     raise AssertionError('Missing helper receipt')
-for mode in ['cancel','happy','rollback','corrupt','expired']:
+for mode in ['receipt-failure','cancel','happy','rollback','corrupt','expired']:
     directory=local/'QuotaBar/Updates'/uuid.uuid4().hex; directory.mkdir(parents=True)
     parent=None; helper=None; log=None
     try:
@@ -36,6 +36,7 @@ for mode in ['cancel','happy','rollback','corrupt','expired']:
         job=dict(schema=1,operationID=uuid.uuid4().hex,target=str(target),parentPID=parent.pid,nonce='a'*64,expiresAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(time.time()+(-1 if mode=='expired' else 600))),release=release)
         (directory/'job.json').write_text(json.dumps(job)); shutil.copytree(target/'setup',directory/'current-setup')
         if mode=='corrupt': (candidate/'QuotaBar.exe').write_bytes(b'bad')
+        if mode=='receipt-failure': (directory/'succeeded.json').mkdir()
         log=(directory/'helper.log').open('w+b')
         helper=subprocess.Popen([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],stdout=log,stderr=subprocess.STDOUT)
         if mode in ('corrupt','expired'):
@@ -44,8 +45,11 @@ for mode in ['cancel','happy','rollback','corrupt','expired']:
             wait(directory/'ready.json',helper)
             if mode!='cancel': (directory/'handoff.json').write_text(json.dumps(dict(schema=1,operationID=job['operationID'],nonce=job['nonce'],kind='handoff')))
             subprocess.run([str(target/'QuotaBar.exe'),'--quit'],check=True,timeout=10); parent.wait(timeout=15)
-            helper.wait(timeout=90); log.flush(); log.seek(0); out=log.read(); err=b''; expected='failed' if mode=='cancel' else 'rolledBack' if mode=='rollback' else 'succeeded'; assert (directory/(expected+'.json')).exists(),(out,err)
-            version=json.loads((target/'package.json').read_text())['version']; assert version==('2.0.0' if mode=='happy' else json.loads((package/'package.json').read_text())['version']),(mode,version)
+            helper.wait(timeout=90); log.flush(); log.seek(0); out=log.read(); err=b''; expected='failed' if mode=='cancel' else 'rolledBack' if mode=='rollback' else 'succeeded'
+            if mode=='receipt-failure':
+                assert helper.returncode==0 and not (directory/'rolledBack.json').exists(),(out,err)
+            else: assert (directory/(expected+'.json')).is_file(),(out,err)
+            version=json.loads((target/'package.json').read_text())['version']; assert version==('2.0.0' if mode in ('happy','receipt-failure') else json.loads((package/'package.json').read_text())['version']),(mode,version)
             replay=subprocess.run([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],capture_output=True,timeout=30); assert replay.returncode!=0
         assert marker.read_text()=='keep'; print('PASS Windows native helper '+mode,flush=True)
     finally:

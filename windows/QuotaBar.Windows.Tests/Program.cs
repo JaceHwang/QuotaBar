@@ -17,7 +17,8 @@ using QuotaBar.Windows;
 
 internal static class Program {
     [STAThread]
-    static int Main() {
+    static int Main(string[] args) {
+        if(args.Contains("--quit-cleanup")) return TestQuitCleanup();
         if(!OperatingSystem.IsWindows()) return 1;
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
@@ -405,9 +406,31 @@ internal static class Program {
                 detail.Render(quota,tokens,new AccountIdentity("Example with a long account name",null,null),state,prefs with { DetailHeight=220 },new Copy(language),true,true,Platform.Bounds(button)); Pump();
                 Check(detail.Content is Border { Child:ScrollViewer },"short detail viewport can scroll fixed bands");
             }
+            using(var quitTest=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute=false,ArgumentList={"--quit-cleanup"} })!) {
+                Check(quitTest.WaitForExit(30000)&&quitTest.ExitCode==0,"actual Quit awaits updater cleanup without a runtime");
+            }
             Console.WriteLine("PASS Windows native floating visibility/hover/close/restore and light/dark detail rendering"); return 0;
         } catch(Exception e) { Console.Error.WriteLine("FAIL Windows UI: "+e); return 1; }
         finally { button.Close(); detail.Close(); app.Shutdown(); }
+    }
+    [STAThread]
+    static int TestQuitCleanup() {
+        var root=Path.Combine(Path.GetTempPath(),"quotabar-quit-cleanup-"+Guid.NewGuid()); Directory.CreateDirectory(root);
+        var owned=Path.Combine(root,"owned-update"); Directory.CreateDirectory(owned);
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleaned=false; var exitAfterCleanup=false;
+        var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        using var owner=new Coordinator(app,root,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),async (_,_,cancel)=> {
+            entered.SetResult();
+            try { await Task.Delay(Timeout.Infinite,cancel); }
+            finally { await Task.Delay(150); Directory.Delete(owned,true); cleaned=true; }
+        });
+        app.Exit+=(_,_)=>exitAfterCleanup=cleaned&&!Directory.Exists(owned);
+        app.Dispatcher.BeginInvoke(async ()=> { owner.Updates.Installer.Operation.Start("2.0.0"); await entered.Task; owner.Quit(); });
+        app.Run();
+        Directory.Delete(root,true);
+        if(!exitAfterCleanup) { Console.Error.WriteLine("Quit exited before updater cleanup"); return 1; }
+        Console.WriteLine("PASS actual native Quit waits for updater cleanup with no runtime"); return 0;
     }
     static void Pump() { var frame=new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background,()=>frame.Continue=false); Dispatcher.PushFrame(frame); }
     static System.Collections.Generic.IEnumerable<DependencyObject> Tree(DependencyObject root) {

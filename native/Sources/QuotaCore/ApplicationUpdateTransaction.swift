@@ -88,6 +88,7 @@ public final class ApplicationUpdateTransaction {
         let journal = try JSONDecoder().decode(Journal.self, from: Data(contentsOf: file))
         return journal.operationDirectory.map { URL(fileURLWithPath: $0) }
     }
+    public var requiresRecovery: Bool { FileManager.default.fileExists(atPath: store.appendingPathComponent("journal.json").path) }
     public func recover() throws { try locked { try restore() } }
     private func restore() throws {
         let fm = FileManager.default, path = store.appendingPathComponent("journal.json")

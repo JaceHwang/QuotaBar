@@ -82,11 +82,16 @@ public static class ApplicationUpdateTransaction {
                 }
                 if(started.WaitForExit(2000)) throw new IOException("Updated app exited during startup");
             });
-            job.Receipt("succeeded",directory);
         } catch {
             if(started is { HasExited:false }) { started.Kill(true); started.WaitForExit(6000); }
-            job.Receipt("rolledBack",directory); launchOld(Path.Combine(job.Target,"QuotaBar.exe"),[]); throw;
+            TryReceipt(job,installer.RecoveryPending?"failed":"rolledBack",directory);
+            if(!installer.RecoveryPending) launchOld(Path.Combine(job.Target,"QuotaBar.exe"),[]);
+            throw;
         } finally { started?.Dispose(); }
+        TryReceipt(job,"succeeded",directory);
+    }
+    static void TryReceipt(UpdateInstallJob job,string kind,string directory) {
+        try { job.Receipt(kind,directory); } catch(Exception e) when(e is IOException or UnauthorizedAccessException) { }
     }
 }
 

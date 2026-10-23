@@ -25,6 +25,7 @@ def run(mode):
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <sys/stat.h>
 int main(int argc,char **argv) {
  if(argc>1 && !strcmp(argv[1],"--parent")) {
   usleep(500000); pid_t p=fork(); if(p==0) { execl(argv[3],argv[3],argv[2],NULL); _exit(90); }
@@ -37,6 +38,7 @@ int main(int argc,char **argv) {
   if(getenv("FIXTURE_EXIT")) return 92;
   char path[4096]; snprintf(path,sizeof(path),"%s/health.json",argv[2]); FILE *f=fopen(path,"w");
   fprintf(f,"{\"schema\":1,\"operationID\":\"%s\",\"nonce\":\"%s\",\"kind\":\"health\"}",getenv("FIXTURE_OPERATION"),argv[3]); fclose(f);
+  if(getenv("FIXTURE_RECEIPT_FAILURE")) { snprintf(path,sizeof(path),"%s/succeeded.json",argv[2]); mkdir(path,0700); }
  }
  while(1) sleep(1);
 }
@@ -58,6 +60,7 @@ int main(int argc,char **argv) {
         helper=directory/'QuotaBarUpdater'; shutil.copy2(HELPER,helper)
         env=dict(os.environ,CFFIXED_USER_HOME=str(home),HOME=str(home),FIXTURE_OPERATION=operation)
         if mode=='rollback': env['FIXTURE_EXIT']='1'
+        if mode=='receipt-failure': env['FIXTURE_RECEIPT_FAILURE']='1'
         if mode=='timeout': env['FIXTURE_STAY']='1'
         if mode=='cancel': env['FIXTURE_CANCEL']='1'
         env['FIXTURE_NONCE']=nonce
@@ -72,10 +75,21 @@ int main(int argc,char **argv) {
                 store=target.parent/'.QuotaBar-update'; store.mkdir(); backup=store/'backup-interrupted'; target.rename(backup); shutil.copytree(candidate,target)
                 (store/'journal.json').write_text(json.dumps(dict(backup=backup.name,stage='stage-interrupted',operationDirectory=str(directory))))
                 (directory/'ready.json').write_text(json.dumps(dict(schema=1,operationID=operation,nonce=nonce,kind='ready')))
+                live_app=subprocess.Popen([str(target/'Contents/MacOS/CodexQuota')],env=env)
+                live_runtime=subprocess.Popen([str(target/'Contents/Helpers/codex')],env=env)
+                time.sleep(.2)
                 result=subprocess.run([str(helper),'--recover',str(directory),'0'],env=env,capture_output=True,timeout=10)
                 assert result.returncode==0,result.stderr
+                assert live_app.poll() is not None and live_runtime.poll() is not None, "recovery left the interrupted new app/runtime alive"
                 assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='1.3.0'
                 assert (directory/'rolledBack.json').exists() and not (store/'journal.json').exists()
+            elif mode=='receipt-failure':
+                assert parent.wait(timeout=15)==0
+                time.sleep(4)
+                assert not (directory/'rolledBack.json').exists(), 'committed update misreported as rollback after receipt write failed'
+                assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='2.0.0'
+                lines=subprocess.check_output(['ps','-axww','-o','command='],text=True).splitlines()
+                assert sum(os.path.realpath(line.split(' ',1)[0])==str(target/'Contents/MacOS/CodexQuota') for line in lines)==1, 'receipt failure restarted an already running updated app'
             elif mode=='cancel':
                 assert parent.wait(timeout=15)==0
                 end=time.monotonic()+8
@@ -102,12 +116,12 @@ int main(int argc,char **argv) {
             print('PASS native helper '+mode,flush=True)
         finally:
             # Kill only fixture processes with an executable/argument under this isolated temp root.
-            listing=subprocess.check_output(['ps','-axo','pid=,command='],text=True)
+            listing=subprocess.check_output(['ps','-axww','-o','pid=,command='],text=True)
             for line in listing.splitlines():
                 pid,_,command=line.strip().partition(' ')
-                if str(root)+'/' in command and int(pid)!=os.getpid():
+                if os.path.realpath(command.split(' ',1)[0]).startswith(str(root)+'/') and int(pid)!=os.getpid():
                     try: os.kill(int(pid),9)
                     except ProcessLookupError: pass
             try: parent.wait(timeout=5)
             except subprocess.TimeoutExpired: parent.kill(); parent.wait()
-for mode in ['cancel','happy','rollback','corrupt','expired','timeout','interrupted']: run(mode)
+for mode in ['receipt-failure','cancel','happy','rollback','corrupt','expired','timeout','interrupted']: run(mode)

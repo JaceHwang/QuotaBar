@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import AppKit
 import QuotaCore
 
 func executablePath(_ pid: Int32) throws -> String {
@@ -11,6 +12,30 @@ func launch(_ target: URL, args: [String]) throws -> Process {
     let process = Process(); process.executableURL = target.appendingPathComponent("Contents/MacOS/CodexQuota"); process.arguments = args
     process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
     try process.run(); return process
+}
+// Stop only executables at this installation's fixed app/runtime paths before restoring it.
+func stopInterruptedInstallation(_ target: URL) throws {
+    let paths = Set(["Contents/MacOS/CodexQuota", "Contents/Helpers/codex"].map { target.appendingPathComponent($0).standardizedFileURL.path })
+    let count = proc_listallpids(nil, 0)
+    guard count > 0, count < 1_000_000 else { throw UpdatePackageError.commandFailed }
+    var pids = [Int32](repeating: 0, count: Int(count) + 1024)
+    let found = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
+    guard found >= 0, found <= pids.count else { throw UpdatePackageError.commandFailed }
+    func matches(_ pid: Int32) -> Bool {
+        guard pid > 1, pid != getpid(), let path = try? executablePath(pid) else { return false }
+        return paths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
+    }
+    let owned = pids.prefix(Int(found)).filter { matches($0) }
+    for pid in owned {
+        if let app = NSRunningApplication(processIdentifier: pid) { app.terminate() }
+        else { kill(pid, SIGTERM) }
+    }
+    let deadline = Date().addingTimeInterval(3)
+    while owned.contains(where: matches), Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+    for pid in owned where matches(pid) { kill(pid, SIGKILL) }
+    let finalDeadline = Date().addingTimeInterval(2)
+    while owned.contains(where: matches), Date() < finalDeadline { Thread.sleep(forTimeInterval: 0.05) }
+    guard !owned.contains(where: matches) else { throw UpdatePackageError.commandTimedOut }
 }
 // Recovery accepts only the fixed target's journal-bound job, never a caller supplied target.
 if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--recover" {
@@ -24,8 +49,9 @@ if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--recover" {
             let end = Date().addingTimeInterval(20)
             while kill(parent, 0) == 0 { guard Date() < end else { throw UpdatePackageError.commandTimedOut }; Thread.sleep(forTimeInterval: 0.05) }
         }
+        try stopInterruptedInstallation(UpdateLocations.target)
         try ApplicationUpdateTransaction(target: UpdateLocations.target).recover()
-        try job.receipt("rolledBack", directory: directory); _ = try launch(UpdateLocations.target, args: []); exit(0)
+        try? job.receipt("rolledBack", directory: directory); _ = try launch(UpdateLocations.target, args: []); exit(0)
     } catch { fputs("QuotaBar recovery failed; backup and journal retained.\n", stderr); exit(1) }
 }
 var phase = "job-location"
@@ -68,8 +94,11 @@ do {
             Thread.sleep(forTimeInterval: 2)
             guard process.isRunning else { throw UpdatePackageError.commandFailed }; healthy = true
         })
-        try job.receipt("succeeded", directory: directory)
     } catch {
-        try? job.receipt("rolledBack", directory: directory); _ = try? launch(UpdateLocations.target, args: []); throw error
+        if transaction.requiresRecovery { try? job.receipt("failed", directory: directory) }
+        else { try? job.receipt("rolledBack", directory: directory); _ = try? launch(UpdateLocations.target, args: []) }
+        throw error
     }
+    // Receipt persistence cannot undo an already committed, healthy installation.
+    try? job.receipt("succeeded", directory: directory)
 } catch { let category = (error as? UpdatePackageError).map { String(describing: $0) } ?? "validation-or-filesystem"; fputs("QuotaBar update failed (\(phase):\(category)); use manual installation if needed.\n", stderr); exit(1) }

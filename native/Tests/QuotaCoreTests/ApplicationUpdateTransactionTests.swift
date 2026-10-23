@@ -21,6 +21,22 @@ final class ApplicationUpdateTransactionTests: XCTestCase {
         try transaction.recover()
         XCTAssertTrue(fm.fileExists(atPath: target.appendingPathComponent("version").path))
     }
+    func testIncompleteRecoveryRetainsJournalAndPreviousBundle() throws {
+        let fm = FileManager.default, root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true); defer { try? fm.removeItem(at: root) }
+        let target = root.appendingPathComponent("QuotaBar.app"), candidate = root.appendingPathComponent("candidate"), store = root.appendingPathComponent(".QuotaBar-update")
+        for path in [target, candidate] { try fm.createDirectory(at: path, withIntermediateDirectories: true) }
+        try Data("old".utf8).write(to: target.appendingPathComponent("version")); try Data("new".utf8).write(to: candidate.appendingPathComponent("version"))
+        let transaction = ApplicationUpdateTransaction(target: target)
+        XCTAssertThrowsError(try transaction.install(candidate: candidate, validate: { _ in }, health: {
+            let backup = try XCTUnwrap(fm.contentsOfDirectory(at: store, includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("backup-") })
+            try fm.createSymbolicLink(at: backup.appendingPathComponent("blocked"), withDestinationURL: root)
+            throw CocoaError(.fileReadCorruptFile)
+        }))
+        XCTAssertTrue(transaction.requiresRecovery)
+        let backup = try XCTUnwrap(fm.contentsOfDirectory(at: store, includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("backup-") })
+        XCTAssertEqual(try String(contentsOf: backup.appendingPathComponent("version"), encoding: .utf8), "old")
+    }
     func testOnlyOneHelperCanBecomeReadyAcrossJobs() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); defer { try? FileManager.default.removeItem(at: root) }
