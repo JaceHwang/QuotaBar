@@ -5,6 +5,43 @@ import XCTest
 
 @MainActor
 final class QuotaUpdateViewTests: XCTestCase {
+    func testExplicitInstallControlsAndProgressInAllLanguages() async throws {
+        for language in 0..<3 {
+            for phase in [ApplicationUpdatePhase.downloading, .verifying, .preparing, .failed] {
+                let controller = QuotaUpdateController(version: "0.7.0", updateExecute: { version, emit in
+                    guard version == "0.8.0" else { throw CocoaError(.fileReadCorruptFile) }
+                    if phase == .failed { throw CocoaError(.fileReadCorruptFile) }
+                    emit(ApplicationUpdateProgress(phase, received: 1024, total: 2048))
+                    try await Task.sleep(for: .seconds(30))
+                }, transport: { let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AvailableFeedProtocol.self]; return URLSession(configuration: config) }(), text: { en, zh, tw in [en, zh, tw][language] })
+                defer { controller.stop() }
+                controller.check(manual: true)
+                for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(10)) }
+                let view = controller.makeSettingsView()
+                let buttons = descendants(view).compactMap { $0 as? NSButton }
+                XCTAssertTrue(buttons.contains { $0.title == ["View release notes", "查看更新内容", "查看更新內容"][language] })
+                let install = try XCTUnwrap(buttons.first { $0.title == ["Update now", "立即更新", "立即更新"][language] })
+                XCTAssertEqual(controller.installer.progress.phase, .idle)
+                XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(install.action), to: install.target, from: install))
+                XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(install.action), to: install.target, from: install))
+                try await Task.sleep(for: .milliseconds(30))
+                XCTAssertEqual(controller.installer.progress.phase, phase)
+                XCTAssertEqual(install.isEnabled, phase == .failed)
+                XCTAssertTrue(descendants(view).compactMap { $0 as? NSTextField }.contains { !$0.stringValue.isEmpty })
+                let window = StandaloneCoordinator(updateController: controller).makeSettingsWindow(); window.isReleasedWhenClosed = false
+                window.setContentSize(NSSize(width: 840, height: 560)); (window.contentView as? QuotaSettingsShellView)?.selectPage(4)
+                for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                    window.appearance = NSAppearance(named: appearance); window.orderFront(nil); window.contentView?.layoutSubtreeIfNeeded()
+                    if let path = ProcessInfo.processInfo.environment["CUS_UPDATE_VISUAL_OUTPUT_DIR"], let root = window.contentView {
+                        root.displayIfNeeded(); let bitmap = try XCTUnwrap(root.bitmapImageRepForCachingDisplay(in: root.bounds))
+                        window.appearance?.performAsCurrentDrawingAppearance { root.cacheDisplay(in: root.bounds, to: bitmap) }
+                        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: path).appendingPathComponent("update-\(language)-\(phase.rawValue)-\(name).png"))
+                    }
+                }
+                window.close(); controller.installer.cancel()
+            }
+        }
+    }
     func testStartupIgnoresRecentSuccessAndSuccessfulChecksWaitADay() async throws {
         let suite = "QuotaUpdateScheduleTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -140,7 +177,7 @@ final class QuotaUpdateViewTests: XCTestCase {
         XCTAssertTrue(document.isFlipped)
         XCTAssertEqual(document.visibleRect.minY, 0, accuracy: 1)
         XCTAssertGreaterThan(document.bounds.height, scroll.contentSize.height)
-        let viewButton = try XCTUnwrap(descendants(document).compactMap { $0 as? NSButton }.first { $0.title == "查看更新" })
+        let viewButton = try XCTUnwrap(descendants(document).compactMap { $0 as? NSButton }.first { $0.title == "立即更新" })
         XCTAssertFalse(viewButton.superview?.isHidden ?? true)
         document.scrollToVisible(viewButton.convert(viewButton.bounds, to: document)); scroll.reflectScrolledClipView(scroll.contentView)
         XCTAssertTrue(document.visibleRect.intersects(viewButton.convert(viewButton.bounds, to: document)), "Update action remains reachable inside the longer About page")

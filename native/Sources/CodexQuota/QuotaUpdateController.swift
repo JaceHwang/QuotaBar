@@ -4,6 +4,11 @@ import UserNotifications
 
 @MainActor
 final class QuotaUpdateController: NSObject {
+    let installer: ApplicationUpdateService
+    var openUpdateSettings: (() -> Void)?
+    private weak var installButton: NSButton?
+    private weak var cancelInstallButton: NSButton?
+    private weak var downloadBar: NSProgressIndicator?
     private var notificationCenter: UNUserNotificationCenter?
     private let defaults: UserDefaults
     private let version: String
@@ -46,12 +51,15 @@ final class QuotaUpdateController: NSObject {
         get { defaults.data(forKey: "updates.policy").flatMap { try? JSONDecoder().decode(UpdateReminderPolicy.self, from: $0) } ?? UpdateReminderPolicy() }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "updates.policy") }
     }
-    init(defaults: UserDefaults = .standard, version: String, transport: URLSession? = nil, now: @escaping () -> Date = Date.init, text: @escaping (String, String, String) -> String) {
+    init(defaults: UserDefaults = .standard, version: String, updateExecute: ApplicationUpdateService.Execute? = nil, transport: URLSession? = nil, now: @escaping () -> Date = Date.init, text: @escaping (String, String, String) -> String) {
+        installer = ApplicationUpdateService(currentVersion: version, execute: updateExecute)
         self.now = now; nextCheck = now().addingTimeInterval(30)
         self.defaults = defaults; self.version = version; self.text = text
         let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 15; config.timeoutIntervalForResource = 20
         session = transport ?? URLSession(configuration: config)
         super.init()
+        installer.onChange = { [weak self] in self?.refreshView(); self?.onChange?() }
+        installer.onReady = { NSApp.terminate(nil) }
         // UserNotifications requires an application bundle; CLI/test hosts have no bundle proxy.
         if Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil {
             notificationCenter = AppNotificationRouter.shared.center
@@ -64,7 +72,7 @@ final class QuotaUpdateController: NSObject {
             self?.check()
         }
     }
-    func stop() { stopped = true; session.invalidateAndCancel(); timer?.invalidate(); timer = nil; request?.cancel(); notifyTask?.cancel() }
+    func stop() { installer.cancel(); stopped = true; session.invalidateAndCancel(); timer?.invalidate(); timer = nil; request?.cancel(); notifyTask?.cancel() }
     func check(manual: Bool = false) {
         guard !stopped, request == nil else { return }
         let now = self.now()
@@ -124,10 +132,13 @@ final class QuotaUpdateController: NSObject {
         let spinner = NSProgressIndicator(); spinner.style = .spinning; spinner.controlSize = .small; spinner.isDisplayedWhenStopped = false; progress = spinner; checkRow.addArrangedSubview(spinner)
         QuotaSettingsStyle.fill(checkRow, in: group)
         let row = NSStackView(); row.orientation = .horizontal; row.spacing = 8
-        for (label, action) in [(text("View update", "查看更新", "查看更新"), #selector(openRelease)), (text("Remind later", "稍后提醒", "稍後提醒"), #selector(snooze)), (text("Skip version", "跳过此版本", "跳過此版本"), #selector(skip))] {
+        let install = QuotaSettingsStyle.button(text("Update now", "立即更新", "立即更新"), target: self, action: #selector(installUpdate), primary: true); installButton = install; row.addArrangedSubview(install)
+        for (label, action) in [(text("View release notes", "查看更新内容", "查看更新內容"), #selector(openRelease)), (text("Remind later", "稍后提醒", "稍後提醒"), #selector(snooze)), (text("Skip version", "跳过此版本", "跳過此版本"), #selector(skip))] {
             row.addArrangedSubview(QuotaSettingsStyle.button(label, target: self, action: action))
         }
         group.addArrangedSubview(row); actions = row
+        let bar = NSProgressIndicator(); bar.style = .bar; bar.isIndeterminate = false; bar.maxValue = 100; downloadBar = bar; QuotaSettingsStyle.fill(bar, in: group)
+        let cancel = QuotaSettingsStyle.button(text("Cancel download", "取消下载", "取消下載"), target: self, action: #selector(cancelInstall)); cancelInstallButton = cancel; group.addArrangedSubview(cancel)
         let notes = QuotaSettingsStyle.label("", size: 12, secondary: true); notesField = notes; QuotaSettingsStyle.fill(notes, in: group)
         refreshView(); return QuotaSettingsStyle.card(group)
     }
@@ -135,7 +146,9 @@ final class QuotaUpdateController: NSObject {
         let current = text("Current version", "当前版本", "目前版本")
         let extra = available.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0.version } ?? ""
         let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
-        statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(status)"
+        let update = installer.progress
+        let updateStatus = update.phase == .idle ? status : installStatus(update)
+        statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(updateStatus)"
         notesField?.stringValue = ""
         if let notes = available?.releaseNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             notesField?.stringValue = notes
@@ -144,9 +157,32 @@ final class QuotaUpdateController: NSObject {
         }
         notesField?.isHidden = notesField?.stringValue.isEmpty != false
         actions?.isHidden = available == nil
-        checkButton?.isEnabled = request == nil
+        installButton?.title = update.phase == .failed ? text("Retry update", "重试更新", "重試更新") : text("Update now", "立即更新", "立即更新")
+        installButton?.isEnabled = !update.phase.busy
+        actions?.arrangedSubviews.dropFirst().forEach { ($0 as? NSControl)?.isEnabled = !update.phase.busy }
+        cancelInstallButton?.isHidden = !update.phase.canCancel
+        downloadBar?.isHidden = !update.phase.busy
+        downloadBar?.isIndeterminate = update.phase != .downloading
+        if update.phase == .downloading { downloadBar?.doubleValue = update.total > 0 ? Double(update.received) / Double(update.total) * 100 : 0; downloadBar?.stopAnimation(nil) } else if update.phase.busy { downloadBar?.startAnimation(nil) }
+        checkButton?.isEnabled = request == nil && !update.phase.busy
         if request == nil { progress?.stopAnimation(nil) } else { progress?.startAnimation(nil) }
     }
+    func installStatus(_ update: ApplicationUpdateProgress) -> String {
+        switch update.phase {
+        case .resolving: return text("Resolving official release…", "正在获取官方版本…", "正在取得官方版本…")
+        case .downloading: return text("Downloading", "正在下载", "正在下載") + String(format: " %.1f / %.1f MB", Double(update.received) / 1048576, Double(update.total) / 1048576)
+        case .verifying: return text("Verifying download…", "正在校验安装包…", "正在驗證安裝套件…")
+        case .preparing: return text("Preparing update…", "正在准备更新…", "正在準備更新…")
+        case .handingOff, .installing: return text("Installing and restarting…", "正在安装并重启…", "正在安裝並重新啟動…")
+        case .failed: return text("Update failed. Retry or use the release page to install manually. Run QuotaBar from ~/Applications first.", "更新失败，可重试或从更新页面手动安装。请先将应用安装至 ~/Applications。", "更新失敗，可重試或從更新頁面手動安裝。請先將應用程式安裝至 ~/Applications。")
+        case .succeeded: return text("Update installed successfully.", "更新安装成功。", "更新安裝成功。")
+        case .rolledBack: return text("The new version could not start. Your previous version was restored.", "新版未能正常启动，已恢复旧版本。", "新版未能正常啟動，已恢復舊版本。")
+        case .cancelled: return text("Download cancelled; current version unchanged.", "已取消下载，当前版本未变更。", "已取消下載，目前版本未變更。")
+        default: return ""
+        }
+    }
+    @objc func installUpdate() { guard !stopped, let available else { return }; installer.start(version: available.version) }
+    @objc private func cancelInstall() { installer.cancel() }
     @objc private func manualCheck() { check(manual: true) }
     @objc private func autoChanged(_ sender: QuotaSettingsSwitch) { defaults.set(sender.state != .on, forKey: "updates.autoDisabled"); if sender.state == .on { nextCheck = .distantPast; check() } }
     @objc private func remindersChanged(_ sender: QuotaSettingsSwitch) {
@@ -173,6 +209,6 @@ final class QuotaUpdateController: NSObject {
         }, failed: { [weak self] in self?.status = self?.text("System reminder unavailable", "系统提醒不可用", "系統提醒無法使用") ?? ""; self?.refreshView() }, shown: { [weak self] in
             guard let self else { return }
             var value = policy; value.recordNotification(release.version, attempted: attempted); policy = value
-        }, action: { NSWorkspace.shared.open(release.releaseNotesURL) })
+        }, action: { [weak self] in guard self?.available == release else { return }; self?.installUpdate() })
     }
 }

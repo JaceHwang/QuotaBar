@@ -7,6 +7,18 @@ public sealed record UpdateInstallJob(int Schema,string OperationID,string Targe
         if(Schema!=1 || !Guid.TryParse(OperationID,out _) || !string.Equals(Target,expectedTarget,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal) || ParentPID<=1 || !TrustedUpdateRelease.Hex(Nonce,64) || now>=ExpiresAt || ExpiresAt-now>TimeSpan.FromSeconds(601) || File.Exists(Path.Combine(directory,"consumed")) || !TrustedUpdateRelease.Hex(Release.SourceCommit,40)) throw new IOException("Invalid, expired or consumed update job");
         PackageVerifier.RejectLinks(directory);
     }
+    public static ApplicationUpdatePhase? ConsumeResult(string cache,string expectedTarget) {
+        if(!Directory.Exists(cache)) return null;
+        foreach(var directory in Directory.GetDirectories(cache).OrderByDescending(Directory.GetLastWriteTimeUtc).Take(100)) {
+            try {
+                if(!Guid.TryParse(Path.GetFileName(directory),out _) || File.Exists(Path.Combine(directory,"presented"))) continue;
+                PackageVerifier.RejectLinks(directory); var job=Read(directory);
+                if(job.Target!=expectedTarget || DateTimeOffset.UtcNow-job.ExpiresAt>TimeSpan.FromDays(1)) continue;
+                foreach(var (kind,phase) in new[]{("succeeded",ApplicationUpdatePhase.Succeeded),("rolledBack",ApplicationUpdatePhase.RolledBack),("failed",ApplicationUpdatePhase.Failed)}) if(job.HasReceipt(kind,directory)) { File.WriteAllText(Path.Combine(directory,"presented"),""); return phase; }
+            } catch(Exception e) when(e is IOException or JsonException or UnauthorizedAccessException) { }
+        }
+        return null;
+    }
     public void Write(string directory)=>Atomic(Path.Combine(directory,"job.json"),this);
     public static UpdateInstallJob Read(string directory) {
         var path=Path.Combine(directory,"job.json"); if(new FileInfo(path).Length>=65536) throw new IOException("Oversized job");

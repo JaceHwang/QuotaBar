@@ -20,6 +20,20 @@ public struct UpdateInstallJob: Codable, Sendable {
         _ = try UpdateFeed.versionParts(release.version)
         _ = try MacUpdatePackage.treeBytes(directory)
     }
+    public static func consumeResult(in cache: URL, expectedTarget: String) -> ApplicationUpdatePhase? {
+        let fm = FileManager.default
+        guard let paths = try? fm.contentsOfDirectory(at: cache, includingPropertiesForKeys: [.contentModificationDateKey]) else { return nil }
+        let recent = paths.sorted { ((try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) > ((try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) }.prefix(100)
+        for path in recent {
+            guard UUID(uuidString: path.lastPathComponent) != nil, !fm.fileExists(atPath: path.appendingPathComponent("presented").path),
+                  let job = try? read(path), job.target == expectedTarget, Date().timeIntervalSince(job.expiresAt) < 86400 else { continue }
+            for (kind, phase) in [("succeeded", ApplicationUpdatePhase.succeeded), ("rolledBack", .rolledBack), ("failed", .failed)] where job.hasReceipt(kind, directory: path) {
+                guard (try? Data().write(to: path.appendingPathComponent("presented"), options: .atomic)) != nil else { return nil }
+                return phase
+            }
+        }
+        return nil
+    }
     public func write(_ directory: URL) throws { try JSONEncoder().encode(self).write(to: directory.appendingPathComponent("job.json"), options: .atomic) }
     public static func read(_ directory: URL) throws -> Self {
         let path = directory.appendingPathComponent("job.json")

@@ -152,9 +152,10 @@ import QuotaCore
         onUnreadChange?(); dispatch()
     }
     func suspend() { previews = []; state.suspend(); timer?.invalidate(); timer = nil; hideBubble?() }
+    var openUpdates: (() -> Void)?
     func activateLatest(id: String, token: String? = nil) {
         guard !consumed.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken else { return }
-        if d.message.kind == .update { activate(id: id); return }
+        if d.message.kind == .update { dismiss(id: id, read: true, token: token); openUpdates?(); return }
         dismiss(id: id, read: true); openDetails?()
     }
     func activate(id: String, token: String? = nil) {
@@ -196,8 +197,12 @@ import QuotaCore
         let token = response.notification.request.content.userInfo["token"] as? String
         Task { @MainActor [weak self] in
             if let token, self?.cancelledTokens.contains(token) == true { return }
-            if let id, self?.deliveries[id] != nil { self?.activate(id: id, token: token) }
-            else if let version, (try? UpdateFeed.versionParts(version)) != nil, let url = URL(string: "https://github.com/JaceHwang/QuotaBar/releases/tag/v\(version)") { NSWorkspace.shared.open(url) }
+            if let id, let delivery = self?.deliveries[id] {
+                guard delivery.valid(), token == nil || token == delivery.message.deliveryToken else { return }
+                if delivery.message.kind == .update { self?.dismiss(id: id, read: true, token: token); self?.openUpdates?() }
+                else { self?.activate(id: id, token: token) }
+            }
+            else if let version, (try? UpdateFeed.versionParts(version)) != nil { self?.openUpdates?() }
         }
         completionHandler()
     }

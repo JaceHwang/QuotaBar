@@ -10,6 +10,8 @@ internal static class ApplicationUpdateTransactionTests {
             Refused(()=>job.Validate(root,"wrong",DateTimeOffset.UtcNow));
             Refused(()=>job.Validate(root,job.Target,DateTimeOffset.UtcNow.AddMinutes(11)));
             job.Validate(root,job.Target,DateTimeOffset.UtcNow);
+            var receipt=Path.Combine(root,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(receipt); job.Write(receipt); job.Receipt("succeeded",receipt);
+            if(UpdateInstallJob.ConsumeResult(root,job.Target)!=ApplicationUpdatePhase.Succeeded || UpdateInstallJob.ConsumeResult(root,job.Target)!=null) throw new Exception("Result replayed or lost");
             File.WriteAllText(Path.Combine(root,"consumed"),""); Refused(()=>job.Validate(root,job.Target,DateTimeOffset.UtcNow));
             Console.WriteLine("PASS update job target, expiry and replay validation");
         } finally { Directory.Delete(root,true); }

@@ -27,6 +27,11 @@ final class ApplicationUpdateTransactionTests: XCTestCase {
         XCTAssertThrowsError(try job.validate(directory: root, expectedTarget: "/right/QuotaBar.app", now: Date()))
         XCTAssertThrowsError(try job.validate(directory: root, expectedTarget: job.target, now: Date().addingTimeInterval(601)))
         try job.validate(directory: root, expectedTarget: job.target, now: Date())
+        let receipts = root.appendingPathComponent(UUID().uuidString); try FileManager.default.createDirectory(at: receipts, withIntermediateDirectories: true)
+        try job.write(receipts)
+        try job.receipt("succeeded", directory: receipts)
+        XCTAssertEqual(UpdateInstallJob.consumeResult(in: root, expectedTarget: job.target), .succeeded)
+        XCTAssertNil(UpdateInstallJob.consumeResult(in: root, expectedTarget: job.target))
         try Data().write(to: root.appendingPathComponent("consumed"))
         XCTAssertThrowsError(try job.validate(directory: root, expectedTarget: job.target, now: Date()))
     }

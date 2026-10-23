@@ -40,8 +40,9 @@ internal sealed class Coordinator : IDisposable {
         Updates=new(this,root,updatesTransport); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
         Notifications=new(tray,
             m=>m.Kind==ExperienceNotificationKind.Update ? Updates.ReminderValid(m.Id[7..]) : Experience?.Valid(m)==true,
-            m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Open(); else { OpenExperienceDetail(); if(m.Kind==ExperienceNotificationKind.Bank) detail.FocusBank(); } },
+            m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Install(); else { OpenExperienceDetail(); if(m.Kind==ExperienceNotificationKind.Bank) detail.FocusBank(); } },
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.ReminderShown(m.Id[7..]); });
+        Notifications.SystemUpdateRequested=ShowUpdateSettings;
         Mobile=new(barkSecrets??new BarkSecretStore(),barkTransport??new BarkPushClient(),new BarkDeliveryStore(Path.Combine(root,"bark-deliveries.json")),Preferences.Bark,value=> { var updated=Preferences with { Bark=value }; store.Save(updated); Preferences=updated; });
         Notifications.Mobile=Mobile; Mobile.CurrentMessages=()=>Notifications.CurrentMessages.Concat(Updates.CurrentReminder is { } update?new[]{update}:Array.Empty<ExperienceNotification>());
         Mobile.Changed+=()=> { if(!stopping) settings?.UpdateMobileStatus(); };
@@ -195,6 +196,7 @@ internal sealed class Coordinator : IDisposable {
     internal bool ShowUpdateReminder(string version,string? summary=null,string reminderGeneration="initial") {
         Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration)); return true;
     }
+    public void ShowUpdateSettings() { ShowSettings(); settings?.ShowAbout(); }
     public void ShowSettings() {
         if(settings is null) { settings=new(this); settings.Closed+=(_,_)=>settings=null; }
         settings.Show(); settings.Activate();
