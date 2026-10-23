@@ -33,3 +33,7 @@ The Key is stored only as a macOS Keychain generic password or Windows current-u
 Mobile delivery is independent of desktop OS permission, widget visibility and bubble pause. It still needs a running, awake computer and network. Service acceptance is not phone-display confirmation. Failures and ambiguous timeouts are not automatically retried. Disable/clear/config changes cancel pending work, but already handed-off pushes cannot be reliably recalled. Bark/iOS controls notification retention, lock-screen display, Focus and sounds. See the [setup guide](BARK_MOBILE_PUSH.zh-CN.md).
 
 If mobile receipts are corrupt, a durable recovery marker survives immediate restart and automatic mobile push is disabled conservatively. Explicit re-enabling snapshots current known reminders as suppressed before accepting new events; corrupt originals remain preserved. Expired unprotected receipts are pruned when reserving attempts or establishing a baseline.
+
+## In-app update downloads (development candidate)
+
+An explicit update click contacts the fixed public GitHub repository API and allowed GitHub asset hosts, exposing ordinary network metadata such as your IP address. Requests carry no app credentials, Bark Key, cookies or GitHub token. Private staging stores package hashes, source provenance, operation IDs and nonce receipts, never quota/account responses. Verification uses GitHub HTTPS release metadata, not a new independent publisher signature. See [update details](IN_APP_UPDATES.zh-CN.md).

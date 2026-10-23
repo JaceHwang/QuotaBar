@@ -62,7 +62,7 @@ public enum MacUpdatePackage {
         for (path, hash) in [("MacOS/CodexQuota", proof.applicationSignedSha256), ("Helpers/codex", proof.runtimeSignedSha256), ("Helpers/QuotaBarUpdater", proof.updaterSignedSha256), ("Resources/SOURCE-SNAPSHOT.json", proof.sourceSnapshotSha256)] {
             guard TrustedUpdateRelease.hex(hash, count: 64), try UpdateFileIntegrity.sha256(contents.appendingPathComponent(path)) == hash else { throw UpdatePackageError.invalidPackage }
         }
-        try UpdateCommand.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path], working: app.deletingLastPathComponent())
+        try UpdateCommand.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path], working: provenance.deletingLastPathComponent())
     }
     public static func prepare(_ download: DownloadedUpdate) throws -> URL {
         try UpdateFileIntegrity.verify(download.archive, asset: download.release.package)

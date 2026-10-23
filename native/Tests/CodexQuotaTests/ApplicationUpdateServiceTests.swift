@@ -11,7 +11,7 @@ import QuotaCore
         var ready = 0; service.onReady = { ready += 1 }
         XCTAssertEqual(service.progress.phase, .idle)
         try await Task.sleep(for: .milliseconds(20)); let initial = await calls.count(); XCTAssertEqual(initial, 0)
-        service.start(version: "2.0.0"); service.start(version: "2.0.0")
+        service.start(version: "2.0.0"); service.start(version: "3.0.0"); XCTAssertEqual(service.targetVersion, "2.0.0")
         try await Task.sleep(for: .milliseconds(30)); service.cancel()
         try await Task.sleep(for: .milliseconds(200))
         let count = await calls.count(); XCTAssertEqual(count, 1); XCTAssertEqual(ready, 0); XCTAssertEqual(service.progress.phase, .cancelled)
@@ -24,6 +24,13 @@ import QuotaCore
         service.start(version: "2.0.0"); try await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(service.progress.phase, .handingOff)
         service.cancel(); XCTAssertEqual(service.progress.phase, .handingOff)
+    }
+    func testStartupReadsReceiptCreatedAfterHealthAcknowledgement() async throws {
+        var reads = 0
+        let service = ApplicationUpdateService(currentVersion: "1.3.0", resultReader: { reads += 1; return reads > 1 ? .succeeded : nil })
+        XCTAssertEqual(service.progress.phase, .idle)
+        try await Task.sleep(for: .milliseconds(3200))
+        XCTAssertEqual(service.progress.phase, .succeeded)
     }
     func testReadyAndFailureAreTerminalAndRetryable() async throws {
         let service = ApplicationUpdateService(currentVersion: "1.3.0", execute: { _, _ in throw CocoaError(.fileReadCorruptFile) })

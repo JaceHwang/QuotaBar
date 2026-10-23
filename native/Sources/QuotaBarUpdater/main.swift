@@ -12,12 +12,30 @@ func launch(_ target: URL, args: [String]) throws -> Process {
     process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
     try process.run(); return process
 }
+// Recovery accepts only the fixed target's journal-bound job, never a caller supplied target.
+if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--recover" {
+    do {
+        let directory = try UpdateLocations.directory(CommandLine.arguments[2]), job = try UpdateInstallJob.read(directory)
+        guard URL(fileURLWithPath: job.target).standardizedFileURL.path == UpdateLocations.target.standardizedFileURL.path,
+              try ApplicationUpdateTransaction.recoveryJob(target: UpdateLocations.target)?.standardizedFileURL.path == directory.standardizedFileURL.path,
+              job.hasReceipt("ready", directory: directory), let parent = Int32(CommandLine.arguments[3]), parent == 0 || parent > 1 else { throw UpdatePackageError.invalidPackage }
+        if parent > 1, kill(parent, 0) == 0 {
+            guard try URL(fileURLWithPath: executablePath(parent)).standardizedFileURL.path == UpdateLocations.target.appendingPathComponent("Contents/MacOS/CodexQuota").standardizedFileURL.path else { throw UpdatePackageError.invalidIdentity }
+            let end = Date().addingTimeInterval(20)
+            while kill(parent, 0) == 0 { guard Date() < end else { throw UpdatePackageError.commandTimedOut }; Thread.sleep(forTimeInterval: 0.05) }
+        }
+        try ApplicationUpdateTransaction(target: UpdateLocations.target).recover()
+        try job.receipt("rolledBack", directory: directory); _ = try launch(UpdateLocations.target, args: []); exit(0)
+    } catch { fputs("QuotaBar recovery failed; backup and journal retained.\n", stderr); exit(1) }
+}
 var phase = "job-location"
 do {
     guard CommandLine.arguments.count == 2 else { throw UpdatePackageError.invalidPackage }
     let directory = try UpdateLocations.directory(CommandLine.arguments[1]), job = try UpdateInstallJob.read(directory)
     phase = "job-validation"
     try job.validate(directory: directory, expectedTarget: UpdateLocations.target.path, now: Date())
+    let reservation = try UpdateHandoffReservation(target: UpdateLocations.target)
+    defer { reservation.release() }
     phase = "parent-validation"
     guard try URL(fileURLWithPath: executablePath(job.parentPID)).standardizedFileURL.path == URL(fileURLWithPath: job.target + "/Contents/MacOS/CodexQuota").standardizedFileURL.path else { throw UpdatePackageError.invalidIdentity }
     let archive = directory.appendingPathComponent(job.release.package.name), proof = directory.appendingPathComponent(job.release.provenance.name), candidate = directory.appendingPathComponent("QuotaBar.app")
@@ -38,7 +56,7 @@ do {
     }
     let transaction = ApplicationUpdateTransaction(target: UpdateLocations.target)
     do {
-        try transaction.install(candidate: candidate, validate: { try MacUpdatePackage.verifyApp($0, release: job.release, provenance: proof) }, health: {
+        try transaction.install(candidate: candidate, operationDirectory: directory, validate: { try MacUpdatePackage.verifyApp($0, release: job.release, provenance: proof) }, health: {
             let process = try launch(UpdateLocations.target, args: ["--update-health", directory.path, job.nonce])
             var healthy = false
             defer { if !healthy && process.isRunning { process.terminate(); if process.isRunning { kill(process.processIdentifier, SIGKILL) }; process.waitUntilExit() } }

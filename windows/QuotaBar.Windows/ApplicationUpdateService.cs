@@ -3,8 +3,17 @@ using System.Security.Cryptography;
 namespace QuotaBar.Windows;
 internal sealed class ApplicationUpdateService {
     public ApplicationUpdateOperation Operation { get; }
-    public ApplicationUpdatePhase? LastResult { get; }
-    public ApplicationUpdateService(string currentVersion) { LastResult=UpdateInstallJob.ConsumeResult(UpdateLocations.Cache,UpdateLocations.Target); Operation=new((version,emit,cancel)=>Perform(version,currentVersion,emit,cancel)); }
+    public ApplicationUpdateService(string currentVersion,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? execute=null) {
+        Operation=new(execute??((version,emit,cancel)=>Perform(version,currentVersion,emit,cancel)));
+        if(execute is null && string.Equals(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),UpdateLocations.Target,StringComparison.OrdinalIgnoreCase)) {
+            if(UpdateInstallJob.ConsumeResult(UpdateLocations.Cache,UpdateLocations.Target) is { } result) Operation.ReportResult(result);
+            ReadResultAfterStartup();
+        }
+    }
+    async void ReadResultAfterStartup() {
+        await Task.Delay(3000);
+        if(Operation.Progress.Phase==ApplicationUpdatePhase.Idle && UpdateInstallJob.ConsumeResult(UpdateLocations.Cache,UpdateLocations.Target) is { } result) Operation.ReportResult(result);
+    }
     static async Task Perform(string version,string currentVersion,Action<ApplicationUpdateProgress> emit,CancellationToken cancel) {
         if(!string.Equals(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),UpdateLocations.Target,StringComparison.OrdinalIgnoreCase)) throw new IOException("Install QuotaBar in the standard per-user directory first");
         using var transport=new UpdateHttpTransport();

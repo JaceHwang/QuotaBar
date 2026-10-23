@@ -7,19 +7,26 @@ import QuotaCore
     private let execute: Execute
     private var task: Task<Void, Never>?
     private var generation = UUID()
+    private(set) var targetVersion: String?
     private(set) var progress = ApplicationUpdateProgress(.idle)
     var onChange: (() -> Void)?
     var onReady: (() -> Void)?
-    init(currentVersion: String, execute: Execute? = nil) {
-        if execute == nil, let result = UpdateInstallJob.consumeResult(in: UpdateLocations.cache, expectedTarget: UpdateLocations.target.path) { progress = ApplicationUpdateProgress(result) }
+    init(currentVersion: String, execute: Execute? = nil, resultReader: (() -> ApplicationUpdatePhase?)? = nil) {
+        let readResult = resultReader ?? { Bundle.main.bundleURL.standardizedFileURL.path == UpdateLocations.target.standardizedFileURL.path ? UpdateInstallJob.consumeResult(in: UpdateLocations.cache, expectedTarget: UpdateLocations.target.path) : nil }
+        if execute == nil, let result = readResult() { progress = ApplicationUpdateProgress(result) }
         self.execute = execute ?? { version, emit in
             let worker = Task.detached { try await Self.perform(version: version, currentVersion: currentVersion, emit: emit) }
             try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
         }
+        if execute == nil { Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, self.progress.phase == .idle, let result = readResult() else { return }
+            self.progress = ApplicationUpdateProgress(result); self.onChange?()
+        } }
     }
     func start(version: String) {
         guard !progress.phase.busy else { return }
-        let id = UUID(); generation = id; progress = ApplicationUpdateProgress(.resolving); onChange?()
+        let id = UUID(); generation = id; targetVersion = version; progress = ApplicationUpdateProgress(.resolving); onChange?()
         let run = execute
         task = Task { [weak self] in
             do {
@@ -48,6 +55,7 @@ import QuotaCore
         let job = UpdateInstallJob(operationID: UUID().uuidString, target: UpdateLocations.target.path, parentPID: ProcessInfo.processInfo.processIdentifier, nonce: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased() + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), expiresAt: Date().addingTimeInterval(600), release: download.release)
         try job.write(download.directory)
         let current = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/QuotaBarUpdater"), helper = download.directory.appendingPathComponent("QuotaBarUpdater")
+        guard try current.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey]).isSymbolicLink != true, try current.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { throw UpdatePackageError.linkedContent }
         try FileManager.default.copyItem(at: current, to: helper)
         guard try UpdateFileIntegrity.sha256(current) == UpdateFileIntegrity.sha256(helper) else { throw UpdatePackageError.invalidPackage }
         try Task.checkCancellation()

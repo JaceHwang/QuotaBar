@@ -144,7 +144,8 @@ final class QuotaUpdateController: NSObject {
     }
     private func refreshView() {
         let current = text("Current version", "当前版本", "目前版本")
-        let extra = available.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0.version } ?? ""
+        let visibleVersion = installer.progress.phase.busy ? installer.targetVersion : available?.version
+        let extra = visibleVersion.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0 } ?? ""
         let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
         let update = installer.progress
         let updateStatus = update.phase == .idle ? status : installStatus(update)
@@ -156,7 +157,7 @@ final class QuotaUpdateController: NSObject {
             notesField?.stringValue = summary
         }
         notesField?.isHidden = notesField?.stringValue.isEmpty != false
-        actions?.isHidden = available == nil
+        actions?.isHidden = available == nil && !update.phase.busy
         installButton?.title = update.phase == .failed ? text("Retry update", "重试更新", "重試更新") : text("Update now", "立即更新", "立即更新")
         installButton?.isEnabled = !update.phase.busy
         actions?.arrangedSubviews.dropFirst().forEach { ($0 as? NSControl)?.isEnabled = !update.phase.busy }

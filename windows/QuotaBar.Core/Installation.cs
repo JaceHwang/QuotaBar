@@ -14,7 +14,8 @@ public static class PackageVerifier {
                 if(relative.Contains('\\') || relative.StartsWith('/') || relative.Split('/').Any(p=>p is ".." or "." or "")) throw new IOException("Invalid manifest path");
                 var path=System.IO.Path.GetFullPath(System.IO.Path.Combine(directory,relative));
                 EnsureInside(directory,path);
-                var actual=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+                using var input=File.OpenRead(path);
+                var actual=Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
                 if(!string.Equals(actual,expected,StringComparison.Ordinal)) throw new IOException("Package checksum mismatch: "+relative);
             }
             foreach(var path in Directory.GetFiles(directory,"*",SearchOption.AllDirectories)) {

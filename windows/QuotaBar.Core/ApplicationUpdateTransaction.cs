@@ -8,8 +8,10 @@ public sealed record UpdateInstallJob(int Schema,string OperationID,string Targe
         PackageVerifier.RejectLinks(directory);
     }
     public static ApplicationUpdatePhase? ConsumeResult(string cache,string expectedTarget) {
-        if(!Directory.Exists(cache)) return null;
-        foreach(var directory in Directory.GetDirectories(cache).OrderByDescending(Directory.GetLastWriteTimeUtc).Take(100)) {
+        string[] paths;
+        try { if(!Directory.Exists(cache)) return null; paths=Directory.GetDirectories(cache).OrderByDescending(Directory.GetLastWriteTimeUtc).Take(100).ToArray(); }
+        catch(Exception e) when(e is IOException or UnauthorizedAccessException) { return null; }
+        foreach(var directory in paths) {
             try {
                 if(!Guid.TryParse(Path.GetFileName(directory),out _) || File.Exists(Path.Combine(directory,"presented"))) continue;
                 PackageVerifier.RejectLinks(directory); var job=Read(directory);
@@ -55,9 +57,10 @@ public static class UpdateLocations {
 public static class ApplicationUpdateTransaction {
     public static void Run(UpdateInstallJob job,string directory,TransactionInstaller installer,Action<string,string[]> launchOld) {
         job.Validate(directory,UpdateLocations.Target,DateTimeOffset.UtcNow);
+        using var reservation=new UpdateHandoffReservation(UpdateLocations.Target);
         var archive=Path.Combine(directory,job.Release.Package.Name); var proof=Path.Combine(directory,job.Release.Provenance.Name);
         UpdateDownloadClient.VerifyFile(archive,job.Release.Package).GetAwaiter().GetResult(); UpdateDownloadClient.VerifyFile(proof,job.Release.Provenance).GetAwaiter().GetResult();
-        var candidate=Path.Combine(directory,"expanded","QuotaBar"); PackageVerifier.Verify(candidate);
+        var candidate=UpdateStaging.VerifyStaged(new(job.Release,directory,archive,proof),Path.Combine(directory,"expanded","QuotaBar"),Path.Combine(directory,"revalidated"));
         UpdateDownloadClient.VerifyProvenance(File.ReadAllBytes(proof),job.Release);
         if(File.ReadAllText(Path.Combine(candidate,"PROVENANCE.json"))!=File.ReadAllText(proof) || PackageVerifier.Verify(candidate).Version!=job.Release.Version) throw new IOException("Prepared package changed");
         using var parent=Process.GetProcessById(job.ParentPID);
@@ -84,4 +87,15 @@ public static class ApplicationUpdateTransaction {
             job.Receipt("rolledBack",directory); launchOld(Path.Combine(job.Target,"QuotaBar.exe"),[]); throw;
         } finally { started?.Dispose(); }
     }
+}
+
+public sealed class UpdateHandoffReservation : IDisposable {
+    readonly FileStream stream;
+    public UpdateHandoffReservation(string target) {
+        var store=Path.Combine(Path.GetDirectoryName(target)!,".QuotaBar-install"); Directory.CreateDirectory(store);
+        var path=Path.Combine(store,"handoff.lock");
+        if((File.GetAttributes(store)&FileAttributes.ReparsePoint)!=0 || File.Exists(path)&&(File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0) throw new IOException("Linked update reservation");
+        stream=new FileStream(path,FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
+    }
+    public void Dispose()=>stream.Dispose();
 }

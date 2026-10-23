@@ -16,9 +16,19 @@ final class ApplicationUpdateTransactionTests: XCTestCase {
         let store = root.appendingPathComponent(".QuotaBar-update")
         let backup = store.appendingPathComponent("backup-crash")
         try fm.moveItem(at: target, to: backup)
-        try Data("{\"backup\":\"backup-crash\",\"stage\":\"stage-crash\"}".utf8).write(to: store.appendingPathComponent("journal.json"))
+        try Data("{\"backup\":\"backup-crash\",\"stage\":\"stage-crash\",\"operationDirectory\":\"/private/recovery-job\"}".utf8).write(to: store.appendingPathComponent("journal.json"))
+        XCTAssertEqual(try ApplicationUpdateTransaction.recoveryJob(target: target)?.path, "/private/recovery-job")
         try transaction.recover()
         XCTAssertTrue(fm.fileExists(atPath: target.appendingPathComponent("version").path))
+    }
+    func testOnlyOneHelperCanBecomeReadyAcrossJobs() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("QuotaBar.app")
+        let first = try UpdateHandoffReservation(target: target)
+        XCTAssertThrowsError(try UpdateHandoffReservation(target: target))
+        first.release()
+        let next = try UpdateHandoffReservation(target: target); next.release()
     }
     func testJobRejectsExpiryReplayAndWrongTarget() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

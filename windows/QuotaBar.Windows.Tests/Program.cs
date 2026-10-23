@@ -343,6 +343,27 @@ internal static class Program {
                 owner.Updates.Skip(); Check(File.ReadAllText(Path.Combine(updateRoot,"updates.json")).Contains("999.0.0"),"skip persisted");
                 owner.Updates.Dispose(); owner.Updates.Dispose(); owner.Updates.ReminderShown();
             }
+            foreach(var phase in new[]{ApplicationUpdatePhase.Downloading,ApplicationUpdatePhase.Verifying,ApplicationUpdatePhase.Preparing,ApplicationUpdatePhase.Failed}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) foreach(var dark in new[]{false,true}) {
+                var phaseRoot=Path.Combine(updateRoot,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(phaseRoot);
+                using var owner=new Coordinator(app,phaseRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),updateExecute:(version,emit,cancel)=> {
+                    if(version!="999.0.0") throw new IOException("Target snapshot changed");
+                    if(phase==ApplicationUpdatePhase.Failed) throw new IOException("fixture failure");
+                    emit(new(phase,1048576,2097152,null)); return Task.Delay(30000,cancel);
+                });
+                owner.Save(new Preferences { Theme=dark?"dark":"light",Language=language,AutomaticUpdates=false },false);
+                owner.Updates.Check(true); var end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Checking&&DateTime.UtcNow<end) Pump();
+                var settings=new SettingsWindow(owner) { Width=840,Height=560 }; settings.Show(); settings.ShowAbout(); Pump();
+                var label=language=="en"?"Update now":"立即更新";
+                var updateInstallButton=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==label); updateInstallButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Installer.Operation.Progress.Phase!=phase&&DateTime.UtcNow<end) Pump();
+                Pump(); Check(owner.Updates.Installer.Operation.Progress.Phase==phase,"real update button starts pinned pipeline");
+                var cancel=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==(language=="en"?"Cancel download":language=="zh-CN"?"取消下载":"取消下載"));
+                Check(cancel.IsVisible==ApplicationUpdateOperation.CanCancel(phase),"cancel matches real phase");
+                var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
+                var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,$"update-{phase}-{language}-{dark}.png"))) encoder.Save(file);
+                if(phase!=ApplicationUpdatePhase.Failed) { cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Check(owner.Updates.Installer.Operation.Progress.Phase==ApplicationUpdatePhase.Cancelled,"native cancel button cancels pipeline"); }
+                settings.Close();
+            }
             var clock=DateTimeOffset.FromUnixTimeSeconds(100000);
             File.WriteAllText(Path.Combine(updateRoot,"updates.json"),JsonSerializer.Serialize(new { LastSuccess=clock }));
             using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {

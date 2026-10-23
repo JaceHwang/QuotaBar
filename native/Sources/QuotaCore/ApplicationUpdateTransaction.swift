@@ -71,7 +71,7 @@ public enum UpdateLocations {
     }
 }
 public final class ApplicationUpdateTransaction {
-    private struct Journal: Codable { let backup: String; let stage: String }
+    private struct Journal: Codable { let backup: String; let stage: String; let operationDirectory: String? }
     private let target: URL, store: URL
     public init(target: URL) { self.target = target; store = target.deletingLastPathComponent().appendingPathComponent(".QuotaBar-update") }
     private func locked<T>(_ body: () throws -> T) throws -> T {
@@ -81,6 +81,12 @@ public final class ApplicationUpdateTransaction {
         guard descriptor >= 0 else { throw UpdatePackageError.invalidPackage }; defer { close(descriptor) }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw UpdatePackageError.invalidPackage }; defer { flock(descriptor, LOCK_UN) }
         return try body()
+    }
+    public static func recoveryJob(target: URL) throws -> URL? {
+        let file = target.deletingLastPathComponent().appendingPathComponent(".QuotaBar-update/journal.json")
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        let journal = try JSONDecoder().decode(Journal.self, from: Data(contentsOf: file))
+        return journal.operationDirectory.map { URL(fileURLWithPath: $0) }
     }
     public func recover() throws { try locked { try restore() } }
     private func restore() throws {
@@ -92,12 +98,13 @@ public final class ApplicationUpdateTransaction {
         }
         let backup = store.appendingPathComponent(journal.backup)
         if fm.fileExists(atPath: backup.path) {
+            _ = try MacUpdatePackage.treeBytes(backup)
             if fm.fileExists(atPath: target.path) { try fm.moveItem(at: target, to: store.appendingPathComponent("failed-" + UUID().uuidString)) }
             try fm.moveItem(at: backup, to: target)
         }
         try fm.removeItem(at: path)
     }
-    public func install(candidate: URL, validate: (URL) throws -> Void, health: () throws -> Void) throws {
+    public func install(candidate: URL, operationDirectory: URL? = nil, validate: (URL) throws -> Void, health: () throws -> Void) throws {
         try locked {
             try restore(); let fm = FileManager.default
             guard candidate.standardizedFileURL != target.standardizedFileURL, !candidate.path.hasPrefix(target.path + "/"), fm.fileExists(atPath: target.path) else { throw UpdatePackageError.invalidIdentity }
@@ -106,11 +113,26 @@ public final class ApplicationUpdateTransaction {
             try fm.copyItem(at: candidate, to: stage)
             do { try validate(stage) } catch { try? fm.removeItem(at: stage); throw error }
             let path = store.appendingPathComponent("journal.json")
-            try JSONEncoder().encode(Journal(backup: backup.lastPathComponent, stage: stage.lastPathComponent)).write(to: path, options: .atomic)
+            try JSONEncoder().encode(Journal(backup: backup.lastPathComponent, stage: stage.lastPathComponent, operationDirectory: operationDirectory?.path)).write(to: path, options: .atomic)
             do {
                 try fm.moveItem(at: target, to: backup); try fm.moveItem(at: stage, to: target)
                 try health(); try fm.removeItem(at: path)
             } catch { try restore(); throw error }
         }
     }
+}
+
+/// A cross-operation reservation is held before publishing ready; install's journal lock remains separate.
+public final class UpdateHandoffReservation {
+    private var descriptor: Int32
+    public init(target: URL) throws {
+        let store = target.deletingLastPathComponent().appendingPathComponent(".QuotaBar-update")
+        try FileManager.default.createDirectory(at: store, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        guard store.resolvingSymlinksInPath().standardizedFileURL.path == store.standardizedFileURL.path else { throw UpdatePackageError.linkedContent }
+        descriptor = open(store.appendingPathComponent("handoff.lock").path, O_CREAT | O_RDWR | O_NOFOLLOW, 0o600)
+        guard descriptor >= 0 else { throw UpdatePackageError.invalidPackage }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { close(descriptor); descriptor = -1; throw UpdatePackageError.invalidPackage }
+    }
+    public func release() { if descriptor >= 0 { flock(descriptor, LOCK_UN); close(descriptor); descriptor = -1 } }
+    deinit { if descriptor >= 0 { close(descriptor) } }
 }

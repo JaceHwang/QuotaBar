@@ -50,7 +50,7 @@ The app keeps its account separate from Codex desktop. It does not scan host win
 
 ### Updates without interrupting your work
 
-Check for updates from the menu or settings, view release notes, postpone a reminder or skip a version. Automatic checks are enabled by default; system notifications are opt-in. Successful background checks recur every 24 hours, with a check about 30 seconds after each launch. Updates open the release page for manual download and installation. See [update behavior](docs/UPDATE_FEED_OPERATIONS.zh-CN.md) (Chinese).
+Check for updates from the menu or settings, view release notes, postpone a reminder or skip a version. Automatic checks are enabled by default; system notifications are opt-in. Successful background checks recur every 24 hours, with a check about 30 seconds after each launch. The development branch adds explicit **Update now** download, verification, transactional installation and restart, with cancellation and rollback. The installed v1.3.0 needs a one-time manual upgrade to the first version bundling the updater. See [in-app update requirements and recovery](docs/IN_APP_UPDATES.zh-CN.md) (Chinese). See [update behavior](docs/UPDATE_FEED_OPERATIONS.zh-CN.md) (Chinese).
 
 <img src="docs/images/macos-updates-en.png" alt="Actual macOS update settings showing version 1.0.1 and update-check options" width="510" />
 

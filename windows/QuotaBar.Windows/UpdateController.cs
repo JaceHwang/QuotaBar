@@ -24,10 +24,10 @@ internal sealed class UpdateController : IDisposable {
     UpdateState state=new();
     public UpdateRelease? Available { get; private set; }
     (string English,string Chinese,string Traditional)? statusMessage;
-    public string Status=>Installer.Operation.Progress.Phase!=ApplicationUpdatePhase.Idle||Installer.LastResult!=null?InstallStatus():statusMessage is { } message?Text(message.English,message.Chinese,message.Traditional):"";
+    public string Status=>Installer.Operation.Progress.Phase!=ApplicationUpdatePhase.Idle?InstallStatus():statusMessage is { } message?Text(message.English,message.Chinese,message.Traditional):"";
     string InstallStatus() {
         var p=Installer.Operation.Progress;
-        return (p.Phase==ApplicationUpdatePhase.Idle?Installer.LastResult??p.Phase:p.Phase) switch {
+        return p.Phase switch {
             ApplicationUpdatePhase.Resolving=>Text("Resolving official release…","正在获取官方版本…","正在取得官方版本…"),
             ApplicationUpdatePhase.Downloading=>Text("Downloading","正在下载","正在下載")+$" {p.Received/1048576d:F1} / {p.Total/1048576d:F1} MB",
             ApplicationUpdatePhase.Verifying=>Text("Verifying download…","正在校验安装包…","正在驗證安裝套件…"),
@@ -58,10 +58,10 @@ internal sealed class UpdateController : IDisposable {
         public DateTimeOffset? LastSuccess { get; init; }
         public UpdateReminderPolicy Policy { get; init; }=new();
     }
-    public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null) {
+    public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? updateExecute=null) {
         now=clock??(()=>DateTimeOffset.UtcNow); next=now().AddSeconds(30);
         http=transport??new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromSeconds(15) };
-        this.owner=owner; Installer=new(Version); Installer.Operation.Changed+=()=>Changed?.Invoke(); Installer.Operation.Ready+=owner.Quit; statePath=Path.Combine(root,"updates.json");
+        this.owner=owner; Installer=new(Version,updateExecute); Installer.Operation.Changed+=()=>Changed?.Invoke(); Installer.Operation.Ready+=owner.Quit; statePath=Path.Combine(root,"updates.json");
         try { state=JsonSerializer.Deserialize<UpdateState>(File.ReadAllText(statePath))??new(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
         state=state with { Policy=state.Policy??new UpdateReminderPolicy() };
         timer.Tick+=(_,_)=> { Check(); Notify(); }; timer.Start();

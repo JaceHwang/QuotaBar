@@ -29,7 +29,7 @@ int main(int argc,char **argv) {
  if(argc>1 && !strcmp(argv[1],"--parent")) {
   usleep(500000); pid_t p=fork(); if(p==0) { execl(argv[3],argv[3],argv[2],NULL); _exit(90); }
   char path[4096]; snprintf(path,sizeof(path),"%s/ready.json",argv[2]);
-  for(int i=0;i<220;i++) { if(access(path,F_OK)==0) return 0; usleep(50000); } kill(p,SIGKILL); return 91;
+  for(int i=0;i<220;i++) { if(access(path,F_OK)==0) { if(getenv("FIXTURE_STAY")) { while(1) sleep(1); } return 0; } usleep(50000); } kill(p,SIGKILL); return 91;
  }
  if(argc>1 && !strcmp(argv[1],"--update-health")) {
   if(getenv("FIXTURE_EXIT")) return 92;
@@ -56,13 +56,29 @@ int main(int argc,char **argv) {
         helper=directory/'QuotaBarUpdater'; shutil.copy2(HELPER,helper)
         env=dict(os.environ,CFFIXED_USER_HOME=str(home),HOME=str(home),FIXTURE_OPERATION=operation)
         if mode=='rollback': env['FIXTURE_EXIT']='1'
+        if mode=='timeout': env['FIXTURE_STAY']='1'
         log=(root/'helper.log').open('w+')
         parent=subprocess.Popen([str(target/'Contents/MacOS/CodexQuota'),'--parent',str(directory),str(helper)],env=env,stdout=log,stderr=log)
         job=dict(schema=1,operationID=operation,target=str(target),parentPID=parent.pid,nonce=nonce,expiresAt=time.time()-978307200+( -1 if mode=='expired' else 600),release=release)
         (directory/'job.json').write_text(json.dumps(job))
         if mode=='corrupt': (candidate/'Contents/MacOS/CodexQuota').write_bytes(b'changed')
         try:
-            if mode in ('corrupt','expired'):
+            if mode=='interrupted':
+                parent.kill(); parent.wait()
+                store=target.parent/'.QuotaBar-update'; store.mkdir(); backup=store/'backup-interrupted'; target.rename(backup); shutil.copytree(candidate,target)
+                (store/'journal.json').write_text(json.dumps(dict(backup=backup.name,stage='stage-interrupted',operationDirectory=str(directory))))
+                (directory/'ready.json').write_text(json.dumps(dict(schema=1,operationID=operation,nonce=nonce,kind='ready')))
+                result=subprocess.run([str(helper),'--recover',str(directory),'0'],env=env,capture_output=True,timeout=10)
+                assert result.returncode==0,result.stderr
+                assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='1.3.0'
+                assert (directory/'rolledBack.json').exists() and not (store/'journal.json').exists()
+            elif mode=='timeout':
+                wait(directory/'ready.json',parent)
+                end=time.monotonic()+23
+                while not (directory/'failed.json').exists() and time.monotonic()<end: time.sleep(.05)
+                assert (directory/'failed.json').exists() and parent.poll() is None
+                assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='1.3.0'
+            elif mode in ('corrupt','expired'):
                 time.sleep(2); assert not (directory/'ready.json').exists(); assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='1.3.0'
             else:
                 result=parent.wait(timeout=15); log.flush(); log.seek(0); assert result==0, log.read()
@@ -84,4 +100,4 @@ int main(int argc,char **argv) {
                     except ProcessLookupError: pass
             try: parent.wait(timeout=5)
             except subprocess.TimeoutExpired: parent.kill(); parent.wait()
-for mode in ['happy','rollback','corrupt','expired']: run(mode)
+for mode in ['happy','rollback','corrupt','expired','timeout','interrupted']: run(mode)

@@ -1,6 +1,6 @@
 # QuotaBar In-App Updates Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 用户点击一次后下载、校验、安装并重启，保留配置，失败回退，覆盖macOS与Windows。
 
@@ -33,10 +33,10 @@
 
 **Interfaces:** `TrustedUpdateRelease.parse(releaseJSON, tagJSON, version, platform, currentVersion)` → exact asset(name,url,size,sha256), provenanceAsset, sourceCommit; `ApplicationUpdatePhase` and `ApplicationUpdateProgress` define same JSON names/phase meanings in both languages. Existing UpdateRelease/feed remains compatible.
 
-- [ ] Write shared fixture tests accepting stable2.0.0/current1.3.0 and rejecting each source/size/digest/tag/version violation listed in spec, including duplicate names and fake URL userinfo/port.
-- [ ] Run Swift Core/.NET Core tests, observe failures for missing contract.
-- [ ] Implement parser with exact bounds and existing semantic-version comparators; pin API/tag/CDN URL policies as shared tested data.
-- [ ] Run both real parsers against all fixtures; reject drift and commit.
+- [x] Write shared fixture tests accepting stable2.0.0/current1.3.0 and rejecting each source/size/digest/tag/version violation listed in spec, including duplicate names and fake URL userinfo/port.
+- [x] Run Swift Core/.NET Core tests, observe failures for missing contract.
+- [x] Implement parser with exact bounds and existing semantic-version comparators; pin API/tag/CDN URL policies as shared tested data.
+- [x] Run both real parsers against all fixtures; reject drift and commit.
 
 ### Task 2: 受控下载、暂存与校验
 
@@ -44,10 +44,10 @@
 
 **Interfaces:** service `start(release)`, `cancel()`, read-only `progress`, change callback; resolves task1 assets, streams package/provenance, produces `PreparedUpdate` only after verification; installer remains injectable at interface boundary for tests, never test-mode shortcuts in production.
 
-- [ ] Add failures for corrupt/truncated/over-limit stream, untrusted redirect, cancellation after finalbyte, double click, insufficient disk, mismatched provenance/source, malformed/duplicate/path-traversal/symlink ZIP.
-- [ ] Observe tests fail before implementation.
-- [ ] Implement ephemeral no-cookie/no-auth transport, strict redirects/length/SHA256, per-operation generation and private UUID staging. Validate package version/platform/tag/commit and existing full manifests; Mac safely mount/copy/unmount DMG.
-- [ ] Assert old app remains running on all pre-handoff failures; cleanup only owned nonactive paths. Run focused tests and commit.
+- [x] Add failures for corrupt/truncated/over-limit stream, untrusted redirect, cancellation after finalbyte, double click, insufficient disk, mismatched provenance/source, malformed/duplicate/path-traversal/symlink ZIP.
+- [x] Observe tests fail before implementation.
+- [x] Implement ephemeral no-cookie/no-auth transport, strict redirects/length/SHA256, per-operation generation and private UUID staging. Validate package version/platform/tag/commit and existing full manifests; Mac safely mount/copy/unmount DMG.
+- [x] Assert old app remains running on all pre-handoff failures; cleanup only owned nonactive paths. Run focused tests and commit.
 
 ### Task 3: 两端独立助手及事务恢复
 
@@ -55,11 +55,11 @@
 
 **Interfaces:** schema1 `UpdateInstallJob` holds operationID, targetVersion, sourceCommit, expected digests, fixed-root relative staged paths, expectedParentPID, nonce, expiresAt; atomic `ready`/`health`/`result` receipts; helper accepts only a job in its own validated staging root. Windows `setup update` reuses TransactionInstaller; Mac native transaction matches old installer preservation semantics.
 
-- [ ] Add failures for wrong target, tampered staged payload, expired/replayed task, helper notready, parent identity/timeout, competing lock, rename failure, missing health/immediate exit, and interrupted journal recovery.
-- [ ] Run Core/native tests and observe failures; use real temporary filesystem faults where possible.
-- [ ] Implement helper handshake (ready within10seconds before app quits),10-minute task expiry,20-second parent wait, same-volume backup/atomic switch and registration preservation. Launch new app with nonce health within15seconds and then2seconds survival, return rollback receipt and re-open old on failure. Health precedes credential UI; no network dependency.
-- [ ] Package/sign Mac helper; include all helper files/digests in source/provenance verification. Windows copy trusted CURRENT setup directory outside target before exit. No downloaded setup executed before validation.
-- [ ] Run real helper happy/failure processes in temp contexts and ensure no leaked process/mount, then commit.
+- [x] Add failures for wrong target, tampered staged payload, expired/replayed task, helper notready, parent identity/timeout, competing lock, rename failure, missing health/immediate exit, and interrupted journal recovery.
+- [x] Run Core/native tests and observe failures; use real temporary filesystem faults where possible.
+- [x] Implement helper handshake (ready within10seconds before app quits),10-minute task expiry,20-second parent wait, same-volume backup/atomic switch and registration preservation. Launch new app with nonce health within15seconds and then2seconds survival, return rollback receipt and re-open old on failure. Health precedes credential UI; no network dependency.
+- [x] Package/sign Mac helper; include all helper files/digests in source/provenance verification. Windows copy trusted CURRENT setup directory outside target before exit. No downloaded setup executed before validation.
+- [x] Run real helper happy/failure processes in temp contexts and ensure no leaked process/mount, then commit.
 
 ### Task 4: 关于页和提醒入口接线
 
@@ -67,9 +67,9 @@
 
 **Interfaces:** “Update now/立即更新/立即更新” starts pinned Available snapshot; “Cancel/取消/取消” cancels before handoff; old `openRelease/Open` kept for “View release notes/查看更新内容/查看更新內容”. Notification clicks open update section; explicitly labelled bubble action downloads. Callback routing preserves delivery tokens and context validity.
 
-- [ ] Add real-control failures for explicit-click-only start, progress transitions, repeated clicks, cancel/late response, network/verification failure with retry/manual link, action labels, and legacy skip/snooze policy.
-- [ ] Observe failure, wire service and helper, preserve auto-check frequency/reminder settings. Disable cancelling only after ready/handoff; stop only self-owned runtime on graceful exit.
-- [ ] Render all phases in three languages/two themes/840×560; assert labels fit and last controls reachable; keep keyboard/focus/readscreen state. Commit after focused tests pass.
+- [x] Add real-control failures for explicit-click-only start, progress transitions, repeated clicks, cancel/late response, network/verification failure with retry/manual link, action labels, and legacy skip/snooze policy.
+- [x] Observe failure, wire service and helper, preserve auto-check frequency/reminder settings. Disable cancelling only after ready/handoff; stop only self-owned runtime on graceful exit.
+- [x] Render all phases in three languages/two themes/840×560; assert labels fit and last controls reachable; keep keyboard/focus/readscreen state. Commit after focused tests pass.
 
 ### Task 5: 原生端到端、打包与交付
 

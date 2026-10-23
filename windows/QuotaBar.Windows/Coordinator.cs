@@ -35,9 +35,9 @@ internal sealed class Coordinator : IDisposable {
     public TokenUsage? Tokens { get; private set; }
     public AccountIdentity? Identity { get; private set; }
     public Copy Copy=>new(Preferences.Language);
-    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null,IBarkSecretStore? barkSecrets=null,IBarkPushClient? barkTransport=null) {
+    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null,IBarkSecretStore? barkSecrets=null,IBarkPushClient? barkTransport=null,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? updateExecute=null) {
         this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
-        Updates=new(this,root,updatesTransport); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
+        Updates=new(this,root,updatesTransport,updateExecute:updateExecute); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
         Notifications=new(tray,
             m=>m.Kind==ExperienceNotificationKind.Update ? Updates.ReminderValid(m.Id[7..]) : Experience?.Valid(m)==true,
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Install(); else { OpenExperienceDetail(); if(m.Kind==ExperienceNotificationKind.Bank) detail.FocusBank(); } },

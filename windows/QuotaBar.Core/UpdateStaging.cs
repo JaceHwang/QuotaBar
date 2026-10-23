@@ -2,6 +2,18 @@ using System.IO.Compression;
 
 namespace QuotaBar.Core;
 public static class UpdateStaging {
+    public static void RequireUpdateProtocol(byte[] proof) {
+        try { using var json=System.Text.Json.JsonDocument.Parse(proof); if(!json.RootElement.TryGetProperty("updateProtocol",out var value) || value.GetInt32()!=1) throw new IOException("Package does not support this updater protocol"); }
+        catch(Exception e) when(e is System.Text.Json.JsonException or InvalidOperationException or FormatException) { throw new IOException("Invalid update protocol",e); }
+    }
+    public static string VerifyStaged(DownloadedUpdate download,string staged,string verificationDirectory) {
+        UpdateDownloadClient.VerifyFile(download.Archive,download.Release.Package).GetAwaiter().GetResult();
+        UpdateDownloadClient.VerifyFile(download.Provenance,download.Release.Provenance).GetAwaiter().GetResult();
+        PackageVerifier.Verify(staged);
+        var trusted=VerifyPackage(download,verificationDirectory);
+        if(!File.ReadAllBytes(Path.Combine(staged,"package.json")).SequenceEqual(File.ReadAllBytes(Path.Combine(trusted,"package.json")))) throw new IOException("Prepared payload differs from trusted archive");
+        return trusted;
+    }
     public const long MaxExpandedBytes=2L*1024*1024*1024;
     public static void RequireSpace(long expandedBytes,long availableBytes) {
         if(expandedBytes<0 || expandedBytes>MaxExpandedBytes || availableBytes<expandedBytes*2+64L*1024*1024) throw new IOException("Insufficient update space");
@@ -45,6 +57,7 @@ public static class UpdateStaging {
         } catch { Directory.Delete(destination,true); throw; }
     }
     public static string VerifyPackage(DownloadedUpdate download,string destination,CancellationToken cancel=default) {
+        RequireUpdateProtocol(File.ReadAllBytes(download.Provenance));
         var package=ExtractArchive(download.Archive,destination,cancel); var manifest=PackageVerifier.Verify(package);
         if(manifest.Version!=download.Release.Version || !File.ReadAllBytes(Path.Combine(package,"PROVENANCE.json")).SequenceEqual(File.ReadAllBytes(download.Provenance))) throw new IOException("Staged package version or provenance mismatch");
         return package;

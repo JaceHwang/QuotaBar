@@ -44,7 +44,28 @@ internal static class UpdateDownloadTests {
             if(File.ReadAllText(Path.Combine(extracted,"a"))!="abc") throw new Exception("ZIP extraction changed content");
         } finally { Directory.Delete(root,true); }
     }
+    static void PreparedPayloadMustMatchArchive() {
+        var root=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString()); Directory.CreateDirectory(root);
+        try {
+            var candidate=Path.Combine(root,"expanded","QuotaBar"); Directory.CreateDirectory(Path.Combine(candidate,"runtime")); Directory.CreateDirectory(Path.Combine(candidate,"setup"));
+            File.WriteAllText(Path.Combine(candidate,"QuotaBar.exe"),"app"); File.WriteAllText(Path.Combine(candidate,"runtime","codex.exe"),"runtime"); File.WriteAllText(Path.Combine(candidate,"setup","QuotaBar.Setup.exe"),"setup");
+            var proof=Path.Combine(root,"proof.json"); File.WriteAllText(proof,new JsonObject { ["updateProtocol"]=1,["kind"]="release",["workingTreeDirty"]=false,["version"]="2.0.0",["releaseTag"]="v2.0.0",["sourceCommit"]=new string('b',40) }.ToJsonString()); File.Copy(proof,Path.Combine(candidate,"PROVENANCE.json"));
+            void Manifest() { var files=Directory.GetFiles(candidate,"*",SearchOption.AllDirectories).Where(p=>Path.GetFileName(p)!="package.json").ToDictionary(p=>Path.GetRelativePath(candidate,p).Replace('\\','/'),p=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))).ToLowerInvariant()); File.WriteAllText(Path.Combine(candidate,"package.json"),System.Text.Json.JsonSerializer.Serialize(new PackageManifest(1,"QuotaBar","windows-x64","2.0.0","0.144.1",files))); }
+            Manifest(); var archive=Path.Combine(root,"archive.zip"); ZipFile.CreateFromDirectory(Path.Combine(root,"expanded"),archive);
+            UpdateAsset Asset(string path)=>new(Path.GetFileName(path),new Uri("https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0/"+Path.GetFileName(path)),new FileInfo(path).Length,Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant());
+            var release=new TrustedUpdateRelease("2.0.0","windows-x64",new string('b',40),Asset(archive),Asset(proof)); var download=new DownloadedUpdate(release,root,archive,proof);
+            UpdateStaging.VerifyStaged(download,candidate,Path.Combine(root,"first"));
+            File.WriteAllText(Path.Combine(candidate,"QuotaBar.exe"),"forged"); Manifest();
+            var refused=false; try { UpdateStaging.VerifyStaged(download,candidate,Path.Combine(root,"second")); } catch(IOException) { refused=true; }
+            if(!refused) throw new Exception("Self-consistent forged staged manifest accepted");
+        } finally { Directory.Delete(root,true); }
+    }
     public static async Task Run() {
+        PreparedPayloadMustMatchArchive();
+        foreach(var value in new[]{"{}","{\"updateProtocol\":2}","{\"updateProtocol\":1}"}) {
+            var refused=false; try { UpdateStaging.RequireUpdateProtocol(Encoding.UTF8.GetBytes(value)); } catch(IOException) { refused=true; }
+            if(refused==(value.EndsWith("1}"))) throw new Exception("Unsupported updater protocol accepted");
+        }
         await HttpBounds();
         for(var mode=0;mode<4;mode++) {
             var root=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString()); Directory.CreateDirectory(root); File.WriteAllText(Path.Combine(root,"keep"),"keep");
