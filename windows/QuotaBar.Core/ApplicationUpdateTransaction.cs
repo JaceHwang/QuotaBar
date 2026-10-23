@@ -69,6 +69,7 @@ public static class ApplicationUpdateTransaction {
         using(var consumed=new FileStream(Path.Combine(directory,"consumed"),FileMode.CreateNew,FileAccess.Write,FileShare.None)) { consumed.Flush(true); }
         job.Receipt("ready",directory);
         if(!parent.WaitForExit(20000)) { job.Receipt("failed",directory); throw new IOException("Parent did not exit; installation unchanged"); }
+        if(!job.HasReceipt("handoff",directory)) { job.Receipt("failed",directory); throw new IOException("Parent exited without update handoff permission"); }
         Process? started=null;
         try {
             installer.Install(candidate,()=> {

@@ -29,7 +29,9 @@ int main(int argc,char **argv) {
  if(argc>1 && !strcmp(argv[1],"--parent")) {
   usleep(500000); pid_t p=fork(); if(p==0) { execl(argv[3],argv[3],argv[2],NULL); _exit(90); }
   char path[4096]; snprintf(path,sizeof(path),"%s/ready.json",argv[2]);
-  for(int i=0;i<220;i++) { if(access(path,F_OK)==0) { if(getenv("FIXTURE_STAY")) { while(1) sleep(1); } return 0; } usleep(50000); } kill(p,SIGKILL); return 91;
+  for(int i=0;i<220;i++) { if(access(path,F_OK)==0) { if(getenv("FIXTURE_STAY")) { while(1) sleep(1); }
+   if(!getenv("FIXTURE_CANCEL")) { char commit[4096]; snprintf(commit,sizeof(commit),"%s/handoff.json",argv[2]); FILE *f=fopen(commit,"w"); fprintf(f,"{\"schema\":1,\"operationID\":\"%s\",\"nonce\":\"%s\",\"kind\":\"handoff\"}",getenv("FIXTURE_OPERATION"),getenv("FIXTURE_NONCE")); fclose(f); }
+   return 0; } usleep(50000); } kill(p,SIGKILL); return 91;
  }
  if(argc>1 && !strcmp(argv[1],"--update-health")) {
   if(getenv("FIXTURE_EXIT")) return 92;
@@ -57,6 +59,8 @@ int main(int argc,char **argv) {
         env=dict(os.environ,CFFIXED_USER_HOME=str(home),HOME=str(home),FIXTURE_OPERATION=operation)
         if mode=='rollback': env['FIXTURE_EXIT']='1'
         if mode=='timeout': env['FIXTURE_STAY']='1'
+        if mode=='cancel': env['FIXTURE_CANCEL']='1'
+        env['FIXTURE_NONCE']=nonce
         log=(root/'helper.log').open('w+')
         parent=subprocess.Popen([str(target/'Contents/MacOS/CodexQuota'),'--parent',str(directory),str(helper)],env=env,stdout=log,stderr=log)
         job=dict(schema=1,operationID=operation,target=str(target),parentPID=parent.pid,nonce=nonce,expiresAt=time.time()-978307200+( -1 if mode=='expired' else 600),release=release)
@@ -72,6 +76,12 @@ int main(int argc,char **argv) {
                 assert result.returncode==0,result.stderr
                 assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='1.3.0'
                 assert (directory/'rolledBack.json').exists() and not (store/'journal.json').exists()
+            elif mode=='cancel':
+                assert parent.wait(timeout=15)==0
+                end=time.monotonic()+8
+                while not (directory/'failed.json').exists() and time.monotonic()<end: time.sleep(.05)
+                assert (directory/'failed.json').exists(), 'uncommitted parent exit installed an update'
+                assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='1.3.0'
             elif mode=='timeout':
                 wait(directory/'ready.json',parent)
                 end=time.monotonic()+23
@@ -100,4 +110,4 @@ int main(int argc,char **argv) {
                     except ProcessLookupError: pass
             try: parent.wait(timeout=5)
             except subprocess.TimeoutExpired: parent.kill(); parent.wait()
-for mode in ['happy','rollback','corrupt','expired','timeout','interrupted']: run(mode)
+for mode in ['cancel','happy','rollback','corrupt','expired','timeout','interrupted']: run(mode)

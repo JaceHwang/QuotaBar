@@ -1,6 +1,6 @@
 namespace QuotaBar.Core;
 /// Owns one explicit update operation. Late callbacks from a cancelled generation are inert.
-public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task> execute,SynchronizationContext? dispatch=null) {
+public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task> execute,SynchronizationContext? dispatch=null,Action<CancellationToken>? commit=null,Action<CancellationToken>? abandon=null) {
     readonly object gate=new();
     readonly SynchronizationContext? context=dispatch??SynchronizationContext.Current;
     CancellationTokenSource? cancellation;
@@ -19,12 +19,12 @@ public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpd
         _=Task.Run(async ()=> {
             try {
                 await execute(version,update=> { lock(gate) { if(id!=generation || !CanCancel(progress.Phase)) return; progress=update; } Notify(Changed); },source.Token);
-                lock(gate) { if(id!=generation || source.IsCancellationRequested) return; progress=new(ApplicationUpdatePhase.HandingOff,0,0,null); cancellation=null; }
+                lock(gate) { if(id!=generation || source.IsCancellationRequested) return; commit?.Invoke(source.Token); progress=new(ApplicationUpdatePhase.HandingOff,0,0,null); cancellation=null; }
                 Notify(Changed); Notify(Ready);
             } catch {
                 lock(gate) { if(id!=generation) return; progress=new(source.IsCancellationRequested?ApplicationUpdatePhase.Cancelled:ApplicationUpdatePhase.Failed,0,0,null); cancellation=null; }
                 Notify(Changed);
-            } finally { source.Dispose(); }
+            } finally { try { abandon?.Invoke(source.Token); } finally { source.Dispose(); } }
         });
     }
     public void ReportResult(ApplicationUpdatePhase phase) {

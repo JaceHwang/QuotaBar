@@ -14,9 +14,9 @@ def wait(path,process,seconds=20):
         if process.poll() is not None: raise AssertionError('Helper exited before receipt')
         time.sleep(.05)
     raise AssertionError('Missing helper receipt')
-for mode in ['happy','rollback','corrupt','expired']:
+for mode in ['cancel','happy','rollback','corrupt','expired']:
     directory=local/'QuotaBar/Updates'/uuid.uuid4().hex; directory.mkdir(parents=True)
-    parent=None; helper=None
+    parent=None; helper=None; log=None
     try:
         subprocess.run([str(setup),'install','--candidate',str(package),'--no-launch'],check=True,timeout=120)
         marker=local/'QuotaBar/update-preserved.txt'; marker.write_text('keep')
@@ -36,12 +36,15 @@ for mode in ['happy','rollback','corrupt','expired']:
         job=dict(schema=1,operationID=uuid.uuid4().hex,target=str(target),parentPID=parent.pid,nonce='a'*64,expiresAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(time.time()+(-1 if mode=='expired' else 600))),release=release)
         (directory/'job.json').write_text(json.dumps(job)); shutil.copytree(target/'setup',directory/'current-setup')
         if mode=='corrupt': (candidate/'QuotaBar.exe').write_bytes(b'bad')
-        helper=subprocess.Popen([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        log=(directory/'helper.log').open('w+b')
+        helper=subprocess.Popen([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],stdout=log,stderr=subprocess.STDOUT)
         if mode in ('corrupt','expired'):
-            helper.communicate(timeout=30); assert helper.returncode!=0 and not (directory/'ready.json').exists(); assert parent.poll() is None
+            helper.wait(timeout=30); assert helper.returncode!=0 and not (directory/'ready.json').exists(); assert parent.poll() is None
         else:
-            wait(directory/'ready.json',helper); subprocess.run([str(target/'QuotaBar.exe'),'--quit'],check=True,timeout=10); parent.wait(timeout=15)
-            out,err=helper.communicate(timeout=90); expected='rolledBack' if mode=='rollback' else 'succeeded'; assert (directory/(expected+'.json')).exists(),(out,err)
+            wait(directory/'ready.json',helper)
+            if mode!='cancel': (directory/'handoff.json').write_text(json.dumps(dict(schema=1,operationID=job['operationID'],nonce=job['nonce'],kind='handoff')))
+            subprocess.run([str(target/'QuotaBar.exe'),'--quit'],check=True,timeout=10); parent.wait(timeout=15)
+            helper.wait(timeout=90); log.flush(); log.seek(0); out=log.read(); err=b''; expected='failed' if mode=='cancel' else 'rolledBack' if mode=='rollback' else 'succeeded'; assert (directory/(expected+'.json')).exists(),(out,err)
             version=json.loads((target/'package.json').read_text())['version']; assert version==('2.0.0' if mode=='happy' else json.loads((package/'package.json').read_text())['version']),(mode,version)
             replay=subprocess.run([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],capture_output=True,timeout=30); assert replay.returncode!=0
         assert marker.read_text()=='keep'; print('PASS Windows native helper '+mode,flush=True)
@@ -50,5 +53,6 @@ for mode in ['happy','rollback','corrupt','expired']:
         if helper and helper.poll() is None: helper.kill(); helper.wait()
         if parent and parent.poll() is None: parent.kill(); parent.wait()
         subprocess.run([str(setup),'uninstall'],check=True,timeout=120)
+        if log: log.close()
         shutil.rmtree(directory,ignore_errors=True)
         (local/'QuotaBar/update-preserved.txt').unlink(missing_ok=True)

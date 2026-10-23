@@ -41,7 +41,7 @@ public struct UpdateInstallJob: Codable, Sendable {
         return try JSONDecoder().decode(Self.self, from: Data(contentsOf: path))
     }
     public func receipt(_ kind: String, directory: URL) throws {
-        guard ["ready", "health", "succeeded", "rolledBack", "failed"].contains(kind) else { throw UpdatePackageError.invalidPackage }
+        guard ["ready", "handoff", "health", "succeeded", "rolledBack", "failed"].contains(kind) else { throw UpdatePackageError.invalidPackage }
         try JSONEncoder().encode(UpdateReceipt(schema: 1, operationID: operationID, nonce: nonce, kind: kind)).write(to: directory.appendingPathComponent(kind + ".json"), options: .atomic)
     }
     public func hasReceipt(_ kind: String, directory: URL) -> Bool {

@@ -54,6 +54,7 @@ do {
         guard Date() < deadline else { try job.receipt("failed", directory: directory); throw UpdatePackageError.commandTimedOut }
         Thread.sleep(forTimeInterval: 0.05)
     }
+    guard job.hasReceipt("handoff", directory: directory) else { try job.receipt("failed", directory: directory); throw UpdatePackageError.invalidPackage }
     let transaction = ApplicationUpdateTransaction(target: UpdateLocations.target)
     do {
         try transaction.install(candidate: candidate, operationDirectory: directory, validate: { try MacUpdatePackage.verifyApp($0, release: job.release, provenance: proof) }, health: {
