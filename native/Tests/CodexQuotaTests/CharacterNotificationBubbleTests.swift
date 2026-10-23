@@ -16,6 +16,24 @@ import QuotaCore
         let expanded = bubble.content(message: long, dark: false, language: .english, width: 340)
         XCTAssertGreaterThan(expanded.frame.height, view.frame.height)
     }
+    func testRealPreviewBodyFitsItsNativeWrappingCell() throws {
+        let raw = "5 小时剩余 100% · 7 天剩余 36%。仅为示例。"
+        let bubble = CharacterNotificationBubble()
+        let message = ExperienceNotification(id: "preview-wrap", kind: .test, epoch: nil, title: "示例通知", body: raw, createdAt: Date())
+        for width: CGFloat in [340, 420] {
+            let view = bubble.content(message: message, dark: false, language: .simplifiedChinese, width: width)
+            let body = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.toolTip == raw })
+            let cell = try XCTUnwrap(body.cell)
+            let needed = ceil(cell.cellSize(forBounds: CGRect(x: 0, y: 0, width: body.frame.width, height: 1000)).height)
+            XCTAssertGreaterThanOrEqual(body.frame.height, needed, "Full preview must fit native text-cell wrapping at width \(width)")
+            if let output = ProcessInfo.processInfo.environment["QUOTABAR_TEST_ARTIFACTS"] {
+                try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
+                let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try XCTUnwrap(rep.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: output).appendingPathComponent("preview-wrap-\(Int(width)).png"))
+            }
+        }
+    }
     func testPassivePanelAndContentActionsInBothThemes() throws {
         let bubble = CharacterNotificationBubble()
         defer { bubble.dismiss() }

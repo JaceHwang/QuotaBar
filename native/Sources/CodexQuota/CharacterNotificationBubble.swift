@@ -80,8 +80,15 @@ enum NotificationCharacterArtwork: String { case attention, recovery, bank, neut
         }
         func measured(_ text: String, _ font: NSFont, lines: Int) -> CGFloat {
             let line = ceil(font.ascender - font.descender + font.leading)
-            let height = (text as NSString).boundingRect(with: CGSize(width: textWidth, height: 1000), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font]).height
-            return min(line * CGFloat(lines), max(line, ceil(height)))
+            // Measure with the same native cell that draws the label, including its
+            // horizontal inset and wrapping rules. NSString can fit one more word.
+            let probe = NSTextField(wrappingLabelWithString: text)
+            probe.font = font; probe.maximumNumberOfLines = lines
+            probe.usesSingleLineMode = false; probe.cell?.wraps = true
+            probe.cell?.isScrollable = false; probe.lineBreakMode = .byWordWrapping
+            probe.preferredMaxLayoutWidth = textWidth
+            let height = probe.cell?.cellSize(forBounds: CGRect(x: 0, y: 0, width: textWidth, height: 1000)).height ?? line
+            return max(line, ceil(height))
         }
         let titleHeight = max(22, measured(message.title, titleFont, lines: 2))
         let bodyHeight = max(18, measured(displayBody, bodyFont, lines: 4))
