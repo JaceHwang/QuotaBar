@@ -128,6 +128,7 @@ var tests = new (string Name, Action Run)[] {
     })
 };
 var failed=0;
+try { await UpdateDownloadTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL update download: "+e); }
 try { TrustedUpdateReleaseTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL trusted update: "+e); }
 try { BarkTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL Bark: "+e); }
 try { ExperienceTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL experience: "+e); }
