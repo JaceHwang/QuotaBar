@@ -4,7 +4,7 @@ import hashlib,json,os,pathlib,shutil,subprocess,sys,time,uuid,zipfile
 if os.name!='nt': raise RuntimeError('Native Windows runner required')
 package=pathlib.Path(sys.argv[1]).resolve(); local=pathlib.Path(os.environ['LOCALAPPDATA']); target=local/'Programs/QuotaBar'
 if target.exists(): raise RuntimeError('Existing install must not be replaced by tests')
-if (local/'QuotaBar/CodexHome').exists(): raise RuntimeError('Use a clean test account without real credentials')
+if (local/'QuotaBar/CodexHome/auth.json').exists(): raise RuntimeError('Use a clean test account without real credentials')
 setup=package/'setup/QuotaBar.Setup.exe'
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def wait(path,process,seconds=20):
