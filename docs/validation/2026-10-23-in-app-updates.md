@@ -57,3 +57,12 @@ e25cd9b的原生CI39970006140、39970014258双端全部通过；治理3997001402
 - Final: Ruling: compromised repository/current-user account is outside this updater trust boundary — official HTTPS release metadata and the current installation remain trusted — compromise can replace trusted binaries and requires a separate signing/security project.
 - Final: Ruling: real user device, Bark permissions and a natural published cross-version update are not certified by fixture/native CI — retain explicit device-validation limits — platform-specific device issues may remain.
 - Final: Ruling: reviewer did not independently certify CI — primary queried e25cd9b native CI39970006140/39970014258 and governance39970014020/39970006220, all succeeded — new fixes still require new-head native CI.
+
+
+## 最终交付确认
+
+最终产品提交`86f9e22`：[原生CI40005106916](https://github.com/JaceHwang/QuotaBar/actions/runs/40005106916)的macOS/Windows全部成功；治理40005106920与40005100307成功。Windows进程竞争修复后完成全部原生更新助手场景，未跳过失败断言或降低校验。
+
+Mac最终精确来源候选`candidate-20261024-024025`记录sourceCommit86f9e22且workingTreeDirty=false；119项源码指纹、应用/运行时/助手签名后摘要、严格签名、隔离启动退出和DMG校验全部通过。重建后的包内助手重新执行八场景，全部通过。后续文档提交不改变此产品提交及候选的来源声明。
+
+本轮开发与候选验证完成，保留Draft PR57。真实用户安装、正式跨版本升级体验、合并和公开发布均未执行。未执行项目不得据此记为设备验收通过。
