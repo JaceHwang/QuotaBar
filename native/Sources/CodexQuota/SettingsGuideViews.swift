@@ -93,7 +93,7 @@ import AppKit
         NSColor.systemPink.withAlphaComponent(0.15).setFill(); NSBezierPath(roundedRect: keyRect, xRadius: 3, yRadius: 3).fill()
         label("DEMO_KEY", keyRect.insetBy(dx: 3, dy: 3), size: 11, color: .systemPink, bold: true)
         label("/test", CGRect(x: keyRect.maxX + 1, y: 59, width: 29, height: 18), color: .secondaryLabelColor)
-        label(text("↑ Copy only this part", "↑ 只复制这一段", "↑ 只複製這一段"), CGRect(x: right + 12, y: 101, width: available - 16, height: 24), size: 12, color: .systemPink)
+        label(text("↑ Copy only this part", "↑ 只复制这一段", "↑ 只複製這一段"), CGRect(x: keyRect.minX + 12, y: 101, width: max(0, w - keyRect.minX - 24), height: 24), size: 12, color: .systemPink)
         label(text("Example URL; your Key will be different.", "示例链接，实际 Key 与此不同。", "範例連結，實際 Key 與此不同。"), CGRect(x: right + 12, y: 128, width: available - 16, height: 32), color: .secondaryLabelColor)
     }
 }
