@@ -24,7 +24,7 @@
 
 - 原生CI [39824657314](https://github.com/JaceHwang/QuotaBar/actions/runs/39824657314) 与PR CI [39824670435](https://github.com/JaceHwang/QuotaBar/actions/runs/39824670435) 两端成功；该提交全部8项检查成功。
 - macOS候选 `.dist/standalone-macos/candidate-20261023-014050`：来源bb97083、clean工作树、102源码指纹、程序摘要、严格签名、DMG CRC及隔离官方运行时启动/退出通过；许可证下载曾发生一次临时TLS连接失败，重试成功。替换废弃Keychain API后release构建无该警告。
-- Windows当前提交原生CI包含Core、WPF UI/三语言浅深色渲染、候选完整来源校验、官方运行时启动退出、实际每用户安装/升级/回退/卸载。下载ZIP已按完整文件、PE x64、运行时摘要、来源指纹和ZIP校验和验证；初轮fd6588a候选70个Windows源码指纹与最终代码相同，最终bb97083候选另行下载核验。
+- Windows当前提交原生CI包含Core、WPF UI/三语言浅深色渲染、候选完整来源校验、官方运行时启动退出、实际每用户安装/升级/回退/卸载。下载ZIP已按完整文件、PE x64、运行时摘要、来源指纹和ZIP校验和验证；初轮fd6588a候选70个Windows源码指纹与最终代码相同，最终产品bb97083对应PR合成提交e6b0022候选也已下载核验，70项Windows源码指纹与产品源码一致，完整ZIP验证通过。
 - 已查看两端手机页三语言浅深色代表截图；Windows窄窗口需滚动，测试截图滚到末尾显示操作区是预期行为。截图中的旧版本文字来自既有测试fixture。Windows CI是实际Windows执行，但不替代用户自己的设备/DPI/多屏、真实凭据存取与iPhone展示验收。
 
 ## 需要用户设备确认

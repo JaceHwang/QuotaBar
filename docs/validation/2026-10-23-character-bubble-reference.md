@@ -1,6 +1,6 @@
 # C 角色对白气泡视觉验收
 
-日期：2026-10-23；分支 `codex/fix/character-bubble-reference`，基于 Bark 开发分支。当前两端实现和完整本地验证通过，原生CI与最终候选证据在完成后补充；不包含公开发布、main合并或本机安装。
+日期：2026-10-23；分支 `codex/fix/character-bubble-reference`，基于 Bark 开发分支。当前两端实现、完整本地验证和两端原生CI通过；不包含公开发布、main合并或本机安装。
 
 ## 用户选择与实现基准
 
@@ -24,4 +24,13 @@
 - 两端四张PNG哈希一致，实际含alpha0–255透明通道；独立复核确认可见alpha内容落在源裁切矩形内，资源加载路径/程序集名称一致，变化未扩展到Core/Bark/路由。
 - 独立只读复核未发现确定的阻断缺陷。视觉对照为原生截图与参考图的人工比较，不冒称位图像素完全相等；运行时字号/真实数据会按平台重排。首选审查子代理遇到用量限制，替代独立审查已完成。
 
-原生CI和候选来源待补充。交叉构建不视为Windows原生执行或用户设备验收；测试只使用示例数据及假传输，不发送真实Bark或访问真实用户凭据。
+## 原生CI与候选
+
+产品提交 `1d27df5004681f6a3621da1ccafc9c7a21d62f09` 的8项检查全部成功：[PR原生CI](https://github.com/JaceHwang/QuotaBar/actions/runs/39882305825)、[push原生CI](https://github.com/JaceHwang/QuotaBar/actions/runs/39882181568)，以及各自治理检查。
+
+- macOS本地候选 `candidate-20261023-090717` 来自该干净提交；106项源码指纹、4张随包角色原始PNG、程序摘要、严格签名、DMG校验和隔离官方运行时启动/退出验证通过。参考整图未进入运行时。
+- Windows原生CI成功执行Core、WPF UI渲染/键盘焦点/三语言/DPI矩阵、候选来源验证、官方运行时启动退出，以及实际安装/升级/回退/卸载。已下载原生UI截图并检查关注、恢复、Bank三场景，以及340点窄宽/深色/200%截图；角色完整，正文按行数展开，无固定大段留白。
+- Windows候选 `candidate-20261023-010938` 已下载并安全解包，`verify-windows-standalone.py --source-root .` 完整通过：PE x64、运行时摘要、源码指纹和ZIP校验和。来源为PR合成提交 `3ca71b6fcd936d010b79a60d34f32a1a0346dd7b`，各项Windows源文件指纹与当前产品实现一致；它不是分支HEAD标记，也不代表用户设备验收。
+- [Draft PR53](https://github.com/JaceHwang/QuotaBar/pull/53) 依赖尚未合并的Bark PR52；未合并、未公开发布、未替换本机安装。
+
+Windows原生CI不等于用户设备实机验收；本轮用户设备多屏、长期运行及真实手机Bark接收仍未执行。测试只使用示例数据及假传输，不发送真实Bark或访问真实用户凭据。
