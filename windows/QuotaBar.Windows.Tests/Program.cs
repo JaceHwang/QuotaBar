@@ -352,13 +352,14 @@ internal static class Program {
                 });
                 owner.Save(new Preferences { Theme=dark?"dark":"light",Language=language,AutomaticUpdates=false },false);
                 owner.Updates.Check(true); var end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Checking&&DateTime.UtcNow<end) Pump();
-                var settings=new SettingsWindow(owner) { Width=840,Height=560 }; settings.Show(); settings.ShowAbout(); Pump();
+                owner.ShowUpdateSettings(); var settings=app.Windows.OfType<SettingsWindow>().Single(w=>w.IsVisible); settings.Width=840; settings.Height=560; settings.ShowAbout(); Pump();
                 var label=language=="en"?"Update now":"立即更新";
                 var updateInstallButton=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==label); updateInstallButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Installer.Operation.Progress.Phase!=phase&&DateTime.UtcNow<end) Pump();
                 Pump(); Check(owner.Updates.Installer.Operation.Progress.Phase==phase,"real update button starts pinned pipeline");
                 var cancel=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==(language=="en"?"Cancel download":language=="zh-CN"?"取消下载":"取消下載"));
                 Check(cancel.IsVisible==ApplicationUpdateOperation.CanCancel(phase),"cancel matches real phase");
+                if(cancel.IsVisible) { cancel.BringIntoView(); Pump(); var bounds=cancel.TransformToAncestor(settings).TransformBounds(new Rect(cancel.RenderSize)); Check(new Rect(settings.RenderSize).Contains(bounds),"cancel remains reachable at 840x560"); }
                 var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
                 var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,$"update-{phase}-{language}-{dark}.png"))) encoder.Save(file);
                 if(phase!=ApplicationUpdatePhase.Failed) { cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Check(owner.Updates.Installer.Operation.Progress.Phase==ApplicationUpdatePhase.Cancelled,"native cancel button cancels pipeline"); }

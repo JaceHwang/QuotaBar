@@ -70,7 +70,7 @@ public enum MacUpdatePackage {
         let fm = FileManager.default, mount = download.directory.appendingPathComponent("mount-" + UUID().uuidString)
         try fm.createDirectory(at: mount, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer {
-            try? UpdateCommand.run("/usr/bin/hdiutil", ["detach", mount.path], working: download.directory, timeout: 30, cancellable: false)
+            _ = try? UpdateCommand.run("/usr/bin/hdiutil", ["detach", mount.path], working: download.directory, timeout: 30, cancellable: false)
             try? fm.removeItem(at: mount)
         }
         try UpdateCommand.run("/usr/bin/hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount.path, "-plist", download.archive.path], working: download.directory)

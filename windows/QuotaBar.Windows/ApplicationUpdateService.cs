@@ -4,7 +4,7 @@ namespace QuotaBar.Windows;
 internal sealed class ApplicationUpdateService {
     public ApplicationUpdateOperation Operation { get; }
     public ApplicationUpdateService(string currentVersion,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? execute=null) {
-        Operation=new(execute??((version,emit,cancel)=>Perform(version,currentVersion,emit,cancel)));
+        Operation=new(execute??((version,emit,cancel)=>Perform(version,currentVersion,emit,cancel)),new System.Windows.Threading.DispatcherSynchronizationContext(System.Windows.Application.Current.Dispatcher));
         if(execute is null && string.Equals(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),UpdateLocations.Target,StringComparison.OrdinalIgnoreCase)) {
             if(UpdateInstallJob.ConsumeResult(UpdateLocations.Cache,UpdateLocations.Target) is { } result) Operation.ReportResult(result);
             ReadResultAfterStartup();

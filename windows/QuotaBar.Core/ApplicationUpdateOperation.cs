@@ -1,8 +1,8 @@
 namespace QuotaBar.Core;
 /// Owns one explicit update operation. Late callbacks from a cancelled generation are inert.
-public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task> execute) {
+public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task> execute,SynchronizationContext? dispatch=null) {
     readonly object gate=new();
-    readonly SynchronizationContext? context=SynchronizationContext.Current;
+    readonly SynchronizationContext? context=dispatch??SynchronizationContext.Current;
     CancellationTokenSource? cancellation;
     long generation;
     ApplicationUpdateProgress progress=new(ApplicationUpdatePhase.Idle,0,0,null);
