@@ -6,7 +6,10 @@ import QuotaCore
 @MainActor final class SettingsGuideTests: XCTestCase {
     func tree(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(tree) }
     func testSettingsActionsShareBarkMetricsAndDetailBrand() throws {
-        let coordinator = StandaloneCoordinator(defaults: UserDefaults(suiteName: "Uniform.\(UUID())")!, root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let defaults = UserDefaults(suiteName: "Uniform.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { $0("") })
+        let coordinator = StandaloneCoordinator(experienceController: experience, defaults: defaults, root: root)
         let window = coordinator.makeSettingsWindow(); defer { window.close() }
         let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView)
         XCTAssertEqual(tree(shell).filter { $0 is QuotaThemeIconView }.count, 1, "Sidebar must reuse the detail ring")
@@ -87,7 +90,9 @@ import QuotaCore
             let suite = "GuideRender.\(UUID())", defaults = UserDefaults(suiteName: "GuideRender.temporary")!
             defaults.set(language.rawValue, forKey: "standalone.language"); defaults.set(true, forKey: "updates.autoDisabled")
             let update = QuotaUpdateController(defaults: defaults, version: "1.2.0", text: { en, zh, tw in language == .english ? en : language == .simplifiedChinese ? zh : tw }); defer { update.stop() }
-            let coordinator = StandaloneCoordinator(updateController: update, defaults: defaults, root: FileManager.default.temporaryDirectory.appendingPathComponent(suite))
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+            let experience = QuotaExperienceController(root: root, defaults: defaults, language: { language }, requestPermission: { $0("") })
+            let coordinator = StandaloneCoordinator(updateController: update, experienceController: experience, defaults: defaults, root: root)
             let window = coordinator.makeSettingsWindow(); defer { window.close(); defaults.removePersistentDomain(forName: "GuideRender.temporary") }
             let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView)
             for dark in [false, true] {
