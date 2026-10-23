@@ -30,6 +30,8 @@ try:
     assert (app / 'Contents/Resources/AppIcon.icns').read_bytes()[:4] == b'icns'
     assert digest(app / 'Contents/MacOS' / plist['CFBundleExecutable']) == info['applicationSignedSha256']
     assert digest(app / 'Contents/Helpers/codex') == info['runtimeSignedSha256']
+    if info.get('updateProtocol') == 1:
+        assert digest(app / 'Contents/Helpers/QuotaBarUpdater') == info['updaterSignedSha256']
     snapshot = app / 'Contents/Resources/SOURCE-SNAPSHOT.json'
     assert digest(snapshot) == info['sourceSnapshotSha256']
     for name, expected in json.loads(snapshot.read_text()).items():

@@ -73,7 +73,7 @@ def main():
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip())
     if source_snapshot() != source: raise RuntimeError("Build inputs changed during packaging; rebuild from stable source")
-    provenance = {"kind": "release" if args.release_tag else "local-development-candidate", "sourceCommit": commit, "workingTreeDirty": dirty, "sources": source, "runtimeSource": RUNTIME_URL, "runtimeArchiveSHA256": RUNTIME_SHA256, "runtimeVersion": RUNTIME_VERSION, "signature": "unsigned-release" if args.release_tag else "unsigned-development-candidate", "deviceValidated": False}
+    provenance = {"updateProtocol": 1, "kind": "release" if args.release_tag else "local-development-candidate", "sourceCommit": commit, "workingTreeDirty": dirty, "sources": source, "runtimeSource": RUNTIME_URL, "runtimeArchiveSHA256": RUNTIME_SHA256, "runtimeVersion": RUNTIME_VERSION, "signature": "unsigned-release" if args.release_tag else "unsigned-development-candidate", "deviceValidated": False}
     if args.release_tag: provenance.update(releaseTag=args.release_tag, version=version)
     (package / "PROVENANCE.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
     files = {str(p.relative_to(package)).replace(os.sep, "/"): digest(p) for p in sorted(package.rglob("*")) if p.is_file()}

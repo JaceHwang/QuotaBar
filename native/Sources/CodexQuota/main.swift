@@ -16,6 +16,8 @@ if CommandLine.arguments.contains("--unregister-startup") {
     if SMAppService.mainApp.status != .notRegistered { try SMAppService.mainApp.unregister() }
     exit(0)
 }
+do { try UpdateLocations.acknowledgeHealth(arguments: CommandLine.arguments, executable: Bundle.main.executableURL?.path ?? "") }
+catch { exit(1) }
 let coordinator = StandaloneCoordinator()
 application.delegate = coordinator
 withExtendedLifetime(coordinator) { application.run() }

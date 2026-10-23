@@ -18,6 +18,11 @@ try {
     if(Path.GetFullPath(AppContext.BaseDirectory).StartsWith(target+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)) throw new IOException("Run setup from the extracted download or the registered uninstall entry, not the active application folder.");
     var installer=new TransactionInstaller(target,new(StopOwned,StartupEnabled,Activate,Deactivate,CaptureLegacy,SuspendLegacy,RestoreLegacy));
     switch(command) {
+        case "update":
+            if(args.Length!=2) throw new IOException("Expected managed update job");
+            var directory=UpdateLocations.DirectoryPath(args[1]); var job=UpdateInstallJob.Read(directory);
+            ApplicationUpdateTransaction.Run(job,directory,installer,(exe,arguments)=> { var p=new ProcessStartInfo(exe) { UseShellExecute=false }; foreach(var a in arguments) p.ArgumentList.Add(a); Process.Start(p); });
+            break;
         case "install":
             var index=Array.IndexOf(args,"--candidate");
             var candidate=index>=0 && index+1<args.Length ? args[index+1] : Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))!.FullName;

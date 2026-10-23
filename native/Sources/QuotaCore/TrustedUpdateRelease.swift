@@ -6,7 +6,7 @@ public struct UpdateAsset: Sendable, Equatable, Codable {
     public let size: Int64
     public let sha256: String
 }
-public struct TrustedUpdateRelease: Sendable, Equatable {
+public struct TrustedUpdateRelease: Sendable, Equatable, Codable {
     public let version: String
     public let platform: String
     public let sourceCommit: String

@@ -15,6 +15,8 @@ static class InstallerTests {
             fail=true; Throws(()=>installer.Rollback()); Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="two","failed rollback keeps current");
             installer.Rollback(); Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","rollback");
             fail=true; Throws(()=>installer.Install(two)); Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one" && activated==target,"failed activation restored");
+            Throws(()=>installer.Install(two,()=>throw new IOException("new application failed health")));
+            Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","health failure restores old version under transaction lock");
             File.WriteAllText(Path.Combine(two,"QuotaBar.exe"),"tampered"); Throws(()=>installer.Install(two));
             Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","tampering rejected before mutation");
             installer.Uninstall(); Check(!Directory.Exists(target),"uninstalled into recoverable backup");

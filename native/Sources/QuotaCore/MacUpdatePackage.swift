@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-public enum UpdatePackageError: Error, Equatable { case invalidIdentity, linkedContent, invalidPackage, insufficientSpace, commandFailed, commandTimedOut }
+public enum UpdatePackageError: Error, Equatable { case invalidJobTarget, expiredJob, consumedJob, invalidJobIdentity, invalidIdentity, linkedContent, invalidPackage, insufficientSpace, commandFailed, commandTimedOut }
 public enum UpdateCommand {
     @discardableResult public static func run(_ executable: String, _ arguments: [String], working: URL, timeout: TimeInterval = 60, cancellable: Bool = true) throws -> Data {
         let fm = FileManager.default, output = working.appendingPathComponent("command-" + UUID().uuidString)

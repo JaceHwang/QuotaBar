@@ -48,7 +48,7 @@ public sealed class TransactionInstaller {
         store=Path.Combine(Path.GetDirectoryName(this.target)!,".QuotaBar-install"); journalPath=Path.Combine(store,"journal.json"); historyPath=Path.Combine(store,"history.json");
     }
     FileStream Lock() { Directory.CreateDirectory(store); return new(Path.Combine(store,"install.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None); }
-    public void Install(string candidate) {
+    public void Install(string candidate,Action? verifyHealth=null) {
         using var locked=Lock(); Recover();
         candidate=Path.GetFullPath(candidate); PackageVerifier.Verify(candidate);
         if(candidate==target || candidate.StartsWith(target+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)) throw new IOException("Candidate cannot be inside active installation");
@@ -61,6 +61,7 @@ public sealed class TransactionInstaller {
             if(j.HadPrevious) Directory.Move(target,backup);
             Directory.Move(stage,target);
             hooks.Activate(target,j.Startup);
+            verifyHealth?.Invoke();
             if(j.HadPrevious) Write(historyPath,new History(backup,j.Startup));
             File.Delete(journalPath);
         } catch { Recover(); throw; }
