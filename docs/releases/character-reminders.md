@@ -1,6 +1,6 @@
-# 角色提醒、Bark手机推送与设置统一发布
+# v1.3.0 角色提醒、Bark手机推送与设置统一发布
 
-状态：2026-10-23用户明确授权双端打包发布，版本和tag待Release Please生成；本文件不表示已经公开。
+状态：2026-10-23双端正式发布并完成公开下载、来源、SHA256及更新清单复核。[发布页](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.3.0)。
 
 ## 内容
 
@@ -17,4 +17,12 @@
 
 ## 正式产物
 
-待记录Release Please版本PR、tag、macOS/Windows发布job、公开资产校验和与更新清单。
+- 完整功能整合：[PR54](https://github.com/JaceHwang/QuotaBar/pull/54)，全部8项检查通过后squash合并e2026e5。原串联PR51-53已关闭为完成整合，不删除开发分支。
+- Release Please生成[PR55](https://github.com/JaceHwang/QuotaBar/pull/55)，仅同步manifest、version.txt和CHANGELOG为1.3.0；准确head60fe0c0的[原生CI39932467472](https://github.com/JaceHwang/QuotaBar/actions/runs/39932467472)及治理全部成功。
+- 准确tag `v1.3.0` → `40909c95023c560d8345385428f96d42ff40dfb9`，由[Release Please39933147828](https://github.com/JaceHwang/QuotaBar/actions/runs/39933147828)创建。
+- [Windows发布39933265991](https://github.com/JaceHwang/QuotaBar/actions/runs/39933265991)与[macOS发布39933271404](https://github.com/JaceHwang/QuotaBar/actions/runs/39933271404)成功，均准确tag原生构建校验后上传，无覆盖既有资产。
+- 10项公开资产：macOS DMG、安装脚本/说明、来源与校验和；Windows ZIP、安装说明、来源、原生验证记录及校验和。Release非草稿、非预发布，两端availability均available，GitHub latest指向v1.3.0。
+- 从公开发布下载全部10文件，大小与SHA256逐项匹配GitHub元数据；v1.2.0全部10资产的ID/大小/摘要与发布前一致。
+- 在准确tag HEAD执行 `python3 scripts/verify-windows-standalone-release.py v1.3.0 .dist/release-download/v1.3.0` 和 `python3 scripts/verify-macos-standalone-release.py v1.3.0 .dist/release-download/v1.3.0` 均通过。Windows核对PE x64、完整文件、来源指纹、运行时和ZIP；Mac核对签名、DMG、源码/运行时摘要及隔离实际启动/退出。
+- [更新清单Pages39933807848](https://github.com/JaceHwang/QuotaBar/actions/runs/39933807848)完成；[公网GET](https://jacehwang.github.io/QuotaBar/updates.json)确认两端1.3.0、准确下载链接、非空摘要及完整发布说明。
+- 本地完整治理158Core+107AppKit及Windows检查通过。安装包及原始下载仅保存在被忽略的.dist目录，不提交二进制。
