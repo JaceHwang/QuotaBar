@@ -29,3 +29,5 @@
 - [Bark 实施计划](superpowers/plans/2026-10-23-bark-mobile-push.md)与[验收记录](validation/2026-10-23-bark-mobile-push.md)：两端实现、自动化、CI及设备边界。
 
 - [C参考图气泡验收](validation/2026-10-23-character-bubble-reference.md)：左侧独立角色、对白卡、紧凑排版及两端验证。
+
+- [角色提醒与手机推送发布](releases/character-reminders.md)：本轮授权、双端来源、原生验证及正式资产进度。

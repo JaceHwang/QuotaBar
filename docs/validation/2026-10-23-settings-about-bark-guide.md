@@ -46,3 +46,7 @@ Windows原生CI是Windows runner中的真实WPF执行，不等于用户Windows�
 Mac真实控件回归先观察38处不一致失败，修复后6项向导测试、12项设置视觉测试通过，三语言浅深色全部子页已原生渲染。Windows共享样式及品牌同步，交叉构建0警告/错误；原生执行另以CI证据为准。独立代码复核无剩余P1/P2。此次UI改动尚未替换f297c5c本机安装，未读取真实Key或发送推送。
 
 按钮统一产品`f538e7a`已通过[Windows原生UI与渲染](https://github.com/JaceHwang/QuotaBar/actions/runs/39912163460)，全部页/三语言指标断言、深色192DPI及窄窗截图已核验，已刷新上述Mac/Windows文档图。进一步将Mac截图和统一按钮回归注入实际体验控制器，覆盖暂停/预览/未读及庆祝按钮；完整本地治理再次通过158Core+107AppKit及Windows检查。
+
+## 发布前最终Windows复核
+
+77f37ef的[原生CI39912641396](https://github.com/JaceHwang/QuotaBar/actions/runs/39912641396)双端完整成功。下载该次Windows UI产物后检查简中浅色手机页、英文深色额度管理页、窄窗滚动及192DPI，圆环品牌、统一蓝色/灰色按钮、文字留边和操作可达均正常。此次新功能不新增Windows用户设备证据；不把历史Windows11反馈冒充本版本实机验证。独立发布复核未发现P1/P2阻断。
