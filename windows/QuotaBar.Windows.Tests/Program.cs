@@ -224,6 +224,10 @@ internal static class Program {
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
                     Check(navigation.Select(b=>b.Tag?.ToString()).SequenceEqual(new[]{"settings-nav-account","settings-nav-display","settings-nav-moods","settings-nav-mobile","settings-nav-updates"}),"about is last and legacy update route preserved");
                     Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="settings-website").IsEnabled==false,"unpublished website disabled");
+                    var secondaryButton=Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-clear");
+                    Check((secondaryButton.Foreground as SolidColorBrush)?.Color==(Ui.Foreground(dark) as SolidColorBrush)?.Color,"secondary settings action uses readable theme foreground");
+                    var primaryButton=Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save");
+                    Check((primaryButton.Foreground as SolidColorBrush)?.Color==Colors.White,"primary settings action preserves white foreground");
                     var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
                     var peer=new System.Windows.Automation.Peers.CheckBoxAutomationPeer(moodToggle);
                     var togglePattern=(System.Windows.Automation.Provider.IToggleProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle);

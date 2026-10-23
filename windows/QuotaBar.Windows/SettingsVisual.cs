@@ -22,7 +22,11 @@ internal static class SettingsVisual {
     }
     public static void ApplyButtons(DependencyObject root,bool dark) {
         if(root is Button button) {
-            button.Template=RoundedButtonTemplate; if(button.ReadLocalValue(Control.ForegroundProperty)==DependencyProperty.UnsetValue) button.Foreground=Ui.Foreground(dark);
+            button.Template=RoundedButtonTemplate;
+            var foreground=button.ReadLocalValue(Control.ForegroundProperty);
+            // Ui.Button assigns the system control brush locally; it still needs the settings theme.
+            // Preserve deliberate colors such as the white text on green primary actions.
+            if(foreground==DependencyProperty.UnsetValue||ReferenceEquals(foreground,SystemColors.ControlTextBrush)) button.Foreground=Ui.Foreground(dark);
             button.BorderBrush=new SolidColorBrush(Color.FromArgb(55,128,128,128));
             if(button.ReadLocalValue(Control.BorderThicknessProperty)==DependencyProperty.UnsetValue) button.BorderThickness=new Thickness(1);
             if(button.ReadLocalValue(Control.BackgroundProperty)==DependencyProperty.UnsetValue) button.Background=dark?new SolidColorBrush(Color.FromRgb(38,40,46)):Brushes.White;
