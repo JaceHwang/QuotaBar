@@ -19,10 +19,22 @@
 
 Mac新增导航/眼睛测试先在旧实现失败，随后通过；独立复核还发现查看已保存Key后保存会错误旋转配置代次，新增真实按钮回归先失败再修复，已将只读查看从保存路径隔离。保存Key显式查看不改变草稿/代次/启用/传输，重建不自动读取、失焦/移除遮掩、编辑草稿保留与失败状态另有回归。独立Windows实施者只读复核Mac，指出状态变长时滚动需重算，已连接布局回调并验证。
 
-已生成Mac三语言浅深色真实原生渲染；完整本地治理、最终CI及Windows原生截图将在完成后补充。交叉构建不是Windows原生执行或用户设备验收。本轮未替换本机08f13b1安装、未读真实Key、未发送真实Bark、未合并或公开发布。
+已生成Mac三语言浅深色真实原生渲染；完整本地治理通过，Windows原生截图与最终CI证据见下文。交叉构建不是Windows原生执行或用户设备验收。本轮未替换本机08f13b1安装、未读真实Key、未发送真实Bark、未合并或公开发布。
 
 教程依据：[Bark官方README](https://github.com/Finb/Bark)、[App Store](https://apps.apple.com/app/bark-custom-notifications/id1403753865)、[官方教程](https://bark.day.app/#/tutorial)。
 
 本地完整`./governance check all`通过：158 Swift Core、106 AppKit、Windows Core与Windows/Setup/UI工程构建，0警告/错误。最后设置局部视觉复验11项通过。选定C的三语言浅深色渲染见`.dist/settings-c-macos/settings-c-*`，已有最小840×560滚动和控制边界回归；正常C截图900×800，窗口实际默认高度按屏幕可用空间裁限。主按钮绿色略加深至`#087F5B`（白字对比5.00:1），下载蓝`#0065D8`（白字5.45:1）。
 
 实际渲染：[手机推送](../images/settings-c-macos-mobile.png)、[关于应用](../images/settings-c-macos-about.png)。绘制层级与C对照，原生字体、动态状态和无障碍会适配平台，并非概念图位图贴图或逐像素一致性证明。
+
+## 最终回归与CI
+
+产品提交`8ac7ce1`补充Windows深色按钮回归：原按钮工厂设置了本地系统黑字，现统一适配设置页主题，同时保留绿色主按钮白字。缺陷来自真实Windows CI截图，修复前未声称在Mac执行WPF失败测试。Bark说明按官方路径格式修正为复制`api.day.app/`后到下一个`/`前的第一段，示例消息不限制为`test`。
+
+- `aa41fa7`：[CI39895231487](https://github.com/JaceHwang/QuotaBar/actions/runs/39895231487)的macOS与Windows原生完整job均成功。
+- `8ac7ce1`：[CI39896122629](https://github.com/JaceHwang/QuotaBar/actions/runs/39896122629)已通过Windows原生UI smoke/render，包含主题文字断言、三语言、96/192 DPI渲染、840×560末尾操作滚动可达及Key生命周期回归。macOS与Windows两个完整job均成功，含候选打包、来源验证、运行时启动和Windows安装/升级/回滚/卸载检查。
+- 本地最终完整治理及推送hook再次通过，Windows便携Bark控制器测试通过；不读取真实Key或发送真实手机消息。
+
+Windows原生CI是Windows runner中的真实WPF执行，不等于用户Windows设备、真实手机接收或自然额度事件验证。本轮不包含本机新设置安装、合并或公开发布。
+
+已从8ac7ce1的Windows原生UI产物检查：简中关于页与灰色官网、英文深色192 DPI配置卡、繁中深色窄窗教程末尾均无按钮黑字/横向裁切，箭头指向DEMO_KEY。截图：[深色配置](../images/settings-c-windows-mobile-dark.png)、[窄窗教程](../images/settings-c-windows-mobile-narrow.png)、[关于页末尾](../images/settings-c-windows-about.png)。CI工作区限制可能使整页需要垂直滚动，已验证末尾按钮完整可达；黑色外边为测试窗口渲染画布。截图版本1.0.0为测试fixture注入值，不是产品版本。
