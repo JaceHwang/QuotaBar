@@ -1,6 +1,6 @@
 # QuotaBar 文档索引
 
-当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。v1.2.0已发布四页设置优化与浮窗文字裁切修复，保留额度表情、恢复提醒、庆祝及Bank提醒；两端原生CI、用户实机反馈、公开资产与更新清单核验记录齐全。文档更新日期：2026-10-22。
+当前产品为双平台独立额度应用：macOS（native/）、Windows（windows/）共用统一版本。v1.3.0已发布角色对白气泡、独立Bark手机推送和五页统一设置；两端原生CI、Windows截图、公开资产与更新清单已核验。新功能Windows用户设备矩阵仍待验证，详情见发布记录。文档更新日期：2026-10-23。
 
 | 文档 | 用途 |
 | --- | --- |
@@ -25,7 +25,7 @@
 - [v1.2.0发布记录](releases/settings-ui-v1.2.0.md)：准确tag、原生构建、公开下载及更新清单核验。
 
 - [C 方案设置页验收](validation/2026-10-23-settings-about-bark-guide.md)：关于应用最后页签、Key 显隐及原生连接向导。
-- [Bark 手机推送配置](BARK_MOBILE_PUSH.zh-CN.md)：开发候选手机推送页、Key 安全保存、独立通道、测试与去重。
+- [Bark 手机推送配置](BARK_MOBILE_PUSH.zh-CN.md)：手机推送页、Key 安全保存、独立通道、测试与去重。
 - [Bark 实施计划](superpowers/plans/2026-10-23-bark-mobile-push.md)与[验收记录](validation/2026-10-23-bark-mobile-push.md)：两端实现、自动化、CI及设备边界。
 
 - [C参考图气泡验收](validation/2026-10-23-character-bubble-reference.md)：左侧独立角色、对白卡、紧凑排版及两端验证。
