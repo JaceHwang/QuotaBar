@@ -42,7 +42,7 @@ void StopOwned() {
     foreach(var p in Process.GetProcessesByName("QuotaBar")) {
         using(p) {
             try {
-                if(!string.Equals(p.MainModule?.FileName,Path.Combine(target,"QuotaBar.exe"),StringComparison.OrdinalIgnoreCase)) continue;
+                if(!InstallationProcessIdentity.Matches(()=>p.MainModule?.FileName,()=>p.WaitForExit(1000),Path.Combine(target,"QuotaBar.exe"))) continue;
                 try { using var signal=EventWaitHandle.OpenExisting("Local\\QuotaBar.Shutdown"); signal.Set(); } catch(WaitHandleCannotBeOpenedException) { }
                 if(!p.WaitForExit(6000)) { p.Kill(entireProcessTree:true); if(!p.WaitForExit(6000)) throw new IOException("Installed application did not stop"); }
             } catch(InvalidOperationException) { }

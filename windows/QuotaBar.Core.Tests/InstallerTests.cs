@@ -4,6 +4,12 @@ using QuotaBar.Core;
 
 static class InstallerTests {
     public static void Run() {
+        Check(!InstallationProcessIdentity.Matches(()=>throw new System.ComponentModel.Win32Exception(299),()=>true,"target"),"exited process partial module read is ignored");
+        var liveRefused=false;
+        try { InstallationProcessIdentity.Matches(()=>throw new System.ComponentModel.Win32Exception(299),()=>false,"target"); }
+        catch(System.ComponentModel.Win32Exception) { liveRefused=true; }
+        Check(liveRefused,"live process with unknown identity fails safely");
+        Check(!InstallationProcessIdentity.Matches(()=>"unrelated",()=>false,"target"),"unrelated same-name process is not owned");
         var root=Path.Combine(Path.GetTempPath(),"quotabar-install-"+Guid.NewGuid()); Directory.CreateDirectory(root);
         try {
             var one=Candidate(root,"one"); var two=Candidate(root,"two");

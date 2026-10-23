@@ -75,12 +75,14 @@
 
 **Files:** Create `scripts/test-macos-in-app-update.py`, `scripts/test-windows-in-app-update.py`; modify `.github/workflows/ci.yml`, build/verify scripts and relevant installer tests; update README, privacy, troubleshooting, update operations, roadmap and validation record.
 
-- [ ] Build isolated old/new test bundles from current product without editing tracked product versions. Exercise actual helper replacement/restart, config preservation, corrupt package refusal, immediate-exit rollback, timeout and interrupted transaction recovery.
-- [ ] Wire Windows runner native test and require real process results; crossbuild alone does not pass Windows acceptance. Mac native process test includes keychain-wait-compatible basic health.
-- [ ] Run `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path native`, `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" dotnet run --project windows/QuotaBar.Core.Tests/QuotaBar.Core.Tests.csproj`, Windows WPF native runner and `./governance check all`; inspect every result.
-- [ ] Run exact-source candidate packaging/source and startup checks. Confirm updater resource is bundled, old releasefeed tests pass, no API secrets/files leak, runtime exits cleanly. Native platform CI must pass before claiming complete.
-- [ ] Update docs with bootstrap installation limitation, free/public API dependency, signature-system prompt limits and manual fallback; record implemented/local/CI/device/published separately. Create Draft PR, attach it, and keep public release for later explicit authorization.
+- [x] Build isolated old/new test bundles from current product without editing tracked product versions. Exercise actual helper replacement/restart, config preservation, corrupt package refusal, immediate-exit rollback, timeout and interrupted transaction recovery.
+- [x] Wire Windows runner native test and require real process results; crossbuild alone does not pass Windows acceptance. Mac native process test includes keychain-wait-compatible basic health.
+- [x] Run `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path native`, `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" dotnet run --project windows/QuotaBar.Core.Tests/QuotaBar.Core.Tests.csproj`, Windows WPF native runner and `./governance check all`; inspect every result.
+- [x] Run exact-source candidate packaging/source and startup checks. Confirm updater resource is bundled, old releasefeed tests pass, no API secrets/files leak, runtime exits cleanly. Native platform CI must pass before claiming complete.
+- [x] Update docs with bootstrap installation limitation, free/public API dependency, signature-system prompt limits and manual fallback; record implemented/local/CI/device/published separately. Create Draft PR, attach it, and keep public release for later explicit authorization.
 
 ## Execution and review
 
 Recommended: native execution in the current session, because service/state/helper interfaces are coupled and one implementer can keep the trust boundary consistent; one independent whole-branch review at the end. Alternatively choose subagent-driven task/review execution. User reviewed and approved native execution on2026-10-23; product implementation now in progress.
+
+Task5证据：产品52c6ae8原生CI40003242174双端成功；Mac候选candidate-20261024-022754及打包助手八场景通过。最终进程退出竞争加固的原生检查以PR57准确提交的检查为准；不以本地交叉编译替代。

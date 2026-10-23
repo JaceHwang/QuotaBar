@@ -140,3 +140,11 @@ public sealed class TransactionInstaller {
         foreach(var dir in Directory.GetDirectories(source)) Copy(dir,Path.Combine(destination,Path.GetFileName(dir)));
     }
 }
+
+/// Module enumeration can race a process exiting. Never ignore an unidentified live process.
+public static class InstallationProcessIdentity {
+    public static bool Matches(Func<string?> executable,Func<bool> exited,string expected) {
+        try { return string.Equals(executable(),expected,StringComparison.OrdinalIgnoreCase); }
+        catch(System.ComponentModel.Win32Exception error) when(error.NativeErrorCode==299 && exited()) { return false; }
+    }
+}

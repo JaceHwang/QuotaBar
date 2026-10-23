@@ -32,3 +32,28 @@ e25cd9b的原生CI39970006140、39970014258双端全部通过；治理3997001402
 - Windows退出：Core延迟清理夹具先因缺少等待API失败；追踪活动任务并在Coordinator.Quit关闭应用前等待。新增独立原生UI进程覆盖runtime尚未创建时的实际Quit。
 - 本地Mac真实助手八场景全部通过，Windows Core与UI交叉编译通过；新增Windows原生用例等待CI。
 - 次要项暂缓：结构化Failure字段尚未展示，失败仍显示通用三语言提示。
+
+- 原生CI40003237532中，回执失败/取消/成功更新均通过，随后卸载遇到进程退出竞争（Win32 299，MainModule读取失败）。新增回归要求仅在有界确认进程已退出后忽略299，未确认的活进程身份错误继续拒绝操作，不跳过安装器测试。新提交需重跑原生CI。
+
+
+## 最终候选与原生证据（2026-10-24）
+
+- 产品52c6ae8：原生CI [40003242174](https://github.com/JaceHwang/QuotaBar/actions/runs/40003242174)双端成功，治理40003242223、40003237507成功。Windows实际Quit、24状态/语言/主题截图、完整候选、启动退出、安装/回退/卸载、更新助手六场景通过。另一次并行运行40003237532暴露上述299退出竞争，加固不因成功重跑而省略。
+- Mac最终候选`candidate-20261024-022754`：来源commit52c6ae8，119项来源指纹与签名后程序/运行时/助手摘要一致，严格签名、实际隔离启动退出、DMG CRC/SHA256通过；候选内真实助手八场景再次通过。第一次构建因GitHub许可证下载TLS中断失败，完整重试后通过，未跳过校验。
+- 进程竞争加固：Core失败回归→通过，活进程身份不明仍拒绝；完整治理再次通过。该加固的最新原生运行与最终交付状态见[Draft PR57](https://github.com/JaceHwang/QuotaBar/pull/57)及项目看板，不将历史CI当作新代码证据。
+- 本轮没有执行用户真实安装、合并或公开发布；旧v1.3.0仍需一次手动安装包含更新助手的版本。
+
+## 实施取舍和验证边界
+
+- Ruling: use contracts/in-app-updates rather than test-fixtures — existing .NET project copies contracts automatically and other shared fixtures live there; no semantic scope change.
+- Ruling: tag-cases folded into release-cases fixture rows so both parsers always see tag and asset together.
+- Ruling: shared download/package validation belongs in QuotaCore/QuotaBar.Core so GUI and helper reuse it; UI generation/start/cancel orchestration stays Task4 — no loss of validation; interface drift would require paired tests.
+- Ruling: incoming Mac packages require updateProtocol1 and updaterSignedSha256, added by Task3 packaging — prevents installing a package without an updater; old versions require manual fallback.
+- Ruling: URLs are compared by normalized path for filesystem identity; Foundation adds directory URL trailing slashes — rejecting that form broke a real temp-filesystem transaction test. Symlink resolution must still match path exactly.
+- Ruling: real-helper E2E scripts were introduced with Task3, ahead of Task5 wiring, to verify the helper before UI consumes it — avoids deferring process-boundary evidence; Windows results remain pending native CI.
+- Ruling: system notification/unread-list clicks open About; only the explicitly labelled bubble/button starts download — prevents old notification clicks silently initiating installation.
+- Ruling: source is frozen at e25cd9b and local full checks pass, so the one read-only whole-branch review overlaps external native CI during Task5 verification — this avoids idle time without adding implementation agents; any CI/review code changes still require RED→GREEN and full checks before completion, with the risk of later findings covered by that fix pass.
+- Final: minor (deferred): structured ApplicationUpdateProgress.Failure is not surfaced; generic localized failure text remains.
+- Final: Ruling: compromised repository/current-user account is outside this updater trust boundary — official HTTPS release metadata and the current installation remain trusted — compromise can replace trusted binaries and requires a separate signing/security project.
+- Final: Ruling: real user device, Bark permissions and a natural published cross-version update are not certified by fixture/native CI — retain explicit device-validation limits — platform-specific device issues may remain.
+- Final: Ruling: reviewer did not independently certify CI — primary queried e25cd9b native CI39970006140/39970014258 and governance39970014020/39970006220, all succeeded — new fixes still require new-head native CI.
