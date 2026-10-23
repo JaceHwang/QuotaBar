@@ -19,13 +19,22 @@ public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpd
         _=Task.Run(async ()=> {
             try {
                 await execute(version,update=> { lock(gate) { if(id!=generation || !CanCancel(progress.Phase)) return; progress=update; } Notify(Changed); },source.Token);
-                lock(gate) { if(id!=generation || source.IsCancellationRequested) return; commit?.Invoke(source.Token); progress=new(ApplicationUpdatePhase.HandingOff,0,0,null); cancellation=null; }
-                Notify(Changed); Notify(Ready);
+                await DeliverCompletion(()=> {
+                    lock(gate) { if(id!=generation || source.IsCancellationRequested) return; commit?.Invoke(source.Token); progress=new(ApplicationUpdatePhase.HandingOff,0,0,null); cancellation=null; }
+                    Changed?.Invoke(); Ready?.Invoke();
+                },source.Token);
             } catch {
                 lock(gate) { if(id!=generation) return; progress=new(source.IsCancellationRequested?ApplicationUpdatePhase.Cancelled:ApplicationUpdatePhase.Failed,0,0,null); cancellation=null; }
                 Notify(Changed);
             } finally { try { abandon?.Invoke(source.Token); } finally { source.Dispose(); } }
         });
+    }
+    async Task DeliverCompletion(Action action,CancellationToken cancel) {
+        if(context is null) { cancel.ThrowIfCancellationRequested(); action(); return; }
+        var completed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration=cancel.Register(()=>completed.TrySetCanceled(cancel));
+        context.Post(_=> { try { action(); completed.TrySetResult(); } catch(Exception error) { completed.TrySetException(error); } },null);
+        await completed.Task;
     }
     public void ReportResult(ApplicationUpdatePhase phase) {
         if(phase is not (ApplicationUpdatePhase.Succeeded or ApplicationUpdatePhase.RolledBack or ApplicationUpdatePhase.Failed)) return;

@@ -32,6 +32,16 @@ import QuotaCore
         try await Task.sleep(for: .milliseconds(3200))
         XCTAssertEqual(service.progress.phase, .succeeded)
     }
+    func testExitWaitsForCancelledPreparationToFinishCleanup() async throws {
+        let finished = UpdateTestCounter()
+        let service = ApplicationUpdateService(currentVersion: "1.3.0", execute: { _, _ in
+            try? await Task.sleep(for: .milliseconds(80)); await finished.increment()
+        })
+        service.start(version: "2.0.0"); service.cancel()
+        await service.waitForCleanup()
+        let count = await finished.count(); XCTAssertEqual(count, 1)
+        XCTAssertEqual(service.progress.phase, .cancelled)
+    }
     func testReadyAndFailureAreTerminalAndRetryable() async throws {
         let service = ApplicationUpdateService(currentVersion: "1.3.0", execute: { _, _ in throw CocoaError(.fileReadCorruptFile) })
         service.start(version: "2.0.0"); try await Task.sleep(for: .milliseconds(30)); XCTAssertEqual(service.progress.phase, .failed)

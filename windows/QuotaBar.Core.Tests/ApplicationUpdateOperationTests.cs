@@ -1,7 +1,16 @@
 using QuotaBar.Core;
 internal static class ApplicationUpdateOperationTests {
     sealed class DeliveryContext : SynchronizationContext { public int Posts; public override void Post(SendOrPostCallback callback,object? state) { Interlocked.Increment(ref Posts); callback(state); } }
+    sealed class PausedContext : SynchronizationContext {
+        readonly System.Collections.Concurrent.ConcurrentQueue<Action> queue=new();
+        public override void Post(SendOrPostCallback callback,object? state)=>queue.Enqueue(()=>callback(state));
+        public void Flush() { while(queue.TryDequeue(out var next)) next(); }
+    }
     public static async Task Run() {
+        var paused=new PausedContext(); var earlyPermits=0;
+        var awaitingUi=new ApplicationUpdateOperation((_,_,_)=>Task.CompletedTask,paused,commit:_=>earlyPermits++);
+        awaitingUi.Start("2.0.0"); await Task.Delay(40); if(earlyPermits!=0) throw new Exception("Helper permission committed before UI handoff");
+        awaitingUi.Cancel(); paused.Flush(); await Task.Delay(40); if(earlyPermits!=0 || awaitingUi.Progress.Phase!=ApplicationUpdatePhase.Cancelled) throw new Exception("Queued handoff survived cancellation");
         var dispatch=new DeliveryContext(); var dispatched=new ApplicationUpdateOperation((_,_,_)=>Task.CompletedTask,dispatch); dispatched.Start("2.0.0"); await Task.Delay(30); if(dispatch.Posts<2) throw new Exception("Update events bypassed UI context");
         var count=0; var ready=0; var permits=0;
         var operation=new ApplicationUpdateOperation(async (_,emit,cancel)=> { Interlocked.Increment(ref count); emit(new(ApplicationUpdatePhase.Downloading,1,3,null)); await Task.Delay(150); },commit:_=>Interlocked.Increment(ref permits));

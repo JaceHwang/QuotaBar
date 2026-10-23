@@ -72,6 +72,7 @@ final class QuotaUpdateController: NSObject {
             self?.check()
         }
     }
+    func waitForUpdateCleanup() async { await installer.waitForCleanup() }
     func stop() { installer.cancel(); stopped = true; session.invalidateAndCancel(); timer?.invalidate(); timer = nil; request?.cancel(); notifyTask?.cancel() }
     func check(manual: Bool = false) {
         guard !stopped, request == nil else { return }

@@ -612,7 +612,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         networkMonitor?.cancel(); networkMonitor = nil
         removeMouseMonitors()
         for task in tasks { task.cancel() }
-        Task { if let client { await client.stop() }; sender.reply(toApplicationShouldTerminate: true) }
+        Task { await updates?.waitForUpdateCleanup(); if let client { await client.stop() }; sender.reply(toApplicationShouldTerminate: true) }
         return .terminateLater
     }
     private func removeMouseMonitors() {

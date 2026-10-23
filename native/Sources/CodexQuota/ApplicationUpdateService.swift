@@ -9,6 +9,7 @@ import QuotaCore
     private let currentVersion: String
     private var task: Task<Void, Never>?
     private var generation = UUID()
+    private var retiring: [UUID: Task<Void, Never>] = [:]
     private(set) var targetVersion: String?
     private(set) var progress = ApplicationUpdateProgress(.idle)
     var onChange: (() -> Void)?
@@ -50,9 +51,20 @@ import QuotaCore
     }
     func cancel() {
         guard progress.phase.canCancel else { return }
-        generation = UUID(); task?.cancel(); task = nil; progress = ApplicationUpdateProgress(.cancelled); onChange?()
+        let retiredID = generation
+        if let pending = task {
+            retiring[retiredID] = pending; pending.cancel()
+            Task { [weak self] in await pending.value; self?.retiring.removeValue(forKey: retiredID) }
+        }
+        generation = UUID(); task = nil; progress = ApplicationUpdateProgress(.cancelled); onChange?()
+    }
+    func waitForCleanup() async {
+        cancel()
+        let pending = Array(retiring.values)
+        for worker in pending { await worker.value }
     }
     nonisolated private static func perform(version: String, currentVersion: String, emit: @escaping @Sendable (ApplicationUpdateProgress) -> Void) async throws -> UpdateReadyHandoff {
+        try Task.checkCancellation()
         guard Bundle.main.bundleURL.standardizedFileURL.path == UpdateLocations.target.standardizedFileURL.path else { throw UpdatePackageError.invalidIdentity }
         let download = try await UpdateDownloadClient().download(version: version, platform: "macos-arm64", currentVersion: currentVersion, cache: UpdateLocations.cache) { n, total in emit(ApplicationUpdateProgress(.downloading, received: n, total: total)) }
         var handedOff = false
