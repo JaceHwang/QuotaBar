@@ -83,9 +83,12 @@ internal static class Program {
                 heldRouter.ObserveQuota(O(21,3)); Check(hidden==1,"quota change hides actual router bubble");
             }
             using(var bubble = new CharacterNotificationBubble()) {
+                bubble.Build(new ExperienceNotification("reference", ExperienceNotificationKind.Recovery, "a", "额度已恢复", "5 小时剩余 100% · 7 天剩余 36%", DateTimeOffset.UtcNow),false,new Copy("zh-CN"));
+                Check(bubble.Width==420 && bubble.Height==142,"reference short message has compact 420 by 142 layout");
+                Check(Tree(bubble).OfType<System.Windows.Controls.Image>().Count()==1,"reference uses standalone character artwork");
                 var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
                 foreach(var dark in new[]{false,true}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
-                    bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(368,CharacterNotificationBubble.ContentHeight)); bubble.Arrange(new Rect(0,0,368,CharacterNotificationBubble.ContentHeight));
+                    bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(bubble.Width,bubble.Height)); bubble.Arrange(new Rect(0,0,bubble.Width,bubble.Height));
                     var fourLines="72 hours: 2 credits\n24 hours: 1 credit\nEarliest expiry:\n2026/10/23 14:00";
                     bubble.Build(m with { Body=fourLines },dark,new Copy(language));
                     var bodyText=Tree(bubble).OfType<TextBlock>().Single(t=>t.Text==fourLines);
@@ -96,19 +99,59 @@ internal static class Program {
                     bubble.Build(m,dark,copyForBubble);
                     Check(!bubble.ShowActivated && !bubble.ShowInTaskbar,"bubble is passive");
                     Check(Tree(bubble).OfType<Button>().Count()==2,"bubble has two distinct actions");
-                    Check(Tree(bubble).OfType<QuotaMoodView>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
+                    Check(Tree(bubble).OfType<System.Windows.Controls.Image>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
                     var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
                     foreach(var scale in new[]{1d,1.5d,2d}) {
-                        var content=(FrameworkElement)bubble.Content; bubble.Content=null; content.Measure(new Size(368,CharacterNotificationBubble.ContentHeight)); content.Arrange(new Rect(0,0,368,CharacterNotificationBubble.ContentHeight)); content.UpdateLayout();
+                        var content=(FrameworkElement)bubble.Content; bubble.Content=null; content.Measure(new Size(bubble.Width,bubble.Height)); content.Arrange(new Rect(0,0,bubble.Width,bubble.Height)); content.UpdateLayout();
                         foreach(var action in Tree(content).OfType<Button>()) {
                             var bounds=action.TransformToAncestor(content).TransformBounds(new Rect(0,0,action.ActualWidth,action.ActualHeight));
                             Check(new Rect(0,0,content.ActualWidth,content.ActualHeight).Contains(bounds),"bubble actions stay inside card");
                         }
-                        var bitmap=new RenderTargetBitmap((int)(368*scale),(int)(CharacterNotificationBubble.ContentHeight*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
+                        var bitmap=new RenderTargetBitmap((int)(bubble.Width*scale),(int)(bubble.Height*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
                         var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4]; bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
                         Check(Enumerable.Range(0,pixels.Length/4).Count(i=>pixels[i*4+3]>0)>pixels.Length/16,"bubble screenshot contains visible content");
                         var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-{language}-{dark}-{scale}.png")); encoder.Save(file); bubble.Content=content;
                     }
+                }
+            }
+            using(var referenceBubble=new CharacterNotificationBubble()) {
+                var scenes=new[] {
+                    (NotificationCharacterArtwork.Attention, ExperienceNotificationKind.Test,"7 天额度偏低","剩余 10%，距离重置还有 2 天。"),
+                    (NotificationCharacterArtwork.Recovery, ExperienceNotificationKind.Recovery,"额度已恢复","5 小时剩余 100% · 7 天剩余 36%"),
+                    (NotificationCharacterArtwork.Bank, ExperienceNotificationKind.Bank,"Bank 权益即将到期","已知 2 次权益将在 24 小时内到期。")
+                };
+                foreach(var (art,kind,title,body) in scenes) foreach(var referenceWidth in new[]{420d,340d}) foreach(var dark in new[]{false,true}) {
+                    referenceBubble.Width=referenceWidth;
+                    var reference=new ExperienceNotification("reference-"+art,kind,"a",title,body,DateTimeOffset.UtcNow) { DeliveryToken="reference-token" };
+                    referenceBubble.Build(reference,dark,new Copy("zh-CN"),art);
+                    var content=(FrameworkElement)referenceBubble.Content; referenceBubble.Content=null;
+                    content.Measure(new Size(referenceWidth,referenceBubble.Height)); content.Arrange(new Rect(0,0,referenceWidth,referenceBubble.Height)); content.UpdateLayout();
+                    var character=Tree(content).OfType<System.Windows.Controls.Image>().Single();
+                    var cropped=character.Source as CroppedBitmap;
+                    var expectedCrop=art switch { NotificationCharacterArtwork.Attention=>new Int32Rect(159,172,906,970), NotificationCharacterArtwork.Bank=>new Int32Rect(78,169,1040,980), _=>new Int32Rect(256,135,957,882) };
+                    Check(cropped is not null && cropped.SourceRect==expectedCrop,"reference artwork removes source canvas margins");
+                    if(cropped is not null) {
+                        var originalScale=Math.Min(character.Width/cropped.Source.PixelWidth,character.Height/cropped.Source.PixelHeight);
+                        var croppedScale=Math.Min(character.Width/cropped.PixelWidth,character.Height/cropped.PixelHeight);
+                        Check(croppedScale>originalScale,"cropped artwork has larger visible character at the same display size");
+                    }
+                    var buttons=Tree(content).OfType<Button>().ToArray();
+                    var primary=buttons.Single(b=>Equals(b.Tag,"notification.primary")); var secondary=buttons.Single(b=>Equals(b.Tag,"notification.acknowledge"));
+                    var focusTrigger=primary.Template.Triggers.OfType<Trigger>().Single(t=>t.Property==UIElement.IsKeyboardFocusedProperty);
+                    Check(focusTrigger.Setters.OfType<Setter>().Any(s=>s.Property==Border.BorderThicknessProperty && Equals(s.Value,new Thickness(2))),"primary keyboard focus has visible border even when normal border is zero");
+                    Check(Math.Abs(primary.ActualWidth/secondary.ActualWidth-1.2)<.01,"reference button ratio");
+                    var primaryRect=primary.TransformToAncestor(content).TransformBounds(new Rect(0,0,primary.ActualWidth,primary.ActualHeight));
+                    var secondaryRect=secondary.TransformToAncestor(content).TransformBounds(new Rect(0,0,secondary.ActualWidth,secondary.ActualHeight));
+                    Check(Math.Abs(secondaryRect.Left-primaryRect.Right-14)<.01 && primaryRect.Height==32,"reference button spacing and height");
+                    Check(primaryRect.Bottom<=referenceBubble.Height-11,"reference actions retain bottom padding");
+                    string? actionId=null,actionToken=null; referenceBubble.ActionRequested=(id,token)=>{actionId=id;actionToken=token;}; primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(actionId==reference.Id && actionToken==reference.DeliveryToken,"reference action preserves identity and delivery token");
+                    var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
+                    foreach(var scale in new[]{1d,1.5d,2d}) {
+                        var bitmap=new RenderTargetBitmap((int)Math.Ceiling(referenceWidth*scale),(int)Math.Ceiling(referenceBubble.Height*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
+                        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-reference-{art}-{referenceWidth}-{dark}-{scale}.png")); encoder.Save(file);
+                    }
+                    referenceBubble.Content=content;
                 }
             }
             var clicks=0; var closes=0;

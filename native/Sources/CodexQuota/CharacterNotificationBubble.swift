@@ -19,15 +19,43 @@ private final class BubbleSurfaceView: NSView {
     var dark = false
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: 1, dy: 1)
-        (dark ? NSColor(calibratedWhite: 0.14, alpha: 0.99) : NSColor(calibratedWhite: 1, alpha: 0.99)).setFill()
-        let path = NSBezierPath(roundedRect: rect, xRadius: 16, yRadius: 16); path.fill()
-        (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.10).setStroke(); path.lineWidth = 0.7; path.stroke()
-        let tail = NSBezierPath(); tail.move(to: NSPoint(x: 1, y: 38)); tail.line(to: NSPoint(x: -7, y: 45)); tail.line(to: NSPoint(x: 1, y: 52)); tail.close()
-        (dark ? NSColor(calibratedWhite: 0.14, alpha: 1) : NSColor.white).setFill(); tail.fill()
+        let rect = CGRect(x: 8, y: 0, width: bounds.width - 8, height: bounds.height)
+        let fill = dark ? NSColor(calibratedRed: 0.13, green: 0.16, blue: 0.21, alpha: 1) : .white
+        fill.setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 20, yRadius: 20).fill()
+        let y = bounds.height * 0.54
+        let tail = NSBezierPath(); tail.move(to: NSPoint(x: 9, y: y - 10)); tail.line(to: NSPoint(x: 0, y: y)); tail.line(to: NSPoint(x: 9, y: y + 10)); tail.close(); tail.fill()
     }
 }
-private final class BubbleActionButton: NSButton { var messageID = ""; var token: String? }
+private final class BubbleArtworkView: NSImageView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+private final class BubbleActionButton: NSButton {
+    var messageID = ""
+    var token: String?
+    var primary = false
+    var dark = false
+    override func becomeFirstResponder() -> Bool { let accepted = super.becomeFirstResponder(); needsDisplay = true; return accepted }
+    override func resignFirstResponder() -> Bool { let accepted = super.resignFirstResponder(); needsDisplay = true; return accepted }
+    override func draw(_ dirtyRect: NSRect) {
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 11, yRadius: 11)
+        if primary {
+            NSGradient(starting: NSColor(calibratedRed: 0.22, green: 0.28, blue: 0.35, alpha: 1), ending: NSColor(calibratedRed: 0.13, green: 0.18, blue: 0.25, alpha: 1))?.draw(in: path, angle: 90)
+        } else {
+            (dark ? NSColor(calibratedWhite: 0.23, alpha: 1) : NSColor(calibratedRed: 0.96, green: 0.97, blue: 0.99, alpha: 1)).setFill(); path.fill()
+            (dark ? NSColor(calibratedWhite: 0.35, alpha: 1) : NSColor(calibratedRed: 0.88, green: 0.90, blue: 0.94, alpha: 1)).setStroke(); path.lineWidth = 1; path.stroke()
+        }
+        if isHighlighted { NSColor.black.withAlphaComponent(0.12).setFill(); path.fill() }
+        if window?.firstResponder === self {
+            NSColor.keyboardFocusIndicatorColor.setStroke()
+            let focus = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 9, yRadius: 9)
+            focus.lineWidth = 2; focus.stroke()
+        }
+        let size = attributedTitle.size()
+        attributedTitle.draw(at: CGPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2))
+    }
+}
+enum NotificationCharacterArtwork: String { case attention, recovery, bank, neutral }
 @MainActor final class CharacterNotificationBubble: NSObject {
     let panel: NSPanel = BubblePassivePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     var onAction: ((String, String?) -> Void)?
@@ -39,52 +67,97 @@ private final class BubbleActionButton: NSButton { var messageID = ""; var token
         super.init(); panel.backgroundColor = .clear; panel.isOpaque = false; panel.hasShadow = true
         panel.hidesOnDeactivate = false; panel.level = .floating; panel.collectionBehavior = [.transient, .ignoresCycle]
     }
-    func content(message: ExperienceNotification, dark: Bool, language: CodexDisplayLanguage, width: CGFloat) -> NSView {
+    func content(message: ExperienceNotification, dark: Bool, language: CodexDisplayLanguage, width: CGFloat, artwork: NotificationCharacterArtwork? = nil) -> NSView {
         currentID = message.id
         let copy = ExperienceCopy(language)
-        let root = BubbleRootView(frame: CGRect(x: 0, y: 0, width: width, height: 180)); root.hover = { [weak self] in self?.onInteractionChanged?($0) }
+        let cardWidth = width - 112
+        let textWidth = cardWidth - 40
+        let titleFont = NSFont.systemFont(ofSize: 17, weight: .semibold)
+        let bodyFont = NSFont.systemFont(ofSize: 13)
+        var displayBody = message.body
+        if message.kind == .recovery || message.kind == .test {
+            displayBody = displayBody.replacingOccurrences(of: "额度剩余", with: "剩余").replacingOccurrences(of: "額度剩餘", with: "剩餘").replacingOccurrences(of: "；", with: " · ")
+        }
+        func measured(_ text: String, _ font: NSFont, lines: Int) -> CGFloat {
+            let line = ceil(font.ascender - font.descender + font.leading)
+            let height = (text as NSString).boundingRect(with: CGSize(width: textWidth, height: 1000), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font]).height
+            return min(line * CGFloat(lines), max(line, ceil(height)))
+        }
+        let titleHeight = max(22, measured(message.title, titleFont, lines: 2))
+        let bodyHeight = max(18, measured(displayBody, bodyFont, lines: 4))
+        let bodyY = 42 + titleHeight + 4
+        let actionsY = bodyY + bodyHeight + 12
+        let height = actionsY + 44
+        let root = BubbleRootView(frame: CGRect(x: 0, y: 0, width: width, height: height)); root.hover = { [weak self] in self?.onInteractionChanged?($0) }
         root.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        let card = BubbleSurfaceView(frame: CGRect(x: 48, y: 0, width: width - 48, height: 180)); card.dark = dark; root.addSubview(card)
-        let character = QuotaMoodView(frame: CGRect(x: 0, y: 26, width: 40, height: 48)); character.dark = dark
-        character.mood = message.kind == .recovery || message.kind == .test ? .recovered : .good
-        character.stars = false; root.addSubview(character)
-        if message.kind == .bank || message.kind == .update {
-            let symbol = NSImageView(frame: CGRect(x: 25, y: 57, width: 18, height: 18))
-            symbol.image = NSImage(systemSymbolName: message.kind == .bank ? "clock.fill" : "arrow.up.circle.fill", accessibilityDescription: nil)
-            symbol.contentTintColor = dark ? .white : .darkGray; root.addSubview(symbol)
+        let card = BubbleSurfaceView(frame: CGRect(x: 104, y: 0, width: cardWidth + 8, height: height)); card.dark = dark; root.addSubview(card)
+        let character = BubbleArtworkView(frame: CGRect(x: 0, y: height - 120, width: 104, height: 120))
+        let asset = artwork?.rawValue ?? (message.kind == .bank ? "bank" : message.kind == .update ? "neutral" : "recovery")
+        if let url = Bundle.module.url(forResource: asset, withExtension: "png", subdirectory: "Resources/NotificationCharacters"),
+           let source = NSImage(contentsOf: url) {
+            // Bound the illustration's visible footprint, excluding transparent export margins.
+            // Keep the shared source PNG untouched for both native platforms.
+            let crop: CGRect
+            switch asset {
+            case "attention": crop = CGRect(x: 159, y: 172, width: 906, height: 970)
+            case "bank": crop = CGRect(x: 78, y: 169, width: 1040, height: 980)
+            case "neutral": crop = CGRect(x: 272, y: 235, width: 710, height: 890)
+            default: crop = CGRect(x: 256, y: 135, width: 957, height: 882)
+            }
+            if let pixels = source.cgImage(forProposedRect: nil, context: nil, hints: nil)?.cropping(to: crop) {
+                character.image = NSImage(cgImage: pixels, size: crop.size)
+            } else { character.image = source }
         }
-        func label(_ text: String, size: CGFloat, weight: NSFont.Weight, y: CGFloat, height: CGFloat, lines: Int = 1) -> NSTextField {
-            let label = NSTextField(wrappingLabelWithString: text); label.font = .systemFont(ofSize: size, weight: weight)
-            label.maximumNumberOfLines = lines; label.usesSingleLineMode = false; label.cell?.wraps = true; label.cell?.isScrollable = false; label.lineBreakMode = .byWordWrapping; label.preferredMaxLayoutWidth = card.frame.width - 28
-            label.frame = CGRect(x: 14, y: y, width: card.frame.width - 28, height: height)
-            label.textColor = dark ? .white : NSColor(calibratedWhite: 0.12, alpha: 1); label.toolTip = text; card.addSubview(label); return label
+        character.imageScaling = .scaleProportionallyUpOrDown; character.identifier = .init("notification.character"); root.addSubview(character)
+        func label(_ text: String, font: NSFont, y: CGFloat, height: CGFloat, lines: Int = 1) -> NSTextField {
+            let label = NSTextField(wrappingLabelWithString: text); label.font = font
+            label.maximumNumberOfLines = lines; label.usesSingleLineMode = false; label.cell?.wraps = true; label.cell?.isScrollable = false; label.lineBreakMode = .byWordWrapping; label.preferredMaxLayoutWidth = textWidth
+            label.frame = CGRect(x: 28, y: y, width: textWidth, height: height)
+            label.textColor = dark ? .white : NSColor(calibratedRed: 0.04, green: 0.07, blue: 0.15, alpha: 1); label.toolTip = text; card.addSubview(label); return label
         }
-        let category: String
+        var category: String
         switch message.kind {
-        case .recovery: category = copy.text("Quota recovery", "额度恢复", "額度恢復")
+        case .recovery, .test: category = copy.text("Quota update", "额度更新", "額度更新")
         case .bank: category = copy.text("Bank reminder", "权益提醒", "權益提醒")
         case .update: category = copy.text("Software update", "软件更新", "軟體更新")
-        case .test: category = copy.text("Example", "示例", "範例")
         }
-        let tag = label(category, size: 10, weight: .medium, y: 12, height: 16); tag.textColor = message.kind == .recovery ? (dark ? .systemPurple : NSColor(calibratedRed: 0.4, green: 0.27, blue: 0.62, alpha: 1)) : (dark ? .systemOrange : NSColor(calibratedRed: 0.5, green: 0.32, blue: 0.12, alpha: 1))
-        _ = label(message.title, size: 14, weight: .semibold, y: 34, height: 34, lines: 2)
-        let body = label(message.body, size: 12, weight: .regular, y: 74, height: 60, lines: 4); body.textColor = dark ? NSColor(calibratedWhite: 0.8, alpha: 1) : .darkGray
+        if artwork == .attention { category = copy.text("Quota reminder", "额度提醒", "額度提醒") }
+        let amber = message.kind == .bank || artwork == .attention
+        let tag = label(category, font: .systemFont(ofSize: 11, weight: .semibold), y: 15, height: 16)
+        tag.textColor = dark ? (amber ? NSColor(calibratedRed: 1, green: 0.79, blue: 0.50, alpha: 1) : NSColor(calibratedRed: 0.82, green: 0.74, blue: 1, alpha: 1)) : (amber ? NSColor(calibratedRed: 0.52, green: 0.33, blue: 0.16, alpha: 1) : NSColor(calibratedRed: 0.37, green: 0.28, blue: 0.65, alpha: 1))
+        let pillWidth = min(textWidth, ceil(tag.attributedStringValue.size().width) + 24)
+        let pill = NSView(frame: CGRect(x: 28, y: 12, width: pillWidth, height: 22)); pill.wantsLayer = true; pill.layer?.cornerRadius = 11
+        pill.layer?.backgroundColor = (amber ? NSColor(calibratedRed: 1, green: 0.94, blue: 0.85, alpha: dark ? 0.18 : 1) : NSColor(calibratedRed: 0.91, green: 0.86, blue: 1, alpha: dark ? 0.18 : 1)).cgColor
+        card.addSubview(pill, positioned: .below, relativeTo: tag); tag.frame.origin.x += 12
+        _ = label(message.title, font: titleFont, y: 42, height: titleHeight, lines: 2)
+        let body = label(displayBody, font: bodyFont, y: bodyY, height: bodyHeight, lines: 4)
+        body.textColor = dark ? NSColor(calibratedWhite: 0.78, alpha: 1) : NSColor(calibratedRed: 0.35, green: 0.41, blue: 0.53, alpha: 1)
+        body.toolTip = message.body; body.setAccessibilityLabel(message.body)
         let title = message.kind == .bank ? copy.text("View Bank", "查看 Bank", "查看 Bank") : message.kind == .update ? copy.text("View update", "查看更新", "查看更新") : copy.text("View details", "查看详情", "查看詳情")
-        let actionWidth = (card.frame.width - 36) / 2
-        let primary = BubbleActionButton(title: title, target: self, action: #selector(viewTapped(_:))); primary.messageID = message.id; primary.token = message.deliveryToken; primary.bezelColor = NSColor(calibratedRed: 0.18, green: 0.23, blue: 0.3, alpha: 1); primary.contentTintColor = .white; primary.bezelStyle = .rounded; primary.frame = CGRect(x: 12, y: 138, width: actionWidth, height: 28); primary.font = .systemFont(ofSize: 12, weight: .semibold); primary.attributedTitle = NSAttributedString(string: title, attributes: [.font: primary.font!, .foregroundColor: NSColor.white]); primary.identifier = .init("notification.primary"); card.addSubview(primary)
-        let acknowledge = BubbleActionButton(title: copy.text("Got it", "知道了", "知道了"), target: self, action: #selector(acknowledgeTapped(_:))); acknowledge.messageID = message.id; acknowledge.token = message.deliveryToken; acknowledge.bezelStyle = .rounded; acknowledge.frame = CGRect(x: card.frame.width - 14 - actionWidth, y: 138, width: actionWidth, height: 28); acknowledge.font = .systemFont(ofSize: 12); acknowledge.identifier = .init("notification.acknowledge"); card.addSubview(acknowledge)
+        let available = textWidth - 14
+        let primaryWidth = floor(available * 1.2 / 2.2)
+        func button(_ title: String, primary: Bool, x: CGFloat, width: CGFloat, action: Selector, identifier: String) {
+            let button = BubbleActionButton(title: title, target: self, action: action)
+            button.messageID = message.id; button.token = message.deliveryToken; button.primary = primary; button.dark = dark; button.isBordered = false
+            button.frame = CGRect(x: x, y: actionsY, width: width, height: 32); button.font = .systemFont(ofSize: 13, weight: primary ? .semibold : .medium)
+            button.attributedTitle = NSAttributedString(string: title, attributes: [.font: button.font!, .foregroundColor: primary ? NSColor.white : (dark ? NSColor.white : NSColor(calibratedRed: 0.35, green: 0.41, blue: 0.53, alpha: 1))])
+            button.identifier = .init(identifier); card.addSubview(button)
+        }
+        button(title, primary: true, x: 28, width: primaryWidth, action: #selector(viewTapped(_:)), identifier: "notification.primary")
+        button(copy.text("Got it", "知道了", "知道了"), primary: false, x: 28 + primaryWidth + 14, width: available - primaryWidth, action: #selector(acknowledgeTapped(_:)), identifier: "notification.acknowledge")
         root.setAccessibilityLabel(message.title + ". " + message.body)
         return root
     }
     func show(message: ExperienceNotification, anchor: CGRect, dark: Bool, language: CodexDisplayLanguage) -> Bool {
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return false }
         let work = screen.visibleFrame
-        let width = min(368, work.width - 16)
-        guard width >= 308 else { return false }
+        let width = min(420, work.width - 16)
+        guard width >= 340 else { return false }
         let normalizedAnchor = CGRect(x: anchor.minX, y: -anchor.maxY, width: anchor.width, height: anchor.height)
         let normalizedWork = CGRect(x: work.minX, y: -work.maxY, width: work.width, height: work.height)
-        guard let rect = NotificationBubbleLayout.place(anchor: normalizedAnchor, workArea: normalizedWork, size: CGSize(width: width, height: 180)) else { return false }
-        panel.contentView = content(message: message, dark: dark, language: language, width: width)
+        let view = content(message: message, dark: dark, language: language, width: width)
+        guard let rect = NotificationBubbleLayout.place(anchor: normalizedAnchor, workArea: normalizedWork, size: view.frame.size) else { return false }
+        panel.contentView = view
         panel.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         panel.setFrame(CGRect(x: rect.minX, y: -rect.maxY, width: rect.width, height: rect.height), display: true)
         panel.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : 0
