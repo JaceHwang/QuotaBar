@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/JaceHwang/QuotaBar/compare/v1.2.0...v1.3.0) (2026-10-23)
+
+
+### Features
+
+* add character reminders, Bark push and unified settings ([e2026e5](https://github.com/JaceHwang/QuotaBar/commit/e2026e59781a36992461bf875000e33f9dc6c237))
+
 ## [1.2.0](https://github.com/JaceHwang/QuotaBar/compare/v1.1.0...v1.2.0) (2026-10-22)
 
 
