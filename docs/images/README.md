@@ -13,3 +13,7 @@ Only rectangular cropping was applied. No values, labels or controls were synthe
 The original system-language preference and menu bar icon-only setting were restored after capture. Raw captures containing account information remain outside the repository and are not documentation assets.
 
 `character-bubble-c-reference.png` 是用户提供并选定的C角色对白视觉参考，仅用于开发验收，不作为运行时资源。
+
+- `settings-c-connection-guide-reference.png`：用户选定的 C 设置页视觉概念，仅用于设计及验收，不作为运行时背景或真实应用截图。
+
+- `settings-c-macos-mobile.png` / `settings-c-macos-about.png`：C设置方案实际AppKit渲染（简中浅色），示例/未配置状态；不包含真实Key或账户数据。

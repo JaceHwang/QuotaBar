@@ -46,6 +46,11 @@ import QuotaCore
         do { try secrets.save(key) } catch { changed(.unavailable); return false }
         cancelAll(); preferences.configurationGeneration = UUID().uuidString; configured = true; draft = ""; onConfigurationChange?(); let baseline = persistSuppression(); if !baseline { preferences.enabled = false }; persist(); changed(baseline ? .configured : .persistenceFailure); return true
     }
+    /// Read back only for an explicit local reveal action. Never changes delivery state.
+    func keyForExplicitReveal() -> String? {
+        do { return try secrets.read() }
+        catch { changed(.unavailable); return nil }
+    }
     @discardableResult func clearKey() -> Bool {
         cancelAll(); preferences.enabled = false; preferences.configurationGeneration = UUID().uuidString; persist()
         do { try secrets.clear() } catch { changed(.unavailable); return false }

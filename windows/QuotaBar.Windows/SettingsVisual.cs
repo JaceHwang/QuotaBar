@@ -22,17 +22,18 @@ internal static class SettingsVisual {
     }
     public static void ApplyButtons(DependencyObject root,bool dark) {
         if(root is Button button) {
-            button.Template=RoundedButtonTemplate; button.Foreground=Ui.Foreground(dark);
+            button.Template=RoundedButtonTemplate; if(button.ReadLocalValue(Control.ForegroundProperty)==DependencyProperty.UnsetValue) button.Foreground=Ui.Foreground(dark);
             button.BorderBrush=new SolidColorBrush(Color.FromArgb(55,128,128,128));
             if(button.ReadLocalValue(Control.BorderThicknessProperty)==DependencyProperty.UnsetValue) button.BorderThickness=new Thickness(1);
             if(button.ReadLocalValue(Control.BackgroundProperty)==DependencyProperty.UnsetValue) button.Background=dark?new SolidColorBrush(Color.FromRgb(38,40,46)):Brushes.White;
         }
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) ApplyButtons(child,dark);
     }
+    public static void Primary(Button button) { button.Background=new SolidColorBrush(Color.FromRgb(8,127,91)); button.Foreground=Brushes.White; }
     public static Brush Muted(bool dark)=>new SolidColorBrush(dark?Color.FromRgb(170,175,187):Color.FromRgb(110,116,130));
     public static Border Card(UIElement child,bool dark,Thickness? padding=null)=>new() { Child=child,Background=Ui.Surface(dark),BorderBrush=new SolidColorBrush(Color.FromArgb(40,128,128,128)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=padding??new Thickness(16),Margin=new Thickness(0,0,0,10) };
     public static UIElement NavigationLabel(int index,string title,Brush foreground) {
-        var geometries=new[]{"M 8,1 A 3,3 0 1 0 8,7 A 3,3 0 1 0 8,1 M 2,15 C 2,8 14,8 14,15 Z", "M 1,2 L 15,2 L 15,12 L 1,12 Z M 8,12 L 8,15 M 5,15 L 11,15", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 5,6 L 5,7 M 11,6 L 11,7 M 4,10 Q 8,15 12,10", "M 14,6 A 6,6 0 0 0 3,3 L 1,5 M 1,1 L 1,5 L 5,5 M 2,10 A 6,6 0 0 0 13,13 L 15,11 M 11,11 L 15,11 L 15,15", "M 4,1 L 12,1 L 12,15 L 4,15 Z M 7,12 L 9,12"};
+        var geometries=new[]{"M 8,1 A 3,3 0 1 0 8,7 A 3,3 0 1 0 8,1 M 2,15 C 2,8 14,8 14,15 Z", "M 1,2 L 15,2 L 15,12 L 1,12 Z M 8,12 L 8,15 M 5,15 L 11,15", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 5,6 L 5,7 M 11,6 L 11,7 M 4,10 Q 8,15 12,10", "M 4,1 L 12,1 L 12,15 L 4,15 Z M 7,12 L 9,12", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 8,7 L 8,12 M 8,4 L 8,5"};
         var row=new StackPanel { Orientation=Orientation.Horizontal };
         row.Children.Add(new System.Windows.Shapes.Path { Data=Geometry.Parse(geometries[index]),Stroke=foreground,StrokeThickness=1.4,Width=18,Height=18,Stretch=Stretch.Uniform,Margin=new Thickness(0,0,10,0),VerticalAlignment=VerticalAlignment.Center });
         var label=Ui.Text(title,13,foreground); label.VerticalAlignment=VerticalAlignment.Center; row.Children.Add(label); return row;

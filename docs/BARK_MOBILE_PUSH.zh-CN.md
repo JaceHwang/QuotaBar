@@ -4,12 +4,12 @@ Bark 手机推送尚未包含在公开 v1.2.0。此文对应开发分支，验�
 
 ## 配置
 
-1. 在 iPhone 安装 Bark，从 Bark 复制 Device Key。
+1. 在 iPhone 的 [App Store](https://apps.apple.com/app/bark-custom-notifications/id1403753865) 安装 Bark，并允许通知。打开 Bark，复制测试链接 `https://api.day.app/你的Key/测试内容` 中的 Key 部分。
 2. 打开 QuotaBar 设置 → 手机推送，将 Key 输入密码框，点击“保存 Key”。请只输入 Key，不要输入完整推送 URL。
 3. 点击“发送测试推送”。测试只用示例内容，即使自动手机推送关闭也可使用。
 4. 确认手机收到消息后，开启“启用手机推送”。保存 Key 不会自动开启或发送。
 
-Key 请直接在本机输入，不要粘贴到聊天、截图或 issue。已保存的 Key 不会回填到输入框；留空不会清除旧 Key。需要删除时使用“清除 Key”，自动推送随之关闭。
+Key 请直接在本机输入，不要粘贴到聊天、截图或 issue。已保存的 Key 不会自动回填；点击眼睛可在本机显式查看已保存的 Key 或当前草稿，再次点击隐藏。切换页面或窗口失焦时自动遮掩，查看已保存内容不会将其变成待保存草稿、开启推送或产生请求。留空不会清除旧 Key。需要删除时使用“清除 Key”，自动推送随之关闭。
 
 第一版使用固定官方服务器 `https://api.day.app/push`，不支持自建服务器、多设备或完整 URL 配置。无 Key 时不能启用。macOS 使用 Keychain，Windows 使用当前用户的 Credential Manager；系统安全存储不可用时不会降级明文保存。
 
@@ -38,6 +38,8 @@ Key 请直接在本机输入，不要粘贴到聊天、截图或 issue。已保�
 启用后，现有提醒标题、正文、Device Key 和固定分组/普通优先级通过 HTTPS 发往 Bark 官方服务，再由 APNs 处理。标题正文可能包含额度百分比、已知到期时间或更新摘要；不发送账户邮箱、头像、登录凭据、原始协议响应或日志。本版未配置 Bark 加密消息，不声称端到端加密。
 
 Key 不写入普通偏好、收据或日志。安全存储失败、配置错误、网络错误等只显示本地化分类，不展示服务器原文或含凭据的异常。保留损坏收据文件用于排查，并保守抑制现有提醒，避免重复轰炸。
+
+手机推送页提供“安装 Bark → 获取 Key → 连接测试”图文向导，图中 `DEMO_KEY` 仅为示例。下载及教程按钮打开官方页面。
 
 请同时参考[隐私说明](PRIVACY.md)、[故障排查](TROUBLESHOOTING.md)及[Bark 官方教程](https://github.com/Finb/Bark/blob/master/docs/tutorial.md)。
 

@@ -28,7 +28,7 @@ import AppKit
         self.pages = pages; versionLabel = NSTextField(labelWithString: "v" + version)
         super.init(frame: NSRect(x: 0, y: 0, width: 1000, height: 680))
         addSubview(sidebar); sidebar.addSubview(brand); sidebar.addSubview(versionLabel)
-        let mark = QuotaThemeIconView(frame: NSRect(x: 20, y: 15, width: 38, height: 38)); sidebar.addSubview(mark)
+        let mark = AboutBatteryArtwork(frame: NSRect(x: 20, y: 15, width: 38, height: 38)); sidebar.addSubview(mark)
         brand.font = .systemFont(ofSize: 20, weight: .bold); versionLabel.font = .systemFont(ofSize: 11); versionLabel.textColor = .secondaryLabelColor
         for (index, page) in pages.enumerated() {
             let button = NSButton(title: page.navigationTitle ?? page.title, target: self, action: #selector(navigate(_:)))
@@ -48,7 +48,7 @@ import AppKit
         selectPage(2)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    @objc private func checkUpdates() { selectPage(3); onCheckUpdates?() }
+    @objc private func checkUpdates() { selectPage(pages.count - 1); onCheckUpdates?() }
     @objc private func navigate(_ sender: NSButton) { selectPage(sender.tag) }
     func selectPage(_ index: Int) {
         guard pages.indices.contains(index) else { return }
@@ -77,7 +77,7 @@ import AppKit
         // Sidebar is unflipped, so its controls are positioned from the top.
         brand.frame = NSRect(x: 66, y: bounds.height - 54, width: 125, height: 27)
         versionLabel.frame = NSRect(x: 68, y: bounds.height - 73, width: 100, height: 18)
-        sidebar.subviews.compactMap { $0 as? QuotaThemeIconView }.first?.frame = NSRect(x: 20, y: bounds.height - 65, width: 36, height: 36)
+        sidebar.subviews.compactMap { $0 as? AboutBatteryArtwork }.first?.frame = NSRect(x: 20, y: bounds.height - 65, width: 36, height: 36)
         for (index, button) in navigation.enumerated() {
             let y = bounds.height - 140 - CGFloat(index) * 40
             button.frame = NSRect(x: 12, y: y, width: side - 24, height: 34)
@@ -113,7 +113,8 @@ import AppKit
 
     static func line() -> NSView { let box = NSBox(); box.boxType = .separator; return box }
     static func button(_ title: String, target: AnyObject?, action: Selector?, primary: Bool = false) -> NSButton {
-        let button = NSButton(title: title, target: target, action: action)
+        let button: NSButton = primary ? SettingsAccentButton(title: title, target: target, action: action) : NSButton(title: title, target: target, action: action)
+        if primary { button.heightAnchor.constraint(equalToConstant: 32).isActive = true }
         button.bezelStyle = .rounded; button.controlSize = .regular
         button.font = .systemFont(ofSize: 13)
         if primary { button.bezelColor = .controlAccentColor }

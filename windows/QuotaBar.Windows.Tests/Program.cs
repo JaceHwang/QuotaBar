@@ -222,7 +222,8 @@ internal static class Program {
                     var moodBitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); moodBitmap.Render(settings);
                     var moodEncoder=new PngBitmapEncoder(); moodEncoder.Frames.Add(BitmapFrame.Create(moodBitmap)); using(var moodFile=File.Create(Path.Combine(output,"settings-b-"+(dark?"dark":"light")+".png"))) moodEncoder.Save(moodFile);
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
-                    Check(navigation.Length==5,"five sidebar pages preserving updates fourth");
+                    Check(navigation.Select(b=>b.Tag?.ToString()).SequenceEqual(new[]{"settings-nav-account","settings-nav-display","settings-nav-moods","settings-nav-mobile","settings-nav-updates"}),"about is last and legacy update route preserved");
+                    Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="settings-website").IsEnabled==false,"unpublished website disabled");
                     var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
                     var peer=new System.Windows.Automation.Peers.CheckBoxAutomationPeer(moodToggle);
                     var togglePattern=(System.Windows.Automation.Provider.IToggleProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle);
@@ -248,6 +249,15 @@ internal static class Program {
                         Check(owner.Updates.Status==owner.Copy.Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。"),"update result follows language changes");
                         foreach(var key in new[]{"account","display","moods","updates","mobile"}) {
                             Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-"+key).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                            if(key is "updates" or "mobile") {
+                                settings.Width=920; settings.Height=800; Pump();
+                                foreach(var scroll in Tree(settings).OfType<ScrollViewer>().Where(v=>v.IsVisible)) scroll.ScrollToTop(); Pump();
+                                if(key=="mobile") Check(Tree(settings).OfType<BarkPhoneIllustration>().Any(v=>v.IsVisible),"C mobile guide draws native phone illustration");
+                                foreach(var dpi in new[]{96d,192d}) {
+                                    var scene=new RenderTargetBitmap((int)(settings.ActualWidth*dpi/96),(int)(settings.ActualHeight*dpi/96),dpi,dpi,PixelFormats.Pbgra32); scene.Render(settings);
+                                    var sceneEncoder=new PngBitmapEncoder(); sceneEncoder.Frames.Add(BitmapFrame.Create(scene)); using var sceneStream=File.Create(Path.Combine(output,$"settings-c-{language}-{dark}-{key}-{dpi}.png")); sceneEncoder.Save(sceneStream);
+                                }
+                            }
                             settings.Width=840; settings.Height=560; Pump();
                             Check(Tree(settings).OfType<CheckBox>().Where(b=>b.IsVisible).All(b=>b.ActualWidth<=640),"settings controls remain within reading width");
                             foreach(var scroll in Tree(settings).OfType<ScrollViewer>().Where(v=>v.IsVisible)) {
@@ -264,10 +274,24 @@ internal static class Program {
                     }
                     Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-mobile").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     var keyDraft=Tree(settings).OfType<PasswordBox>().Single(); keyDraft.Password="fake-draft-key";
-                    settings.Build(); Pump(); Check(Tree(settings).OfType<PasswordBox>().Single().Password=="fake-draft-key","mobile draft survives settings rebuild");
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-reveal").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="fake-draft-key","eye reveals draft");
+                    settings.Build(); Pump(); Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="","rebuild clears visible key"); Check(Tree(settings).OfType<PasswordBox>().Single().Password=="fake-draft-key","mobile draft survives settings rebuild");
                     Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     Check(owner.Mobile.HasKey&&!owner.Mobile.Preferences.Enabled&&Tree(settings).OfType<PasswordBox>().Single().Password=="","save configures without enabling and does not read key back");
-                    Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-test").IsEnabled,"configured mobile sample test available while automatic off");
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-reveal").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="fake-draft-key","explicit eye retrieves saved fake key");
+                    Check(Tree(settings).OfType<PasswordBox>().Single().Password=="","viewing saved key never copies into draft");
+                    Check(!Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").IsEnabled,"read-only saved reveal disables save");
+                    var revealGeneration=owner.Mobile.Preferences.ConfigurationGeneration; var revealStatus=owner.Mobile.Status;
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(owner.Mobile.Preferences.ConfigurationGeneration==revealGeneration&&owner.Mobile.Status==revealStatus,"saved reveal save guard leaves configuration and status untouched");
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-account").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="","navigation clears revealed secret");
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-mobile").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-reveal").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    settings.Hide(); Pump(); Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="","hidden window clears revealed secret"); Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").IsEnabled,"conceal restores draft save"); settings.Show(); Pump();
+                    Check(Tree(settings).OfType<Button>().Where(b=>b.Tag?.ToString() is "bark-test" or "bark-guide-test").Count(b=>b.IsEnabled)==2,"both configured mobile sample actions available while automatic off");
                     foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
                         owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
                         var configured=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); configured.Render(settings);

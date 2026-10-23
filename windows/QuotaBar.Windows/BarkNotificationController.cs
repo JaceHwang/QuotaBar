@@ -60,6 +60,8 @@ internal sealed class BarkNotificationController : IDisposable {
         if(deliveries.EstablishBaseline(pendingBaseline,now)) { pendingBaseline.Clear(); return true; }
         Preferences=Preferences with { Enabled=false }; CancelAll(); PersistPreferences(); SetStatus(BarkStatus.PersistenceUnavailable); return false;
     }
+    // Called only by the explicit reveal control. Never persist or cache the returned secret.
+    public string? RevealKeyForUser() { lock(gate) { if(stopped) return null; var value=secrets.Read(); if(value.State!=BarkSecretState.Available) { SetStatus(value.State==BarkSecretState.Missing?BarkStatus.NotConfigured:BarkStatus.StorageUnavailable); return null; } return value.Key; } }
     public bool SaveKey(string draft) {
         lock(gate) {
             if(stopped) return false;

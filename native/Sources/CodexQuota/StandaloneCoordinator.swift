@@ -461,16 +461,17 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         let experiences = column()
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Manage quota moods, notifications and celebrations.", "管理额度相关的表情、提醒和互动效果。", "管理額度相關的表情、提醒和互動效果。"), secondary: true), in: experiences)
         if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
-        let updatePage = column()
-        if let updates { QuotaSettingsStyle.fill(updates.makeSettingsView(), in: updatePage) }
-        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Updates", "更新", "更新"), symbol: "arrow.triangle.2.circlepath", content: updatePage), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: BarkSettingsView(controller: bark, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }))]
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
+        let about = AboutSettingsView(version: bundleVersion ?? updates?.currentVersion ?? "—", updates: updates?.makeSettingsView(), text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
+        let mobile = BarkSettingsView(controller: bark, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: mobile), QuotaSettingsPage(title: text("About app", "关于应用", "關於應用程式"), symbol: "info.circle", content: about)]
         let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? updates?.currentVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }
         settingsShell = shell
-        shell.onSelection = { [weak self] in self?.settingsPage = $0; self?.synchronizeSettingsControls() }; shell.selectPage(settingsPage)
+        mobile.onLayoutChange = { [weak shell] in shell?.refreshDocumentSize() }
+        shell.onSelection = { [weak self, weak mobile] in if $0 != 3 { mobile?.conceal() }; self?.settingsPage = $0; self?.synchronizeSettingsControls() }; shell.selectPage(settingsPage)
         window.contentView = shell
-        window.setContentSize(NSSize(width: min(900, (NSScreen.main?.visibleFrame.width ?? 1200) - 60), height: min(650, (NSScreen.main?.visibleFrame.height ?? 900) - 90)))
+        window.setContentSize(NSSize(width: min(900, (NSScreen.main?.visibleFrame.width ?? 1200) - 60), height: min(760, (NSScreen.main?.visibleFrame.height ?? 900) - 90)))
         updates?.onChange = { [weak shell] in shell?.refreshDocumentSize() }
         settings = window
         updateAccountSettings()

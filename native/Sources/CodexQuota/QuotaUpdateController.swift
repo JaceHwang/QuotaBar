@@ -35,6 +35,7 @@ final class QuotaUpdateController: NSObject {
     var statusText: String { status }
     private(set) var available: UpdateRelease?
     private weak var statusField: NSTextField?
+    private weak var notesField: NSTextField?
     private weak var actions: NSStackView?
     private weak var checkButton: NSButton?
     private weak var progress: NSProgressIndicator?
@@ -106,44 +107,42 @@ final class QuotaUpdateController: NSObject {
         refreshView()
     }
     func makeSettingsView() -> NSView {
-        let stack = QuotaSettingsStyle.column(20)
-        let header = QuotaSettingsStyle.column(10)
-        let brand = NSStackView(); brand.spacing = 10
-        let icon = QuotaThemeIconView(frame: .zero)
-        icon.widthAnchor.constraint(equalToConstant: 32).isActive = true; icon.heightAnchor.constraint(equalToConstant: 32).isActive = true
-        brand.addArrangedSubview(icon)
-        let name = QuotaSettingsStyle.label("QuotaBar", size: 16); name.font = .systemFont(ofSize: 16, weight: .semibold); brand.addArrangedSubview(name)
-        header.addArrangedSubview(brand)
-        let label = QuotaSettingsStyle.label("", size: 12, secondary: true); statusField = label; QuotaSettingsStyle.fill(label, in: header)
-        let checkRow = NSStackView(); checkRow.spacing = 10
-        let check = QuotaSettingsStyle.button(text("Check for updates", "检查更新", "檢查更新"), target: self, action: #selector(manualCheck)); checkButton = check; checkRow.addArrangedSubview(check)
+        let group = QuotaSettingsStyle.column(6)
+        let heading = QuotaSettingsStyle.label(text("Version & updates", "版本与更新", "版本與更新"), size: 13)
+        heading.font = .systemFont(ofSize: 13, weight: .semibold); QuotaSettingsStyle.fill(heading, in: group)
+        let automatic = QuotaSettingsSwitch(); automatic.target = self; automatic.action = #selector(autoChanged); automatic.state = auto ? .on : .off
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Automatically check for updates", "自动检查更新", "自動檢查更新"), control: automatic), in: group)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: group)
+        let reminder = QuotaSettingsSwitch(); reminder.target = self; reminder.action = #selector(remindersChanged); reminder.state = reminders ? .on : .off
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Update reminders", "更新提醒", "更新提醒"), control: reminder), in: group)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: group)
+        let label = QuotaSettingsStyle.label("", size: 12, secondary: true); statusField = label
+        let checkRow = NSStackView(); checkRow.spacing = 10; checkRow.alignment = .centerY; checkRow.addArrangedSubview(label)
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let gap = NSView(); gap.setContentHuggingPriority(.init(1), for: .horizontal); checkRow.addArrangedSubview(gap)
+        let check = QuotaSettingsStyle.button(text("Check for updates", "检查更新", "檢查更新"), target: self, action: #selector(manualCheck), primary: true); check.bezelColor = .systemGreen; checkButton = check; checkRow.addArrangedSubview(check)
         let spinner = NSProgressIndicator(); spinner.style = .spinning; spinner.controlSize = .small; spinner.isDisplayedWhenStopped = false; progress = spinner; checkRow.addArrangedSubview(spinner)
-        header.addArrangedSubview(checkRow)
+        QuotaSettingsStyle.fill(checkRow, in: group)
         let row = NSStackView(); row.orientation = .horizontal; row.spacing = 8
         for (label, action) in [(text("View update", "查看更新", "查看更新"), #selector(openRelease)), (text("Remind later", "稍后提醒", "稍後提醒"), #selector(snooze)), (text("Skip version", "跳过此版本", "跳過此版本"), #selector(skip))] {
             row.addArrangedSubview(QuotaSettingsStyle.button(label, target: self, action: action))
         }
-        header.addArrangedSubview(row); actions = row
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(header), in: stack)
-        let options = QuotaSettingsStyle.column(0)
-        let automatic = QuotaSettingsSwitch(); automatic.target = self; automatic.action = #selector(autoChanged); automatic.state = auto ? .on : .off
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Automatically check for updates", "自动检查更新", "自動檢查更新"), control: automatic), in: options)
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: options)
-        let reminder = QuotaSettingsSwitch(); reminder.target = self; reminder.action = #selector(remindersChanged); reminder.state = reminders ? .on : .off
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Update reminders", "更新提醒", "更新提醒"), control: reminder), in: options)
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(options), in: stack)
-        refreshView(); return stack
+        group.addArrangedSubview(row); actions = row
+        let notes = QuotaSettingsStyle.label("", size: 12, secondary: true); notesField = notes; QuotaSettingsStyle.fill(notes, in: group)
+        refreshView(); return QuotaSettingsStyle.card(group)
     }
     private func refreshView() {
         let current = text("Current version", "当前版本", "目前版本")
         let extra = available.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0.version } ?? ""
         let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
         statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(status)"
+        notesField?.stringValue = ""
         if let notes = available?.releaseNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            statusField?.stringValue += "\n\n" + notes
+            notesField?.stringValue = notes
         } else if let summary = available?.notificationSummary {
-            statusField?.stringValue += "\n\n" + summary
+            notesField?.stringValue = summary
         }
+        notesField?.isHidden = notesField?.stringValue.isEmpty != false
         actions?.isHidden = available == nil
         checkButton?.isEnabled = request == nil
         if request == nil { progress?.stopAnimation(nil) } else { progress?.startAnimation(nil) }

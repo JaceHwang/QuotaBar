@@ -38,7 +38,7 @@ Enable system notifications for QuotaBar and check OS Focus/Do Not Disturb if a 
 
 ## Bark 手机推送（开发候选）
 
-在第五页“手机推送”填写 Device Key（不是完整 URL），保存、显式发送测试，再开启自动手机推送。保存不自动启用；空输入不清除旧值，请使用“清除 Key”。无需手机号、邮箱或 Apple Device Token，不要在 issue 或聊天中粘贴 Key。
+在设置“手机推送”页填写 Device Key（不是完整 URL），保存、显式发送测试，再开启自动手机推送。保存不自动启用；空输入不清除旧值，请使用“清除 Key”。眼睛按钮可显式查看 Key，切页或窗口失焦会重新遮掩。无需手机号、邮箱或 Apple Device Token，不要在 issue 或聊天中粘贴 Key。
 
 “服务已接受”只说明 Bark 的 HTTP/业务响应成功，请在手机确认实际显示。检查 iPhone 的 Bark 通知权限、网络和专注模式；超时显示结果未知，避免重复请求，因此失败不自动重试。手动测试不修改真实提醒基线。
 

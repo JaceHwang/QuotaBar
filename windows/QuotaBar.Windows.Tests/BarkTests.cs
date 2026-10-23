@@ -35,6 +35,8 @@ internal static class BarkTests {
             using var controller=new BarkNotificationController(secrets,transport,new BarkDeliveryStore(Path.Combine(root,"receipts.json")),prefs,p=>prefs=p);
             Check(!controller.SetEnabled(true)&&!prefs.Enabled,"missing key cannot enable");
             Check(controller.SaveKey("fake-device-key")&&!prefs.Enabled&&transport.Sends==0,"save is explicit and does not enable or send");
+            var beforeReveal=prefs; Check(controller.RevealKeyForUser()=="fake-device-key"&&prefs==beforeReveal&&transport.Sends==0,"explicit reveal reads saved key without sending or changing preferences");
+            secrets.Fail=true; Check(controller.RevealKeyForUser() is null&&controller.Status==BarkStatus.StorageUnavailable&&prefs==beforeReveal&&transport.Sends==0,"unavailable reveal surfaces failure without preferences or delivery mutation"); secrets.Fail=false;
             Check(controller.SetEnabled(true),"saved key enables");
             var receipt=0; var message=new ExperienceNotification("event",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow);
             controller.Enqueue(message,_=>true,_=>receipt++); await controller.WhenIdle;
