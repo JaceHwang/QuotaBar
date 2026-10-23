@@ -41,7 +41,7 @@ internal sealed class SettingsWindow : Window {
         Background=Ui.Surface(dark); Foreground=fg; shell.Children.Clear(); shell.ColumnDefinitions.Clear(); shell.ColumnDefinitions.Add(new() { Width=new GridLength(202) }); shell.ColumnDefinitions.Add(new());
         Title="QuotaBar — "+copy.Text("Settings","设置","設定");
         var sidebar=new DockPanel { Margin=new Thickness(12,22,12,16) };
-        var brand=new StackPanel { Margin=new Thickness(8,6,0,28) }; var brandRow=new StackPanel { Orientation=Orientation.Horizontal }; brandRow.Children.Add(new AboutBatteryIllustration { Width=42,Height=42 });
+        var brand=new StackPanel { Margin=new Thickness(8,6,0,28) }; var brandRow=new StackPanel { Orientation=Orientation.Horizontal }; brandRow.Children.Add(Ui.ApplicationLogo(42));
         var brandText=new StackPanel { Margin=new Thickness(10,0,0,0) }; var brandName=Ui.Text("QuotaBar",19,fg); brandName.FontWeight=FontWeights.Bold; brandText.Children.Add(brandName); var version=Ui.Text("v"+owner.Updates.Version,12,muted); version.ToolTip=owner.Updates.DisplayVersion; brandText.Children.Add(version); brandRow.Children.Add(brandText); brand.Children.Add(brandRow); DockPanel.SetDock(brand,Dock.Top); sidebar.Children.Add(brand);
         var navigation=new StackPanel(); var labels=new[]{copy.Text("Account","账户","帳戶"),copy.Text("Display","显示","顯示"),copy.Text("Quota experience","额度表情与管理","額度表情與管理"),copy.Text("Mobile push","手机推送","手機推播"),copy.Text("About app","关于应用","關於應用")}; var keys=new[]{"account","display","moods","mobile","updates"};
         for(var i=0;i<keys.Length;i++) {
@@ -100,7 +100,7 @@ internal sealed class SettingsWindow : Window {
     StackPanel UpdatesView(bool dark) {
         var c=owner.Copy; var p=owner.Preferences; var fg=Ui.Foreground(dark); var page=Page(c.Text("About app","关于应用","關於應用"),c.Text("Quota status, at a glance.","额度状态，一眼即知。","額度狀態，一眼即知。"),dark);
         var hero=new StackPanel { Orientation=Orientation.Horizontal };
-        hero.Children.Add(new AboutBatteryIllustration { Width=84,Height=84,Margin=new Thickness(0,0,18,0) });
+        var heroLogo=Ui.ApplicationLogo(84); heroLogo.Margin=new Thickness(0,0,18,0); hero.Children.Add(heroLogo);
         var identity=new StackPanel { VerticalAlignment=VerticalAlignment.Center }; var brand=Ui.Text("QuotaBar  "+owner.Updates.Version,21,fg); brand.FontWeight=FontWeights.Bold; identity.Children.Add(brand); identity.Children.Add(Ui.Text(c.Text("Your quota companion","你的额度小伙伴","你的額度小夥伴"),13,SettingsVisual.Muted(dark))); hero.Children.Add(identity); page.Children.Add(SettingsVisual.Card(hero,dark));
         var panel=new StackPanel(); panel.Children.Add(Heading(c.Text("Version & updates","版本与更新","版本與更新"),fg));
         panel.Children.Add(SettingsVisual.Toggle(c.Text("Automatically check for updates","自动检查更新","自動檢查更新"),p.AutomaticUpdates,fg,on=> { owner.Save(owner.Preferences with { AutomaticUpdates=on },false); if(on) owner.Updates.Check(true); }));

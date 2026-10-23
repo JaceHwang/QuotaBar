@@ -6,7 +6,7 @@ import AppKit
     private let toggle = QuotaSettingsSwitch()
     let keyField = NSSecureTextField()
     private let plain = NSTextField()
-    private let eye = NSButton()
+    private let eye = SettingsAccentButton(frame: .zero)
     private let statusField = QuotaSettingsStyle.label("", secondary: true)
     private var testButtons: [NSButton] = []
     private weak var saveControl: NSButton?
@@ -43,9 +43,9 @@ import AppKit
             NSLayoutConstraint.activate([field.leadingAnchor.constraint(equalTo: input.leadingAnchor), field.trailingAnchor.constraint(equalTo: input.trailingAnchor, constant: -40), field.centerYAnchor.constraint(equalTo: input.centerYAnchor), field.heightAnchor.constraint(equalToConstant: 30)])
         }
         keyField.stringValue = controller?.draft ?? ""; plain.isHidden = true
-        eye.target = self; eye.action = #selector(reveal); eye.isBordered = false; eye.identifier = .init("bark.reveal")
+        eye.title = ""; eye.target = self; eye.action = #selector(reveal); eye.isBordered = false; eye.identifier = .init("bark.reveal")
         eye.image = NSImage(systemSymbolName: "eye", accessibilityDescription: nil); eye.translatesAutoresizingMaskIntoConstraints = false; input.addSubview(eye)
-        NSLayoutConstraint.activate([eye.trailingAnchor.constraint(equalTo: input.trailingAnchor), eye.widthAnchor.constraint(equalToConstant: 32), eye.centerYAnchor.constraint(equalTo: input.centerYAnchor)])
+        NSLayoutConstraint.activate([eye.trailingAnchor.constraint(equalTo: input.trailingAnchor), eye.widthAnchor.constraint(equalToConstant: 30), eye.centerYAnchor.constraint(equalTo: input.centerYAnchor)])
         eye.setAccessibilityLabel(text("Show Key", "显示 Key", "顯示 Key")); eye.toolTip = text("Show Key", "显示 Key", "顯示 Key")
         QuotaSettingsStyle.fill(input, in: connection)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Leave blank to keep the saved Key. Use the eye to view it.", "留空保留已保存的 Key；点击眼睛可查看。", "留空保留已儲存的 Key；按眼睛可查看。"), size: 11, secondary: true), in: connection)

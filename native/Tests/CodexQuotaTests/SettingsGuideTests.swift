@@ -5,6 +5,25 @@ import QuotaCore
 
 @MainActor final class SettingsGuideTests: XCTestCase {
     func tree(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(tree) }
+    func testSettingsActionsShareBarkMetricsAndDetailBrand() throws {
+        let coordinator = StandaloneCoordinator(defaults: UserDefaults(suiteName: "Uniform.\(UUID())")!, root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let window = coordinator.makeSettingsWindow(); defer { window.close() }
+        let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView)
+        XCTAssertEqual(tree(shell).filter { $0 is QuotaThemeIconView }.count, 1, "Sidebar must reuse the detail ring")
+        XCTAssertEqual(tree(shell.pageContents[4]).filter { $0 is QuotaThemeIconView }.count, 1, "About must reuse the detail ring")
+        for page in 0..<shell.pageContents.count {
+            shell.selectPage(page); shell.layoutSubtreeIfNeeded()
+            let actions = tree(shell.pageContents[page]).compactMap { $0 as? NSButton }.filter { !($0 is NSPopUpButton) }
+            for button in actions {
+                XCTAssertTrue(button is SettingsAccentButton, "Unstyled settings action: \(button.title)")
+                XCTAssertEqual(button.frame.height, 30, accuracy: 1, "Action height: \(button.title)")
+                if !button.title.isEmpty {
+                    let expected = NSAttributedString(string: button.title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold)]).size().width + 24
+                    XCTAssertGreaterThanOrEqual(button.frame.width + 1, max(100, expected), "Label padding: \(button.title)")
+                }
+            }
+        }
+    }
     func testSavedKeyIsReadOnlyOnExplicitRevealAndClearedWhenHidden() throws {
         let fixture = BarkNotificationTests()
         let (controller, secrets, transport) = fixture.controller(); defer { controller.stop() }
@@ -73,7 +92,7 @@ import QuotaCore
             let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView)
             for dark in [false, true] {
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-                for page in [3, 4] {
+                for page in 0..<shell.pageContents.count {
                     window.setContentSize(NSSize(width: 900, height: 800)); shell.selectPage(page); shell.layoutSubtreeIfNeeded()
                     let scroll = try XCTUnwrap(shell.subviews.compactMap { $0 as? NSScrollView }.first)
                     let document = try XCTUnwrap(scroll.documentView)

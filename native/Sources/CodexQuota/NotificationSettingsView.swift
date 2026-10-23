@@ -7,7 +7,7 @@ import QuotaCore
     private let preview: () -> Void
     private let showUnread: () -> Void
     private let enableFloating: () -> Void
-    private let pause = NSButton()
+    private let pause = SettingsAccentButton(frame: .zero)
     private let status = NSTextField(wrappingLabelWithString: "")
     init(router: AppNotificationRouter, language: CodexDisplayLanguage, floatingVisible: Bool, preview: @escaping () -> Void, showUnread: @escaping () -> Void, enableFloating: @escaping () -> Void) {
         self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.showUnread = showUnread; self.enableFloating = enableFloating

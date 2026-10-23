@@ -224,10 +224,8 @@ internal static class Program {
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
                     Check(navigation.Select(b=>b.Tag?.ToString()).SequenceEqual(new[]{"settings-nav-account","settings-nav-display","settings-nav-moods","settings-nav-mobile","settings-nav-updates"}),"about is last and legacy update route preserved");
                     Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="settings-website").IsEnabled==false,"unpublished website disabled");
-                    var secondaryButton=Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-clear");
-                    Check((secondaryButton.Foreground as SolidColorBrush)?.Color==(Ui.Foreground(dark) as SolidColorBrush)?.Color,"secondary settings action uses readable theme foreground");
-                    var primaryButton=Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save");
-                    Check((primaryButton.Foreground as SolidColorBrush)?.Color==Colors.White,"primary settings action preserves white foreground");
+                    Check(!Tree(settings).OfType<AboutBatteryIllustration>().Any(),"settings uses application ring branding");
+                    Check(Tree(settings).OfType<System.Windows.Controls.Image>().Count(i=>i.Source?.ToString()?.Contains("quotabar-icon.png")==true)==2,"sidebar and about share application logo");
                     var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
                     var peer=new System.Windows.Automation.Peers.CheckBoxAutomationPeer(moodToggle);
                     var togglePattern=(System.Windows.Automation.Provider.IToggleProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle);
@@ -253,6 +251,21 @@ internal static class Program {
                         Check(owner.Updates.Status==owner.Copy.Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。"),"update result follows language changes");
                         foreach(var key in new[]{"account","display","moods","updates","mobile"}) {
                             Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-"+key).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                            var pageActions=Tree(settings).OfType<Button>().Where(b=>b.IsVisible && !(b.Tag is string tag && tag.StartsWith("settings-nav-"))).ToArray();
+                            foreach(var action in pageActions) {
+                                var eye=action.Tag?.ToString()=="bark-reveal";
+                                Check(action.Height==30 && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
+                                Check(action.MinWidth==(eye?30:100) && action.Padding==new Thickness(eye?0:12,0,eye?0:12,0),"settings actions share content-fit metrics");
+                                Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
+                                if(action.IsEnabled) Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"enabled settings actions share blue and white");
+                                action.ApplyTemplate();
+                                var actionFrame=action.Template.FindName("frame",action) as Border;
+                                Check(actionFrame?.CornerRadius==new CornerRadius(7),"settings actions share rounded corners");
+                                if(!action.IsEnabled) Check((actionFrame?.Background as SolidColorBrush)?.Color==Color.FromRgb(138,148,163),"disabled settings actions use muted fill");
+                                if(eye) Check(action.Width==30,"reveal action is square");
+                                if(action.Content is TextBlock label) Check(label.FontSize==13 && label.FontWeight==FontWeights.SemiBold && (label.Foreground as SolidColorBrush)?.Color==Colors.White,"custom action content matches shared typography");
+                                Check(!string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(action)),"settings action keeps accessible name");
+                            }
                             if(key is "updates" or "mobile") {
                                 settings.Width=920; settings.Height=800; Pump();
                                 foreach(var scroll in Tree(settings).OfType<ScrollViewer>().Where(v=>v.IsVisible)) scroll.ScrollToTop(); Pump();

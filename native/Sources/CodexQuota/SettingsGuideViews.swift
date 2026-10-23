@@ -13,7 +13,7 @@ import AppKit
     init(_ title: String, destination: URL?, open: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }) {
         self.destination = destination; opener = open
         super.init(frame: .zero)
-        self.title = title; usesAccentFill = false; target = self; action = #selector(follow)
+        self.title = title; usesAccentFill = true; target = self; action = #selector(follow)
         bezelStyle = .rounded; isBordered = false; alignment = .left
         font = .systemFont(ofSize: 13); isEnabled = destination != nil
         contentTintColor = destination == nil ? .tertiaryLabelColor : .labelColor
@@ -28,7 +28,7 @@ import AppKit
         let stack = QuotaSettingsStyle.column(14); stack.translatesAutoresizingMaskIntoConstraints = false; addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor), stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor)])
         let brand = NSStackView(); brand.spacing = 20; brand.alignment = .centerY
-        let character = AboutBatteryArtwork()
+        let character = QuotaThemeIconView(frame: .zero)
         character.widthAnchor.constraint(equalToConstant: 76).isActive = true; character.heightAnchor.constraint(equalToConstant: 76).isActive = true
         character.setAccessibilityLabel("QuotaBar")
         brand.addArrangedSubview(character)
@@ -46,7 +46,7 @@ import AppKit
             button.toolTip = url?.absoluteString ?? text("Coming soon", "待上线", "待上線")
             button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil); button.imagePosition = .imageLeading
             // The link owns the full label area; a separate secondary line retains readable URLs.
-            let block = QuotaSettingsStyle.column(2); block.edgeInsets = NSEdgeInsets(top: 7, left: 0, bottom: 7, right: 0); QuotaSettingsStyle.fill(button, in: block)
+            let block = QuotaSettingsStyle.column(2); block.edgeInsets = NSEdgeInsets(top: 7, left: 0, bottom: 7, right: 0); block.addArrangedSubview(button)
             QuotaSettingsStyle.fill(QuotaSettingsStyle.label(detail, size: 11, secondary: true), in: block)
             QuotaSettingsStyle.fill(block, in: links)
         }
@@ -100,13 +100,37 @@ import AppKit
 
 @MainActor class SettingsAccentButton: NSButton {
     var usesAccentFill = true
-    var fillColor = NSColor(srgbRed: 8.0 / 255, green: 127.0 / 255, blue: 91.0 / 255, alpha: 1)
+    var fillColor = NSColor(srgbRed: 0, green: 101.0 / 255, blue: 216.0 / 255, alpha: 1)
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        font = .systemFont(ofSize: 13, weight: .semibold)
+        isBordered = false
+        heightAnchor.constraint(equalToConstant: 30).isActive = true
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+    required init?(coder: NSCoder) { nil }
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
+    override var intrinsicContentSize: NSSize {
+        if title.isEmpty { return NSSize(width: 30, height: 30) }
+        let width = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold)]).size().width
+        return NSSize(width: max(100, ceil(width) + 24 + (image == nil ? 0 : 22)), height: 30)
+    }
     override func draw(_ dirtyRect: NSRect) {
-        guard usesAccentFill else { super.draw(dirtyRect); return }
-        let bg = isEnabled ? (isHighlighted ? fillColor.blended(withFraction: 0.15, of: .black)! : fillColor) : fillColor.withAlphaComponent(0.4)
+        let bg = isEnabled ? (isHighlighted ? fillColor.blended(withFraction: 0.15, of: .black)! : fillColor) : NSColor.disabledControlTextColor.withAlphaComponent(0.35)
         bg.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7).fill()
         let label = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: NSColor.white])
-        let size = label.size(); label.draw(at: CGPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2))
+        let size = label.size(), iconWidth: CGFloat = image == nil ? 0 : (title.isEmpty ? 16 : 22)
+        let start = (bounds.width - size.width - iconWidth) / 2
+        if let image {
+            let icon = image.copy() as! NSImage; icon.size = NSSize(width: 16, height: 16)
+            let rect = NSRect(x: start, y: (bounds.height - 16) / 2, width: 16, height: 16)
+            let tinted = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { area in
+                icon.draw(in: area); NSColor.white.setFill(); area.fill(using: .sourceIn); return true
+            }
+            tinted.draw(in: rect)
+        }
+        label.draw(at: CGPoint(x: start + iconWidth, y: (bounds.height - size.height) / 2))
         if window?.firstResponder === self { NSColor.keyboardFocusIndicatorColor.setStroke(); let ring = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6); ring.lineWidth = 2; ring.stroke() }
     }
     override func becomeFirstResponder() -> Bool { let result = super.becomeFirstResponder(); needsDisplay = true; return result }
