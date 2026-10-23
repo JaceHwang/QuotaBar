@@ -126,7 +126,7 @@ final class QuotaUpdateViewTests: XCTestCase {
         window.contentView?.wantsLayer = true
         window.appearance?.performAsCurrentDrawingAppearance { window.contentView?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
         defer { window.close() }
-        window.orderFront(nil); (window.contentView as? QuotaSettingsShellView)?.selectPage(3); window.contentView?.layoutSubtreeIfNeeded()
+        window.orderFront(nil); (window.contentView as? QuotaSettingsShellView)?.selectPage(4); window.contentView?.layoutSubtreeIfNeeded()
         let initialScroll = try XCTUnwrap(window.contentView?.subviews.compactMap { $0 as? NSScrollView }.first)
         let initialDocument = try XCTUnwrap(initialScroll.documentView)
         let accountStatus = try XCTUnwrap(descendants(initialDocument).compactMap { $0 as? NSTextField }.first)
@@ -142,8 +142,8 @@ final class QuotaUpdateViewTests: XCTestCase {
         XCTAssertGreaterThan(document.bounds.height, scroll.contentSize.height)
         let viewButton = try XCTUnwrap(descendants(document).compactMap { $0 as? NSButton }.first { $0.title == "查看更新" })
         XCTAssertFalse(viewButton.superview?.isHidden ?? true)
-        document.scroll(NSPoint(x: 0, y: document.bounds.maxY - scroll.contentSize.height)); scroll.reflectScrolledClipView(scroll.contentView)
-        XCTAssertTrue(document.visibleRect.intersects(viewButton.convert(viewButton.bounds, to: document)))
+        document.scrollToVisible(viewButton.convert(viewButton.bounds, to: document)); scroll.reflectScrolledClipView(scroll.contentView)
+        XCTAssertTrue(document.visibleRect.intersects(viewButton.convert(viewButton.bounds, to: document)), "Update action remains reachable inside the longer About page")
         if let path = ProcessInfo.processInfo.environment["CUS_UPDATE_VISUAL_OUTPUT_DIR"], let root = window.contentView {
             root.displayIfNeeded()
             let bitmap = try XCTUnwrap(root.bitmapImageRepForCachingDisplay(in: root.bounds))

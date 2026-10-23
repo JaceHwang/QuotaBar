@@ -24,7 +24,7 @@ import AppKit
     private(set) var selectedPage = 2
     override var isFlipped: Bool { true }
     init(pages: [QuotaSettingsPage], version: String, updateTitle: String = "Check for updates") {
-        precondition(pages.count == 4)
+        precondition(pages.count >= 4)
         self.pages = pages; versionLabel = NSTextField(labelWithString: "v" + version)
         super.init(frame: NSRect(x: 0, y: 0, width: 1000, height: 680))
         addSubview(sidebar); sidebar.addSubview(brand); sidebar.addSubview(versionLabel)
@@ -48,7 +48,7 @@ import AppKit
         selectPage(2)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    @objc private func checkUpdates() { selectPage(3); onCheckUpdates?() }
+    @objc private func checkUpdates() { selectPage(pages.count - 1); onCheckUpdates?() }
     @objc private func navigate(_ sender: NSButton) { selectPage(sender.tag) }
     func selectPage(_ index: Int) {
         guard pages.indices.contains(index) else { return }
@@ -113,9 +113,10 @@ import AppKit
 
     static func line() -> NSView { let box = NSBox(); box.boxType = .separator; return box }
     static func button(_ title: String, target: AnyObject?, action: Selector?, primary: Bool = false) -> NSButton {
-        let button = NSButton(title: title, target: target, action: action)
+        let button: NSButton = SettingsAccentButton(title: title, target: target, action: action)
+
         button.bezelStyle = .rounded; button.controlSize = .regular
-        button.font = .systemFont(ofSize: 13)
+        button.font = .systemFont(ofSize: 13, weight: .semibold)
         if primary { button.bezelColor = .controlAccentColor }
         return button
     }

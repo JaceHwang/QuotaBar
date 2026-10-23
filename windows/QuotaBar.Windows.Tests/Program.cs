@@ -20,6 +20,7 @@ internal static class Program {
     static int Main() {
         if(!OperatingSystem.IsWindows()) return 1;
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
+        Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
         var quota=QuotaDecoder.Decode(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/rate-limits/read-response.json")));
         quota=quota with { Primary=quota.Primary with { ResetsAt=DateTimeOffset.Now.AddHours(5) },Secondary=quota.Secondary is { } second ? second with { ResetsAt=DateTimeOffset.Now.AddDays(4) } : null };
@@ -29,6 +30,130 @@ internal static class Program {
         var prefs=new Preferences(); var copy=new Copy("zh-CN");
         var button=new FloatingWindow(); var detail=new DetailWindow();
         try {
+            using(var tray = new System.Windows.Forms.NotifyIcon()) {
+                var receipts=0; var presentations=0; var opens=0;
+                using var router=new AppNotificationRouter(tray,_=>true,_=>opens++,_=>receipts++);
+                router.PresentBubble=_=> { presentations++; return true; };
+                var m=new ExperienceNotification("hidden",ExperienceNotificationKind.Recovery,"a","Restored","100%",DateTimeOffset.UtcNow);
+                router.Enqueue(m); router.UpdateEnvironment(true);
+                Check(receipts==0&&presentations==0&&router.Unread.Count==1,"hidden arrival does not replay or receipt");
+                router.Enqueue(m with { Id="visible" }); Check(receipts==1&&presentations==1,"visible receipt once");
+                router.CancelAuthenticationEpoch("a"); Check(router.Unread.Count==0,"cancel clears unread");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Both });
+                Action<bool>? systemDone=null; router.SystemDelivery=(_,done)=>systemDone=done;
+                router.Enqueue(m with { Id="both" }); systemDone?.Invoke(true);
+                Check(receipts==2,"both channels receipt once"); router.CancelAuthenticationEpoch("a"); systemDone?.Invoke(true); Check(receipts==2,"late system callback after cancellation ignored");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                router.Enqueue(m with { Id="once" }); router.Activate("once"); router.Activate("once"); Check(opens==1,"two channels execute one action");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.System });
+                var completions=new System.Collections.Generic.List<Action<bool>>(); router.SystemDelivery=(_,done)=>completions.Add(done);
+                router.Enqueue(m with { Id="reuse" }); router.CancelMessage("reuse"); router.Enqueue(m with { Id="reuse" });
+                var beforeReceipts=receipts; completions[0](true); Check(receipts==beforeReceipts,"old generation cannot receipt new message"); completions[1](true); Check(receipts==beforeReceipts+1,"current generation receipts");
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.System });
+                router.SystemDelivery=(_,done)=>done(false); router.Enqueue(m with { Id="failed-update",Kind=ExperienceNotificationKind.Update,Epoch=null });
+                var beforePresentations=presentations; router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                Check(presentations==beforePresentations+1,"explicit channel change retries failed event");
+            }
+            var barkRoot=Path.Combine(Path.GetTempPath(),"quotabar-bark-router-"+Guid.NewGuid()); Directory.CreateDirectory(barkRoot);
+            try {
+                var accepted=0; var displayed=0; var secrets=new BarkTests.Secrets { Key="fake-device-key" }; var transport=new BarkTests.Transport();
+                using var mobile=new BarkNotificationController(secrets,transport,new BarkDeliveryStore(Path.Combine(barkRoot,"receipts.json")),new BarkPreferences { Enabled=true },_=>{});
+                using var tray=new System.Windows.Forms.NotifyIcon();
+                using var router=new AppNotificationRouter(tray,_=>true,_=>{},_=>accepted++); router.Mobile=mobile; router.PresentBubble=_=> { displayed++; return true; };
+                router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Off }); router.UpdateEnvironment(false);
+                router.Enqueue(new("mobile-only",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow));
+                Check(transport.Sends==1&&accepted==1&&router.Unread.Count==0,"desktop off and hidden does not block mobile or create unread");
+                router.UpdateEnvironment(true); router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                Check(displayed==1&&accepted==1&&router.Unread.Count==1,"mobile receipt preserves desktop delivery and unread; shared receipt once");
+                router.CancelMessage("mobile-only"); router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.System });
+                transport.Pending=new(TaskCreationOptions.RunContinuationsAsynchronously); Action<bool>? desktopDone=null; router.SystemDelivery=(_,done)=>desktopDone=done;
+                router.Enqueue(new("desktop-first",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow)); desktopDone?.Invoke(true);
+                Check(accepted==2,"desktop succeeds while mobile in-flight"); transport.Pending.SetResult(BarkPushResult.Accepted);
+                var wait=DateTime.UtcNow.AddSeconds(3); while(!mobile.WhenIdle.IsCompleted&&DateTime.UtcNow<wait) Pump();
+                Check(mobile.WhenIdle.IsCompleted&&accepted==2&&transport.Sends==2,"mobile also completes after desktop; shared receipt remains once");
+                mobile.ClearKey(); router.Configure(new NotificationPresentationPreferences { Mode=NotificationDeliveryMode.Bubble });
+                router.Enqueue(new("desktop-only",ExperienceNotificationKind.Update,null,"Example","Sample only",DateTimeOffset.UtcNow));
+                Check(displayed==2&&transport.Sends==2,"mobile off does not block desktop");
+            } finally { Directory.Delete(barkRoot,true); }
+            using(var heldRouter=new AppNotificationRouter(new System.Windows.Forms.NotifyIcon(),_=>true,_=>{},_=>{})) {
+                var hidden=0; heldRouter.PresentBubble=_=>true; heldRouter.HideBubble=()=>hidden++; heldRouter.UpdateEnvironment(true);
+                QuotaObservation O(double used,long sequence) { var at=DateTimeOffset.UtcNow; return new("a",sequence,at,new(new(used,80,at.AddHours(1),300),null,null,null,null,at)); }
+                heldRouter.ObserveQuota(O(20,1)); heldRouter.Enqueue(new("held",ExperienceNotificationKind.Test,"a","Held","",DateTimeOffset.UtcNow));
+                heldRouter.ObserveQuota(O(20,2)); Check(hidden==0,"same quota keeps actual router bubble");
+                heldRouter.ObserveQuota(O(21,3)); Check(hidden==1,"quota change hides actual router bubble");
+            }
+            using(var bubble = new CharacterNotificationBubble()) {
+                bubble.Build(new ExperienceNotification("reference", ExperienceNotificationKind.Recovery, "a", "额度已恢复", "5 小时剩余 100% · 7 天剩余 36%", DateTimeOffset.UtcNow),false,new Copy("zh-CN"));
+                Check(bubble.Width==420 && bubble.Height==142,"reference short message has compact 420 by 142 layout");
+                Check(Tree(bubble).OfType<System.Windows.Controls.Image>().Count()==1,"reference uses standalone character artwork");
+                var m = new ExperienceNotification("bubble-test", ExperienceNotificationKind.Bank, "a", "Bank 权益即将到期", "已知2次权益将在24小时内到期。", DateTimeOffset.UtcNow);
+                foreach(var dark in new[]{false,true}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
+                    bubble.Build(m,dark,new Copy(language)); bubble.Measure(new Size(bubble.Width,bubble.Height)); bubble.Arrange(new Rect(0,0,bubble.Width,bubble.Height));
+                    var fourLines="72 hours: 2 credits\n24 hours: 1 credit\nEarliest expiry:\n2026/10/23 14:00";
+                    bubble.Build(m with { Body=fourLines },dark,new Copy(language));
+                    var bodyText=Tree(bubble).OfType<TextBlock>().Single(t=>t.Text==fourLines);
+                    var formatted=new FormattedText(fourLines,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(bodyText.FontFamily,bodyText.FontStyle,bodyText.FontWeight,bodyText.FontStretch),bodyText.FontSize,Brushes.Black,1);
+                    Check(bodyText.Height>=Math.Ceiling(formatted.Height),$"four-line body fits without clipping: allocated={bodyText.Height}, needed={formatted.Height}");
+                    var copyForBubble=new Copy(language);
+                    m=m with { Title=copyForBubble.Text("Bank credits expiring","Bank 权益即将到期","Bank 權益即將到期"), Body=copyForBubble.Text("72 hours: 2 credits; 24 hours: 1 credit. Earliest expiry: 2026/10/23 14:00","72 小时内 2 次；24 小时内 1 次。最近到期：2026/10/23 14:00","72 小時內 2 次；24 小時內 1 次。最近到期：2026/10/23 14:00") };
+                    bubble.Build(m,dark,copyForBubble);
+                    Check(!bubble.ShowActivated && !bubble.ShowInTaskbar,"bubble is passive");
+                    Check(Tree(bubble).OfType<Button>().Count()==2,"bubble has two distinct actions");
+                    Check(Tree(bubble).OfType<System.Windows.Controls.Image>().All(v=>!v.IsHitTestVisible),"bubble character is decorative");
+                    var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
+                    foreach(var scale in new[]{1d,1.5d,2d}) {
+                        var content=(FrameworkElement)bubble.Content; bubble.Content=null; content.Measure(new Size(bubble.Width,bubble.Height)); content.Arrange(new Rect(0,0,bubble.Width,bubble.Height)); content.UpdateLayout();
+                        foreach(var action in Tree(content).OfType<Button>()) {
+                            var bounds=action.TransformToAncestor(content).TransformBounds(new Rect(0,0,action.ActualWidth,action.ActualHeight));
+                            Check(new Rect(0,0,content.ActualWidth,content.ActualHeight).Contains(bounds),"bubble actions stay inside card");
+                        }
+                        var bitmap=new RenderTargetBitmap((int)(bubble.Width*scale),(int)(bubble.Height*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
+                        var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4]; bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
+                        Check(Enumerable.Range(0,pixels.Length/4).Count(i=>pixels[i*4+3]>0)>pixels.Length/16,"bubble screenshot contains visible content");
+                        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-{language}-{dark}-{scale}.png")); encoder.Save(file); bubble.Content=content;
+                    }
+                }
+            }
+            using(var referenceBubble=new CharacterNotificationBubble()) {
+                var scenes=new[] {
+                    (NotificationCharacterArtwork.Attention, ExperienceNotificationKind.Test,"7 天额度偏低","剩余 10%，距离重置还有 2 天。"),
+                    (NotificationCharacterArtwork.Recovery, ExperienceNotificationKind.Recovery,"额度已恢复","5 小时剩余 100% · 7 天剩余 36%"),
+                    (NotificationCharacterArtwork.Bank, ExperienceNotificationKind.Bank,"Bank 权益即将到期","已知 2 次权益将在 24 小时内到期。")
+                };
+                foreach(var (art,kind,title,body) in scenes) foreach(var referenceWidth in new[]{420d,340d}) foreach(var dark in new[]{false,true}) {
+                    referenceBubble.Width=referenceWidth;
+                    var reference=new ExperienceNotification("reference-"+art,kind,"a",title,body,DateTimeOffset.UtcNow) { DeliveryToken="reference-token" };
+                    referenceBubble.Build(reference,dark,new Copy("zh-CN"),art);
+                    var content=(FrameworkElement)referenceBubble.Content; referenceBubble.Content=null;
+                    content.Measure(new Size(referenceWidth,referenceBubble.Height)); content.Arrange(new Rect(0,0,referenceWidth,referenceBubble.Height)); content.UpdateLayout();
+                    var character=Tree(content).OfType<System.Windows.Controls.Image>().Single();
+                    var cropped=character.Source as CroppedBitmap;
+                    var expectedCrop=art switch { NotificationCharacterArtwork.Attention=>new Int32Rect(159,172,906,970), NotificationCharacterArtwork.Bank=>new Int32Rect(78,169,1040,980), _=>new Int32Rect(256,135,957,882) };
+                    Check(cropped is not null && cropped.SourceRect==expectedCrop,"reference artwork removes source canvas margins");
+                    if(cropped is not null) {
+                        var originalScale=Math.Min(character.Width/cropped.Source.PixelWidth,character.Height/cropped.Source.PixelHeight);
+                        var croppedScale=Math.Min(character.Width/cropped.PixelWidth,character.Height/cropped.PixelHeight);
+                        Check(croppedScale>originalScale,"cropped artwork has larger visible character at the same display size");
+                    }
+                    var buttons=Tree(content).OfType<Button>().ToArray();
+                    var primary=buttons.Single(b=>Equals(b.Tag,"notification.primary")); var secondary=buttons.Single(b=>Equals(b.Tag,"notification.acknowledge"));
+                    var focusTrigger=primary.Template.Triggers.OfType<Trigger>().Single(t=>t.Property==UIElement.IsKeyboardFocusedProperty);
+                    Check(focusTrigger.Setters.OfType<Setter>().Any(s=>s.Property==Border.BorderThicknessProperty && Equals(s.Value,new Thickness(2))),"primary keyboard focus has visible border even when normal border is zero");
+                    Check(Math.Abs(primary.ActualWidth/secondary.ActualWidth-1.2)<.01,"reference button ratio");
+                    var primaryRect=primary.TransformToAncestor(content).TransformBounds(new Rect(0,0,primary.ActualWidth,primary.ActualHeight));
+                    var secondaryRect=secondary.TransformToAncestor(content).TransformBounds(new Rect(0,0,secondary.ActualWidth,secondary.ActualHeight));
+                    Check(Math.Abs(secondaryRect.Left-primaryRect.Right-14)<.01 && primaryRect.Height==32,"reference button spacing and height");
+                    Check(primaryRect.Bottom<=referenceBubble.Height-11,"reference actions retain bottom padding");
+                    string? actionId=null,actionToken=null; referenceBubble.ActionRequested=(id,token)=>{actionId=id;actionToken=token;}; primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(actionId==reference.Id && actionToken==reference.DeliveryToken,"reference action preserves identity and delivery token");
+                    var images=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS")??Path.Combine(Path.GetTempPath(),"quotabar-ui-tests"); Directory.CreateDirectory(images);
+                    foreach(var scale in new[]{1d,1.5d,2d}) {
+                        var bitmap=new RenderTargetBitmap((int)Math.Ceiling(referenceWidth*scale),(int)Math.Ceiling(referenceBubble.Height*scale),96*scale,96*scale,PixelFormats.Pbgra32); bitmap.Render(content);
+                        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file=File.Create(Path.Combine(images,$"bubble-reference-{art}-{referenceWidth}-{dark}-{scale}.png")); encoder.Save(file);
+                    }
+                    referenceBubble.Content=content;
+                }
+            }
             var clicks=0; var closes=0;
             button.Primary+=()=>clicks++;
             button.CloseRequested+=()=> { closes++; prefs=prefs with { FloatingEnabled=false }; button.Render(quota,state,prefs,copy,false); };
@@ -74,7 +199,8 @@ internal static class Program {
             }
             Check(File.ReadAllBytes(Path.Combine(output,"tray-light.png")).SequenceEqual(File.ReadAllBytes(Path.Combine(output,"tray-dark.png"))),"same circular tray pixels across themes");
             var updateRoot=Path.Combine(Path.GetTempPath(),"quotabar-update-ui-"+Guid.NewGuid());
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new InterruptedFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new InterruptedFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
+                Check(owner.Notifications.PresentBubble?.Invoke(new ExperienceNotification("guard",ExperienceNotificationKind.Test,null,"Example","",DateTimeOffset.UtcNow))==false,"presentation rechecks hidden or cloaked floating anchor");
                 owner.Updates.Check(true);
                 var deadline=DateTime.UtcNow.AddSeconds(5);
                 while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();
@@ -96,7 +222,10 @@ internal static class Program {
                     var moodBitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); moodBitmap.Render(settings);
                     var moodEncoder=new PngBitmapEncoder(); moodEncoder.Frames.Add(BitmapFrame.Create(moodBitmap)); using(var moodFile=File.Create(Path.Combine(output,"settings-b-"+(dark?"dark":"light")+".png"))) moodEncoder.Save(moodFile);
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
-                    Check(navigation.Length==4,"four sidebar pages");
+                    Check(navigation.Select(b=>b.Tag?.ToString()).SequenceEqual(new[]{"settings-nav-account","settings-nav-display","settings-nav-moods","settings-nav-mobile","settings-nav-updates"}),"about is last and legacy update route preserved");
+                    Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="settings-website").IsEnabled==false,"unpublished website disabled");
+                    Check(!Tree(settings).OfType<AboutBatteryIllustration>().Any(),"settings uses application ring branding");
+                    Check(Tree(settings).OfType<System.Windows.Controls.Image>().Count(i=>i.Source?.ToString()?.Contains("quotabar-icon.png")==true)==2,"sidebar and about share application logo");
                     var moodToggle=experienceToggles.First(b=>b.Content?.ToString()=="额度表情模式");
                     var peer=new System.Windows.Automation.Peers.CheckBoxAutomationPeer(moodToggle);
                     var togglePattern=(System.Windows.Automation.Provider.IToggleProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Toggle);
@@ -120,8 +249,32 @@ internal static class Program {
                     foreach(var language in new[]{"zh-CN","zh-TW","en"}) {
                         owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
                         Check(owner.Updates.Status==owner.Copy.Text("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。"),"update result follows language changes");
-                        foreach(var key in new[]{"account","display","moods","updates"}) {
+                        foreach(var key in new[]{"account","display","moods","updates","mobile"}) {
                             Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-"+key).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                            var pageActions=Tree(settings).OfType<Button>().Where(b=>b.IsVisible && !(b.Tag is string tag && tag.StartsWith("settings-nav-"))).ToArray();
+                            foreach(var action in pageActions) {
+                                var eye=action.Tag?.ToString()=="bark-reveal";
+                                Check(action.Height==30 && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
+                                Check(action.MinWidth==(eye?30:100) && action.Padding==new Thickness(eye?0:12,0,eye?0:12,0),"settings actions share content-fit metrics");
+                                Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
+                                if(action.IsEnabled) Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"enabled settings actions share blue and white");
+                                action.ApplyTemplate();
+                                var actionFrame=action.Template.FindName("frame",action) as Border;
+                                Check(actionFrame?.CornerRadius==new CornerRadius(7),"settings actions share rounded corners");
+                                if(!action.IsEnabled) Check((actionFrame?.Background as SolidColorBrush)?.Color==Color.FromRgb(138,148,163),"disabled settings actions use muted fill");
+                                if(eye) Check(action.Width==30,"reveal action is square");
+                                if(action.Content is TextBlock label) Check(label.FontSize==13 && label.FontWeight==FontWeights.SemiBold && (label.Foreground as SolidColorBrush)?.Color==Colors.White,"custom action content matches shared typography");
+                                Check(!string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(action)),"settings action keeps accessible name");
+                            }
+                            if(key is "updates" or "mobile") {
+                                settings.Width=920; settings.Height=800; Pump();
+                                foreach(var scroll in Tree(settings).OfType<ScrollViewer>().Where(v=>v.IsVisible)) scroll.ScrollToTop(); Pump();
+                                if(key=="mobile") Check(Tree(settings).OfType<BarkPhoneIllustration>().Any(v=>v.IsVisible),"C mobile guide draws native phone illustration");
+                                foreach(var dpi in new[]{96d,192d}) {
+                                    var scene=new RenderTargetBitmap((int)(settings.ActualWidth*dpi/96),(int)(settings.ActualHeight*dpi/96),dpi,dpi,PixelFormats.Pbgra32); scene.Render(settings);
+                                    var sceneEncoder=new PngBitmapEncoder(); sceneEncoder.Frames.Add(BitmapFrame.Create(scene)); using var sceneStream=File.Create(Path.Combine(output,$"settings-c-{language}-{dark}-{key}-{dpi}.png")); sceneEncoder.Save(sceneStream);
+                                }
+                            }
                             settings.Width=840; settings.Height=560; Pump();
                             Check(Tree(settings).OfType<CheckBox>().Where(b=>b.IsVisible).All(b=>b.ActualWidth<=640),"settings controls remain within reading width");
                             foreach(var scroll in Tree(settings).OfType<ScrollViewer>().Where(v=>v.IsVisible)) {
@@ -136,6 +289,32 @@ internal static class Program {
                             var encoded=new PngBitmapEncoder(); encoded.Frames.Add(BitmapFrame.Create(rendered)); using var stream=File.Create(Path.Combine(output,$"polish-{language}-{dark}-{key}.png")); encoded.Save(stream);
                         }
                     }
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-mobile").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    var keyDraft=Tree(settings).OfType<PasswordBox>().Single(); keyDraft.Password="fake-draft-key";
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-reveal").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="fake-draft-key","eye reveals draft");
+                    settings.Build(); Pump(); Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="","rebuild clears visible key"); Check(Tree(settings).OfType<PasswordBox>().Single().Password=="fake-draft-key","mobile draft survives settings rebuild");
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(owner.Mobile.HasKey&&!owner.Mobile.Preferences.Enabled&&Tree(settings).OfType<PasswordBox>().Single().Password=="","save configures without enabling and does not read key back");
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-reveal").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="fake-draft-key","explicit eye retrieves saved fake key");
+                    Check(Tree(settings).OfType<PasswordBox>().Single().Password=="","viewing saved key never copies into draft");
+                    Check(!Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").IsEnabled,"read-only saved reveal disables save");
+                    var revealGeneration=owner.Mobile.Preferences.ConfigurationGeneration; var revealStatus=owner.Mobile.Status;
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(owner.Mobile.Preferences.ConfigurationGeneration==revealGeneration&&owner.Mobile.Status==revealStatus,"saved reveal save guard leaves configuration and status untouched");
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-account").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="","navigation clears revealed secret");
+                    Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-mobile").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-reveal").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+                    settings.Hide(); Pump(); Check(Tree(settings).OfType<TextBox>().Single(b=>b.Tag?.ToString()=="bark-visible-key").Text=="","hidden window clears revealed secret"); Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="bark-save").IsEnabled,"conceal restores draft save"); settings.Show(); Pump();
+                    Check(Tree(settings).OfType<Button>().Where(b=>b.Tag?.ToString() is "bark-test" or "bark-guide-test").Count(b=>b.IsEnabled)==2,"both configured mobile sample actions available while automatic off");
+                    foreach(var language in new[]{"en","zh-CN","zh-TW"}) {
+                        owner.Save(owner.Preferences with { Language=language },false); settings.Build(); Pump();
+                        var configured=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); configured.Render(settings);
+                        var image=new PngBitmapEncoder(); image.Frames.Add(BitmapFrame.Create(configured)); using var configuredFile=File.Create(Path.Combine(output,$"mobile-configured-{language}-{dark}.png")); image.Save(configuredFile);
+                    }
+
                     Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-account").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     owner.State.LoginCompleted(false); settings.UpdateStatus(); Pump();
                     Check(Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-account-login").IsVisible,"sign in is visible when logged out");
@@ -147,7 +326,7 @@ internal static class Program {
                 }
             }
             File.WriteAllText(Path.Combine(updateRoot,"updates.json"),"{\"Policy\":null}");
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 owner.Updates.Check(true); var deadline=DateTime.UtcNow.AddSeconds(5);
                 while(owner.Updates.Checking && DateTime.UtcNow<deadline) Pump();
                 Check(owner.Updates.Available?.Version=="999.0.0","valid Windows release discovered");
@@ -166,7 +345,7 @@ internal static class Program {
             }
             var clock=DateTimeOffset.FromUnixTimeSeconds(100000);
             File.WriteAllText(Path.Combine(updateRoot,"updates.json"),JsonSerializer.Serialize(new { LastSuccess=clock }));
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 owner.Save(new Preferences { AutomaticUpdates=false },false);
                 using var updates=new UpdateController(owner,updateRoot,new HttpClient(new AvailableFeedHandler()),()=>clock);
                 owner.Save(new Preferences { AutomaticUpdates=true },false);
@@ -181,7 +360,7 @@ internal static class Program {
                 using(var updateState=JsonDocument.Parse(File.ReadAllText(Path.Combine(updateRoot,"updates.json"))))
                     Check(updateState.RootElement.GetProperty("LastSuccess").GetDateTimeOffset()==clock,"automatic check resumes after 24 hours");
             }
-            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()))) {
+            using(var owner=new Coordinator(app,updateRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport())) {
                 owner.Save(new Preferences { AutomaticUpdates=false },false);
                 var failed=new InterruptedFeedHandler();
                 using var updates=new UpdateController(owner,updateRoot,new HttpClient(failed),()=>clock);

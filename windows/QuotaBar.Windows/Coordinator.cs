@@ -7,6 +7,7 @@ internal sealed class Coordinator : IDisposable {
     readonly Application app;
     public UpdateController Updates { get; }
     internal AppNotificationRouter Notifications { get; }
+    internal BarkNotificationController Mobile { get; }
     internal QuotaExperienceController Experience { get; }
     readonly string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"QuotaBar");
     readonly PreferencesStore store;
@@ -14,6 +15,9 @@ internal sealed class Coordinator : IDisposable {
     readonly Forms.NotifyIcon tray=new();
     readonly FloatingWindow floating=new();
     readonly DetailWindow detail=new();
+    readonly CharacterNotificationBubble notificationBubble=new();
+    NotificationUnreadWindow? unreadWindow;
+    bool notificationDragging,screenLocked,trayMenuOpen;
     readonly DetailInteractionState interaction=new();
     readonly TrayClickGate trayClickGate=new();
     readonly DispatcherTimer tick=new() { Interval=TimeSpan.FromSeconds(5) };
@@ -31,29 +35,39 @@ internal sealed class Coordinator : IDisposable {
     public TokenUsage? Tokens { get; private set; }
     public AccountIdentity? Identity { get; private set; }
     public Copy Copy=>new(Preferences.Language);
-    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null) {
+    public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null,IBarkSecretStore? barkSecrets=null,IBarkPushClient? barkTransport=null) {
         this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
         Updates=new(this,root,updatesTransport); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
         Notifications=new(tray,
-            m=>m.Kind==ExperienceNotificationKind.Update ? Preferences.UpdateReminders && Updates.Available is { } r && m.Id=="update-"+r.Version : Experience?.Valid(m)==true,
-            m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Open(); else OpenExperienceDetail(); },
+            m=>m.Kind==ExperienceNotificationKind.Update ? Updates.ReminderValid(m.Id[7..]) : Experience?.Valid(m)==true,
+            m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Open(); else { OpenExperienceDetail(); if(m.Kind==ExperienceNotificationKind.Bank) detail.FocusBank(); } },
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.ReminderShown(m.Id[7..]); });
+        Mobile=new(barkSecrets??new BarkSecretStore(),barkTransport??new BarkPushClient(),new BarkDeliveryStore(Path.Combine(root,"bark-deliveries.json")),Preferences.Bark,value=> { var updated=Preferences with { Bark=value }; store.Save(updated); Preferences=updated; });
+        Notifications.Mobile=Mobile; Mobile.CurrentMessages=()=>Notifications.CurrentMessages.Concat(Updates.CurrentReminder is { } update?new[]{update}:Array.Empty<ExperienceNotification>());
+        Mobile.Changed+=()=> { if(!stopping) settings?.UpdateMobileStatus(); };
         Experience=new(this,root); Notifications.Failed=Experience.NotificationFailed;
+        Notifications.Configure(Preferences.Notifications);
+        Notifications.PresentBubble=m=>floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&notificationBubble.ShowMessage(m,Platform.Bounds(floating),Platform.IsDark(Preferences),Copy,VisualTreeHelper.GetDpi(floating).DpiScaleX);
+        Notifications.HideBubble=notificationBubble.Dismiss;
+        Notifications.UnreadChanged=()=>floating.HasUnread=Notifications.Unread.Count>0;
+        notificationBubble.ActionRequested=(id,token)=>Notifications.Activate(id,token); notificationBubble.Acknowledged=(id,token)=>Notifications.Dismiss(id,true,token); notificationBubble.InteractionChanged=Notifications.SetInteracting;
+        floating.DragStarted+=()=> { notificationDragging=true; Notifications.UpdateEnvironment(false); };
+        floating.DragFinished+=()=> { notificationDragging=false; Render(); };
         floating.Primary+=()=> {
             if(Snapshot is null) { ShowSettings(); return; }
             detailFromFloating=true; trayDetail=false; trayLocked=false; interaction.TogglePinned(true); Render(); Refresh();
         };
         floating.Entered+=()=> {
-            if(Snapshot is null || trayDetail || floatingMenuOpen) return;
+            if(Snapshot is null || trayDetail || floatingMenuOpen || notificationBubble.IsVisible) return;
             detailFromFloating=true; interaction.UpdatePointer(true); Render(); pointer.Start();
         };
         floating.Exited+=()=> { if(!floatingMenuOpen) interaction.UpdatePointer(false); };
         floating.CloseRequested+=()=>SetFloating(false);
         floating.PositionChanged+=p=>Save(Preferences with { FloatingX=p.X,FloatingY=p.Y },false);
         floating.Secondary+=()=> {
-            floatingMenuOpen=true; interaction.DismissForContextMenu(); trayDetail=false; trayLocked=false; detailFromFloating=false; pointer.Stop(); detail.Hide();
+            Notifications.UpdateEnvironment(false); floatingMenuOpen=true; interaction.DismissForContextMenu(); trayDetail=false; trayLocked=false; detailFromFloating=false; pointer.Stop(); detail.Hide();
             var menu=new ContextMenu();
-            menu.Closed+=(_,_)=> { floatingMenuOpen=false; interaction.DismissForContextMenu(); if(!floating.IsMouseOver) interaction.UpdatePointer(false); };
+            menu.Closed+=(_,_)=> { floatingMenuOpen=false; interaction.DismissForContextMenu(); if(!floating.IsMouseOver) interaction.UpdatePointer(false); Render(); };
             foreach(var item in MenuItems()) menu.Items.Add(item);
             floating.ContextMenu=menu; menu.IsOpen=true;
         };
@@ -82,11 +96,14 @@ internal sealed class Coordinator : IDisposable {
     public void Start() {
         outside=new OutsideMouse(p=> {
             trayClickGate.BeginMouseDown();
+            if(notificationBubble.IsVisible && Platform.Bounds(notificationBubble).Contains(p)) return;
+            if(notificationBubble.IsVisible) Notifications.Suspend();
             if(!detail.IsVisible || Platform.Bounds(detail).Contains(p) || Platform.Bounds(floating).Contains(p)) return;
             if(detailFromFloating) interaction.DismissOutside();
             else if(!trayLocked) { trayClickGate.OutsideDismissed(); trayDetail=false; }
             RenderDetail();
         });
+        SystemEvents.SessionSwitch+=SessionChanged;
         SystemEvents.PowerModeChanged+=PowerChanged;
         SystemEvents.UserPreferenceChanged+=ThemeChanged;
         SystemEvents.DisplaySettingsChanged+=DisplayChanged;
@@ -94,10 +111,13 @@ internal sealed class Coordinator : IDisposable {
         tray.Visible=true; tick.Start(); Render(); Reload();
     }
     public void Save(Preferences prefs,bool rebuildSettings=true) {
+        var retryReminder=(!Preferences.UpdateReminders&&prefs.UpdateReminders)||Preferences.Experience!=prefs.Experience;
         try { store.Save(prefs); Preferences=prefs.Validated(); }
         catch(Exception e) when(e is IOException or UnauthorizedAccessException) { MessageBox.Show(Copy.Text("Could not save preferences","无法保存设置","無法儲存設定")); return; }
+        Notifications.Configure(Preferences.Notifications);
         Experience.Configure();
-        Updates.PreferencesChanged();
+        if(retryReminder) Notifications.RetryFailedDeliveries();
+        Updates.PreferencesChanged(); Mobile.Revalidate();
         Render(); if(rebuildSettings) settings?.Build();
     }
     void SetFloating(bool enabled) {
@@ -113,6 +133,7 @@ internal sealed class Coordinator : IDisposable {
         MenuItem Item(string name,Action action) { var i=new MenuItem { Header=name }; i.Click+=(_,_)=>action(); return i; }
         yield return Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail);
         yield return Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
+        yield return Item(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.Unread.Count+")",ShowUnread);
         var floatItem=Item(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕"),()=>SetFloating(!Preferences.FloatingEnabled)); floatItem.IsCheckable=true; floatItem.IsChecked=Preferences.FloatingEnabled; yield return floatItem;
         yield return Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
         yield return Item(copy.Text("Settings…","设置…","設定…"),ShowSettings);
@@ -120,16 +141,18 @@ internal sealed class Coordinator : IDisposable {
     }
     void UpdateTray() {
         var copy=Copy;
-        var key=copy.Language+":"+Preferences.FloatingEnabled;
+        var key=copy.Language+":"+Preferences.FloatingEnabled+":"+Notifications.Unread.Count;
         if(menuKey!=key && tray.ContextMenuStrip?.Visible!=true) {
         var menu=new Forms.ContextMenuStrip();
+        menu.Opening+=(_,_)=> { trayMenuOpen=true; Notifications.UpdateEnvironment(false); };
         void Item(string text,Action action) { menu.Items.Add(text,null,(_,_)=>action()); }
         Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail); Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
+        var unreadItem=new Forms.ToolStripMenuItem(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.Unread.Count+")"); unreadItem.Click+=(_,_)=>ShowUnread(); menu.Items.Add(unreadItem);
         var floatItem=new Forms.ToolStripMenuItem(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕")) { Checked=Preferences.FloatingEnabled };
         floatItem.Click+=(_,_)=> { SetFloating(!Preferences.FloatingEnabled); floatItem.Checked=Preferences.FloatingEnabled; }; menu.Items.Add(floatItem);
         Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
         Item(copy.Text("Settings…","设置…","設定…"),ShowSettings); Item(copy.Text("Quit","退出","結束"),Quit);
-        menu.Closed+=(_,_)=>app.Dispatcher.BeginInvoke(()=> { if(!stopping && ReferenceEquals(tray.ContextMenuStrip,menu)) UpdateTray(); });
+        menu.Closed+=(_,_)=>app.Dispatcher.BeginInvoke(()=> { trayMenuOpen=false; if(!stopping && ReferenceEquals(tray.ContextMenuStrip,menu)) Render(); });
         var old=tray.ContextMenuStrip; tray.ContextMenuStrip=menu; old?.Dispose(); menuKey=key;
         }
         var text=Preferences.ShowsQuotaInformation?copy.Indicator(Snapshot,State.Phase)+"\n"+copy.PhaseLabel(State.Phase):"QuotaBar";
@@ -143,6 +166,8 @@ internal sealed class Coordinator : IDisposable {
     void Render() {
         if(stopping) return;
         UpdateTray(); floating.Render(Snapshot,State,Preferences,Copy,Platform.IsDark(Preferences)); RenderDetail(); settings?.UpdateStatus();
+        Notifications.UpdateEnvironment(floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&!detail.IsVisible&&!sleeping&&!screenLocked&&!notificationDragging&&!floatingMenuOpen&&!trayMenuOpen&&!stopping);
+        floating.HasUnread=Notifications.Unread.Count>0;
         WriteDiagnostic();
     }
     void RenderDetail() {
@@ -151,6 +176,7 @@ internal sealed class Coordinator : IDisposable {
         if(detailFromFloating) anchor=Platform.Bounds(floating);
         else anchor=trayAnchor;
         if(anchor.IsEmpty) { detail.Hide(); return; }
+        Notifications.UpdateEnvironment(false);
         detail.Render(Snapshot,Tokens,Identity,State,Preferences,Copy,Platform.IsDark(Preferences),detailFromFloating?interaction.IsLocked:trayLocked,anchor);
     }
     public void ToggleTrayDetail() {
@@ -166,8 +192,8 @@ internal sealed class Coordinator : IDisposable {
         var p=Platform.Cursor; var screen=Platform.WorkArea(p); trayAnchor=new Rect(p.X,screen.Y+screen.Height,1,1);
         detailFromFloating=false; trayDetail=true; Render(); Refresh();
     }
-    internal bool ShowUpdateReminder(string version,string? summary=null) {
-        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow)); return true;
+    internal bool ShowUpdateReminder(string version,string? summary=null,string reminderGeneration="initial") {
+        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration)); return true;
     }
     public void ShowSettings() {
         if(settings is null) { settings=new(this); settings.Closed+=(_,_)=>settings=null; }
@@ -214,18 +240,20 @@ internal sealed class Coordinator : IDisposable {
         try { File.WriteAllText(Path.Combine(root,"standalone-state.txt"),$"pid={Environment.ProcessId} mode=standalone phase={State.Phase} has_quota={Snapshot is not null} host_ui=false floating_visible={floating.IsVisible} floating_enabled={Preferences.FloatingEnabled} detail_visible={detail.IsVisible}\n"); }
         catch(IOException) { }
     }
-    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) Experience.ResetBaseline(); if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
+    public void ShowUnread() { Notifications.Suspend(); unreadWindow?.Close(); unreadWindow=new(Notifications,Copy,Platform.IsDark(Preferences)); unreadWindow.Show(); }
+    void SessionChanged(object sender,SessionSwitchEventArgs e) { app.Dispatcher.BeginInvoke(()=> { if(e.Reason==SessionSwitchReason.SessionLock) { screenLocked=true; Notifications.UpdateEnvironment(false); } else if(e.Reason==SessionSwitchReason.SessionUnlock) { screenLocked=false; Render(); } }); }
+    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) { Experience.ResetBaseline(); Notifications.UpdateEnvironment(false); } if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
     void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); }); }
-    void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(Render); }
+    void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(()=> { Notifications.Suspend(); Render(); }); }
     void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(()=> { Refresh(); Updates.Check(); }); }
     public async void Quit() {
-        if(stopping) return; stopping=true; Experience.Stop(); Notifications.Dispose(); Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
+        if(stopping) return; stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); unreadWindow?.Close(); Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
         ShutdownDiagnostic("runtime-disposing"); if(runtime is not null) await runtime.DisposeAsync(); ShutdownDiagnostic("runtime-disposed"); app.Shutdown();
     }
     void ShutdownDiagnostic(string stage) { try { File.WriteAllText(Path.Combine(root,"shutdown-state.txt"),$"pid={Environment.ProcessId} stage={stage}\n"); } catch(IOException) { } }
     public void Dispose() {
-        stopping=true; Experience.Stop(); Notifications.Dispose(); Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
-        SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
+        stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); unreadWindow?.Close(); Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
+        SystemEvents.SessionSwitch-=SessionChanged; SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
         System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged-=NetworkChanged;
     }
 }

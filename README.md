@@ -126,3 +126,19 @@ Four settings are enabled by default; saved opt-outs remain unchanged:
 - **Bank expiry reminder:** known available credits are grouped at72/24 hours before expiry. Missing dates are never guessed and credits are never redeemed automatically.
 
 Enabling either recovery notifications or celebrations permits one notification per confirmed recovery. macOS requests notification permission if undecided; OS notification and Focus settings still apply. Right-clicking the floating control hides quota details before opening its menu. See [privacy](docs/PRIVACY.md) and [troubleshooting](docs/TROUBLESHOOTING.md).
+
+### Character reminders
+
+QuotaBar routes quota recovery, Bank expiry and software update reminders into character speech bubbles beside the floating button. Select bubbles, system notifications, both, or off; existing reminder switches and skipped-version records are preserved. Hidden or locked screens retain unread reminders for the current run without opening the widget. Bubbles can be paused for an hour and do not automatically inherit system Focus. Previews use sample data.
+
+This is not part of the published v1.2.0. See the [validation record](docs/validation/2026-10-22-character-notification-bubbles.md) for platform evidence and remaining checks.
+
+All in-app bubble types remain visible while quota usage is unchanged; a fresh full read confirming a usage change dismisses them. Manual and lifecycle dismissal remain available.
+
+## Bark mobile push
+
+The Mobile push settings page configures one Bark Device Key in the operating system secure credential store. Automatic push defaults off; saving a key does not enable or send. Explicit phone tests use sample content. Valid recovery, Bank expiry and update reminders can reach Bark independently of desktop channels, widget visibility, lock state or bubble pause, while the app is running. Desktop previews are excluded.
+
+Existing reminder policies still apply. Durable mobile receipts prevent replay across refreshes and restarts; failures are not retried automatically. Titles, bodies and the necessary key go over HTTPS to Bark/APNs; service acceptance does not prove phone display. See the [setup and data guide](docs/BARK_MOBILE_PUSH.zh-CN.md) and [validation status](docs/validation/2026-10-23-bark-mobile-push.md). This feature is not included in public v1.2.0.
+
+Settings place **About app** last, retaining update controls alongside GitHub, feedback and a disabled coming-soon website. **Mobile push** includes an illustrated Bark connection guide and an explicit show/hide control for the draft or saved Device Key. See [settings validation](docs/validation/2026-10-23-settings-about-bark-guide.md).

@@ -30,7 +30,7 @@ internal sealed class QuotaExperienceController {
         owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.RotateEpoch(); sequence=0; lastObservation=null; owner.CancelCelebration(); Persist();
     }
     public void Receive(QuotaObservation observation) {
-        var o=observation with { Epoch=engine.State.Epoch,Sequence=++sequence }; lastObservation=o;
+        var o=observation with { Epoch=engine.State.Epoch,Sequence=++sequence }; lastObservation=o; owner.Notifications.ObserveQuota(o);
         var result=engine.Observe(o,DateTimeOffset.UtcNow);
         if(!Persist()) return;
         if(result.Recoveries.Count>0) {
@@ -54,9 +54,10 @@ internal sealed class QuotaExperienceController {
     public void TestNotification()=>Enqueue(ExperienceNotificationKind.Test,"QuotaBar "+Copy.Text("test notification","测试通知","測試通知"),Copy.Text("Example only — your quota and reminder history are unchanged.","这是一条示例通知，不改变真实额度及提醒记录。","這是一條範例通知，不改變真實額度及提醒記錄。"));
     public UIElement MakeSettingsView() {
         var copy=owner.Copy; var p=owner.Preferences.Experience; var stack=new StackPanel(); var dark=Platform.IsDark(owner.Preferences); var fg=Ui.Foreground(dark); var muted=SettingsVisual.Muted(dark);
+        stack.Children.Add(SettingsVisual.Card(new NotificationSettingsView(owner),dark));
         var rows=new StackPanel();
         var titles=new[]{copy.Text("Quota mood mode","额度表情模式","額度表情模式"),copy.Text("Notify when quota is restored","额度恢复时提醒","額度恢復時提醒"),copy.Text("Celebrate quota recovery","额度恢复时播放小庆祝","額度恢復時播放小慶祝"),copy.Text("Bank expiry reminders","Bank 到期提醒","Bank 到期提醒")};
-        var hints=new[]{copy.Text("Show the battery character for your current quota.","根据当前额度状态，显示对应的电池表情。","根據目前額度狀態，顯示對應的電池表情。"),copy.Text("A system notification after confirmed recovery.","额度确认恢复时，显示系统通知。","額度確認恢復時，顯示系統通知。"),copy.Text("A brief celebration with one recovery notification.","播放短暂庆祝，并同步一条恢复通知。","播放短暫慶祝，並同步一條恢復通知。"),copy.Text("Known credits only; never redeem automatically.","仅提醒已知权益，不会自动兑换。","僅提醒已知權益，不會自動兌換。")};
+        var hints=new[]{copy.Text("Show the battery character for your current quota.","根据当前额度状态，显示对应的电池表情。","根據目前額度狀態，顯示對應的電池表情。"),copy.Text("A reminder after confirmed recovery.","额度确认恢复时，按所选方式提醒。","額度確認恢復時，依所選方式提醒。"),copy.Text("A brief celebration with one recovery notification.","播放短暂庆祝，并同步一条恢复通知。","播放短暫慶祝，並同步一條恢復通知。"),copy.Text("Known credits only; never redeem automatically.","仅提醒已知权益，不会自动兑换。","僅提醒已知權益，不會自動兌換。")};
         var values=new[]{p.Moods,p.Recovery,p.Celebration,p.Bank};
         for(var i=0;i<4;i++) {
             var index=i; var row=new StackPanel { Margin=new Thickness(0,8,0,12) };

@@ -15,7 +15,7 @@ import XCTest
         let all = shell.pageContents.flatMap(tree)
         XCTAssertEqual(all.compactMap { $0 as? QuotaSettingsSwitch }.filter { $0.identifier?.rawValue.hasPrefix("settings.general.") == true }.count, 3)
         XCTAssertFalse(tree(shell.pageContents[2]).contains { $0.identifier?.rawValue.hasPrefix("settings.general.") == true })
-        let previews = tree(shell.pageContents[2]).compactMap { $0 as? NSButton }.filter { $0.title.lowercased().contains("preview") }
+        let previews = tree(shell.pageContents[2]).compactMap { $0 as? NSButton }.filter { $0.title == "Preview celebration" }
         XCTAssertEqual(previews.count, 1, "The celebration has one discoverable preview action")
         XCTAssertFalse(tree(shell).compactMap { $0 as? NSButton }.contains { $0.title.contains("›") }, "No duplicate update action in sidebar")
     }
@@ -73,7 +73,7 @@ import XCTest
             for dark in [false, true] {
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 window.makeKeyAndOrderFront(nil)
-                for page in 0..<4 {
+                for page in shell.pageContents.indices {
                     window.setContentSize(NSSize(width: 900, height: 650)); shell.selectPage(page); shell.layoutSubtreeIfNeeded()
                     let scroll = try XCTUnwrap(shell.subviews.compactMap { $0 as? NSScrollView }.first)
                     let document = try XCTUnwrap(scroll.documentView)
@@ -93,6 +93,11 @@ import XCTest
                         let rect = control.superview!.convert(control.alignmentRect(forFrame: control.frame), to: document)
                         XCTAssertGreaterThanOrEqual(rect.minX, -1)
                         XCTAssertLessThanOrEqual(rect.maxX, document.bounds.width + 1, "Minimum width must not clip controls")
+                    }
+                    if let directory = ProcessInfo.processInfo.environment["QUOTABAR_TEST_ARTIFACTS"] {
+                        let bitmap = try XCTUnwrap(shell.bitmapImageRepForCachingDisplay(in: shell.bounds))
+                        window.appearance?.performAsCurrentDrawingAppearance { shell.cacheDisplay(in: shell.bounds, to: bitmap) }
+                        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: directory).appendingPathComponent("polish-narrow-\(language.rawValue)-\(dark)-page\(page).png"))
                     }
                     document.scroll(NSPoint(x: 0, y: max(0, document.bounds.height - scroll.contentSize.height)))
                     scroll.reflectScrolledClipView(scroll.contentView)
@@ -121,7 +126,9 @@ import XCTest
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
         defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
         var language = CodexDisplayLanguage.english
-        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { language }, requestPermission: { $0("denied") })
+        let router = AppNotificationRouter(defaults: defaults); router.configure(NotificationPresentationPreferences(mode: .system))
+        let experience = QuotaExperienceController(root: root, defaults: defaults, language: { language }, requestPermission: { $0("denied") }, router: router)
+        experience.permission()
         _ = experience.makeSettingsView()
         language = .traditionalChinese
         let rebuilt = experience.makeSettingsView()

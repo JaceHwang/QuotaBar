@@ -13,7 +13,9 @@ internal sealed class FloatingWindow : Window {
     internal Button CloseControl=>close;
     Point? down,origin;
     bool dragging;
-    public event Action? Primary,Secondary,Entered,Exited,CloseRequested;
+    public event Action? Primary,Secondary,Entered,Exited,CloseRequested,DragStarted,DragFinished;
+    readonly Border unreadDot=new() { Width=5,Height=5,CornerRadius=new CornerRadius(3),Background=Brushes.Orange,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Top,IsHitTestVisible=false,Visibility=Visibility.Collapsed };
+    public bool HasUnread { set=>unreadDot.Visibility=value?Visibility.Visible:Visibility.Collapsed; }
     public event Action<Point>? PositionChanged;
     public FloatingWindow() {
         Title="QuotaBar"; Height=30; Width=320; WindowStyle=WindowStyle.None; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -26,7 +28,7 @@ internal sealed class FloatingWindow : Window {
         content.ColumnDefinitions.Add(new() { Width=new GridLength(34) });
         content.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
         content.ColumnDefinitions.Add(new() { Width=new GridLength(24) });
-        surface.Child=content; Content=surface;
+        surface.Child=content; Content=surface; iconHost.Children.Add(unreadDot);
         MouseEnter+=(_,_)=> { close.Visibility=Visibility.Visible; Entered?.Invoke(); };
         MouseLeave+=(_,_)=> { close.Visibility=Visibility.Hidden; Exited?.Invoke(); };
         MouseRightButtonUp+=(_,e)=> { e.Handled=true; Secondary?.Invoke(); };
@@ -35,16 +37,16 @@ internal sealed class FloatingWindow : Window {
             if(down is not Point start || origin is not Point saved || Mouse.LeftButton!=MouseButtonState.Pressed) return;
             var delta=Platform.Cursor-start;
             if(!dragging && delta.Length<4*VisualTreeHelper.GetDpi(this).DpiScaleX) return;
-            CancelCelebration(); dragging=true; Cursor=Cursors.SizeAll; Platform.Place(this,saved+delta);
+            if(!dragging) DragStarted?.Invoke(); CancelCelebration(); dragging=true; Cursor=Cursors.SizeAll; Platform.Place(this,saved+delta);
         };
         MouseLeftButtonUp+=(_,e)=> {
             if(down is null) return;
             var wasDragging=dragging;
             ReleaseMouseCapture(); down=null; Cursor=Cursors.Hand;
             if(wasDragging) PositionChanged?.Invoke(Platform.Bounds(this).Location); else Primary?.Invoke();
-            dragging=false; e.Handled=true;
+            dragging=false; if(wasDragging) DragFinished?.Invoke(); e.Handled=true;
         };
-        LostMouseCapture+=(_,_)=> { down=null; dragging=false; Cursor=Cursors.Hand; };
+        LostMouseCapture+=(_,_)=> { var was=dragging; down=null; dragging=false; Cursor=Cursors.Hand; if(was) DragFinished?.Invoke(); };
     }
     public void Render(QuotaSnapshot? quota,RefreshState state,Preferences preferences,Copy copy,bool dark) {
         if(!preferences.FloatingEnabled) { HideFloat(); return; }

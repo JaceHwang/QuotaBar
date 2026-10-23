@@ -8,7 +8,7 @@ import QuotaCore
     private var sequence = 0
     private var lastObservation: QuotaObservation?
     private let language: () -> CodexDisplayLanguage
-    private let router = AppNotificationRouter.shared
+    private let router: AppNotificationRouter
     private weak var statusLabel: NSTextField?
     private var storageReady = true
     private var notificationMessage: (String, String, String)?
@@ -18,17 +18,21 @@ import QuotaCore
     }
     private let requestNotificationPermission: (@escaping (String) -> Void) -> Void
     var onChange: (() -> Void)?
+    var onShowUnread: (() -> Void)?
+    var onEnableFloating: (() -> Void)?
+    var floatingVisible: () -> Bool = { false }
     var onCelebrate: (() -> Void)?
     var onCancelCelebration: (() -> Void)?
     var preferences: QuotaExperiencePreferences { engine.preferences }
-    init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil) {
+    init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil, router: AppNotificationRouter? = nil) {
+        self.router = router ?? .shared
         self.requestNotificationPermission = requestPermission ?? { AppNotificationRouter.shared.requestPermission(completion: $0) }
         self.defaults = defaults; self.language = language; store = QuotaExperienceStore(url: root.appendingPathComponent("experience-state.json"))
         let state = store.load(); engine = QuotaExperienceEngine(state: state, suppressFirstBank: store.corrupted)
         super.init()
         let prefs = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
         engine.configure(prefs); persist()
-        if prefs.recoveryNotificationEnabled || prefs.bank { permission() }
+        // No startup permission prompt; only explicit system-channel choices request permission.
     }
     private var copy: ExperienceCopy { ExperienceCopy(language()) }
     private func setNotificationStatus(_ message: (String, String, String)?) {
@@ -47,6 +51,7 @@ import QuotaCore
         sequence += 1
         let o = QuotaObservation(epoch: engine.state.epoch, sequence: sequence, receivedAt: quota.receivedAt, quota: quota, bankFieldState: bank)
         lastObservation = o
+        router.observeQuota(o)
         let result = engine.observe(o, now: Date())
         guard persist() else { return }
         if !result.recoveries.isEmpty {
@@ -72,9 +77,11 @@ import QuotaCore
     func stop() { router.cancelAuthenticationEpoch(engine.state.epoch); onCancelCelebration?() }
     func makeSettingsView() -> NSView {
         let stack = QuotaSettingsStyle.column(12)
+        let channel = NotificationSettingsView(router: router, language: language(), floatingVisible: floatingVisible(), preview: { [weak self] in self?.previewBubble() }, showUnread: { [weak self] in self?.onShowUnread?() }, enableFloating: { [weak self] in self?.onEnableFloating?() })
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(channel), in: stack)
         let rows = QuotaSettingsStyle.column(0)
         let labels = [copy.text("Quota mood mode", "额度表情模式", "額度表情模式"), copy.text("Notify when quota is restored", "额度恢复时提醒", "額度恢復時提醒"), copy.text("Celebrate quota recovery", "额度恢复时播放小庆祝", "額度恢復時播放小慶祝"), copy.text("Bank expiry reminders", "Bank 到期提醒", "Bank 到期提醒")]
-        let hints = [copy.text("Show the battery character for your current quota.", "根据当前额度状态，显示对应的电池表情。", "根據目前額度狀態，顯示對應的電池表情。"), copy.text("A system notification after confirmed recovery.", "额度确认恢复时，显示系统通知。", "額度確認恢復時，顯示系統通知。"), copy.text("A brief celebration with one recovery notification.", "播放短暂庆祝，并同步一条恢复通知。", "播放短暫慶祝，並同步一條恢復通知。"), copy.text("Known credits only; never redeem automatically.", "仅提醒已知权益，不会自动兑换。", "僅提醒已知權益，不會自動兌換。")]
+        let hints = [copy.text("Show the battery character for your current quota.", "根据当前额度状态，显示对应的电池表情。", "根據目前額度狀態，顯示對應的電池表情。"), copy.text("A reminder after confirmed recovery.", "额度确认恢复时，按所选方式提醒。", "額度確認恢復時，依所選方式提醒。"), copy.text("A brief celebration with one recovery notification.", "播放短暂庆祝，并同步一条恢复通知。", "播放短暫慶祝，並同步一條恢復通知。"), copy.text("Known credits only; never redeem automatically.", "仅提醒已知权益，不会自动兑换。", "僅提醒已知權益，不會自動兌換。")]
         for i in 0..<4 {
             let item = QuotaSettingsStyle.column(8)
             let toggle = QuotaSettingsSwitch(); toggle.tag = i; toggle.target = self; toggle.action = #selector(changed(_:)); toggle.setAccessibilityLabel(labels[i])
@@ -125,20 +132,28 @@ import QuotaCore
     @objc private func changed(_ sender: QuotaSettingsSwitch) {
         var p = preferences; let on = sender.state == .on
         switch sender.tag { case 0: p.moods = on; case 1: p.recovery = on; case 2: p.celebration = on; default: p.bank = on }
-        engine.configure(p); defaults.set(try? JSONEncoder().encode(p), forKey: "experience.preferences")
+        engine.configure(p); defaults.set(try? JSONEncoder().encode(p), forKey: "experience.preferences"); router.bark?.cancelInvalid()
         if !p.celebration { onCancelCelebration?() }
         if on && (sender.tag == 1 || sender.tag == 2 || sender.tag == 3) { permission() }
         onChange?()
     }
-    private func permission() { requestNotificationPermission { [weak self] result in
+    func permission() {
+        guard router.preferences.mode.usesSystem else { return }
+        requestNotificationPermission { [weak self] result in
         guard let self else { return }
+        if result.isEmpty { router.retryFailedDeliveries() }
         setNotificationStatus(result.isEmpty ? nil : ("Notifications unavailable; allow QuotaBar in system settings", "系统提醒不可用，请在系统设置允许 QuotaBar 通知", "系統提醒不可用，請在系統設定允許 QuotaBar 通知"))
     } }
+    private func previewBubble() {
+        let message = ExperienceNotification(id: "preview-\(UUID())", kind: .test, epoch: nil, title: copy.text("Example notification", "示例通知", "範例通知"), body: copy.text("5 hours remaining 100%; 7 days remaining 36%. Example only.", "5 小时剩余 100%；7 天剩余 36%。仅为示例。", "5 小時剩餘 100%；7 天剩餘 36%。僅為範例。"), createdAt: Date())
+        if !router.preview(message) { setNotificationStatus(("Show the floating button and close quota details to preview.", "请开启悬浮按钮并收起额度详情后预览。", "請開啟懸浮按鈕並收起額度詳情後預覽。")) }
+    }
     @objc private func preview() { onCelebrate?(); testNotification() }
     @objc private func testNotification() {
-        router.requestPermission { [weak self] result in
+        if !router.preferences.mode.usesSystem { enqueue(.test, title: copy.text("Example notification", "示例通知", "範例通知"), body: copy.text("Example only — reminder history is unchanged.", "示例提醒，不改变真实额度及提醒记录。", "範例提醒，不改變真實額度及提醒記錄。")); return }
+        requestNotificationPermission { [weak self] result in
             guard let self else { return }
-            if result.isEmpty { enqueue(.test, title: "QuotaBar " + copy.text("test notification", "测试通知", "測試通知"), body: copy.text("Example only — your quota and reminder history are unchanged.", "这是一条示例通知，不改变真实额度及提醒记录。", "這是一條範例通知，不改變真實額度及提醒記錄。")) }
+            if result.isEmpty || router.preferences.mode.usesBubble { enqueue(.test, title: "QuotaBar " + copy.text("test notification", "测试通知", "測試通知"), body: copy.text("Example only — your quota and reminder history are unchanged.", "这是一条示例通知，不改变真实额度及提醒记录。", "這是一條範例通知，不改變真實額度及提醒記錄。")) }
             else { setNotificationStatus(("System notifications unavailable", "系统提醒不可用", "系統提醒不可用")) }
         }
     }

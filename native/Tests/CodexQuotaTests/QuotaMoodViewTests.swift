@@ -37,7 +37,7 @@ import QuotaCore
             }
         }
     }
-    func testDefaultRemindersRequestPermissionButSavedOptOutDoesNot() throws {
+    func testDefaultBubblesNeverRequestSystemPermissionAndOptOutPersists() throws {
         let name = "QuotaExperiencePermission.\(UUID())"
         let defaults = UserDefaults(suiteName: name)!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
@@ -45,12 +45,12 @@ import QuotaCore
         var requests = 0
         let request: (@escaping (String) -> Void) -> Void = { completion in requests += 1; completion("denied") }
         let fresh = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: request)
-        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(requests, 0)
         let view = fresh.makeSettingsView() as! NSStackView
-        XCTAssertTrue(view.arrangedSubviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Notifications unavailable") })
+        XCTAssertFalse(view.arrangedSubviews.compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("Notifications unavailable") })
         defaults.set(try JSONEncoder().encode(QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false)), forKey: "experience.preferences")
         let saved = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: request)
-        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(requests, 0)
         XCTAssertEqual(saved.preferences, QuotaExperiencePreferences(moods: false, recovery: false, celebration: false, bank: false))
     }
     func testSettingsStartEnabledAndOptOutPersistsIndependently() throws {
@@ -151,7 +151,8 @@ import QuotaCore
         let suite = "QuotaNotificationFailure.\(UUID())", defaults = UserDefaults(suiteName: suite)!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
         defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
-        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { $0("") })
+        let router = AppNotificationRouter(defaults: defaults); router.configure(NotificationPresentationPreferences(mode: .system))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { $0("denied") }, router: router)
         let view = controller.makeSettingsView()
         let button = try XCTUnwrap(descendants(view).compactMap { $0 as? NSButton }.first { $0.title == "Send test notification" })
         button.performClick(nil)

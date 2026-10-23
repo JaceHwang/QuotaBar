@@ -1,6 +1,6 @@
 namespace QuotaBar.Core;
 public enum ExperienceNotificationKind { Recovery,Bank,Update,Test }
-public sealed record ExperienceNotification(string Id,ExperienceNotificationKind Kind,string? Epoch,string Title,string Body,DateTimeOffset CreatedAt,DateTimeOffset? ValidUntil=null,IReadOnlyList<BankExpiryEvent>? BankEvents=null) {
+public sealed record ExperienceNotification(string Id,ExperienceNotificationKind Kind,string? Epoch,string Title,string Body,DateTimeOffset CreatedAt,DateTimeOffset? ValidUntil=null,IReadOnlyList<BankExpiryEvent>? BankEvents=null,string? DeliveryToken=null,string ReminderGeneration="initial") {
     public bool Valid(DateTimeOffset now)=>now>=CreatedAt.AddSeconds(-5) && (ValidUntil is null || now<ValidUntil) && (Kind!=ExperienceNotificationKind.Recovery || now<=CreatedAt.AddMinutes(5));
 }
 public sealed class ExperienceNotificationQueue {
@@ -9,6 +9,7 @@ public sealed class ExperienceNotificationQueue {
         if(messages.Any(m=>m.Id==message.Id)) return;
         messages.Add(message); messages.Sort((a,b)=>a.Kind.CompareTo(b.Kind)); if(messages.Count>32) messages.RemoveAt(messages.Count-1);
     }
+    public void CancelId(string id)=>messages.RemoveAll(m=>m.Id==id);
     public void Cancel(string epoch)=>messages.RemoveAll(m=>m.Epoch==epoch);
     public ExperienceNotification? Next(DateTimeOffset now) {
         messages.RemoveAll(m=>!m.Valid(now)); if(messages.Count==0) return null;
