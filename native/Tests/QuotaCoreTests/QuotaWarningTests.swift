@@ -3,16 +3,16 @@ import XCTest
 @testable import QuotaCore
 final class QuotaWarningTests: XCTestCase {
     let now = Date(timeIntervalSince1970: 1800000000)
-    func observation(_ remaining: Int, _ sequence: Int, reset: Double = 3600, second: Int? = nil, epoch: String = "a", age: Double = 0) -> QuotaObservation {
-        let at = now.addingTimeInterval(Double(sequence)*20-age)
-        let q = AllowanceSnapshot(usedPercent: Double(100-remaining), remainingPercent: remaining, resetsAt: now.addingTimeInterval(reset), receivedAt: at, windowDurationMins: 300, planType: "plus", secondary: second.map { QuotaWindowSnapshot(usedPercent: Double(100-$0), remainingPercent: $0, resetsAt: now.addingTimeInterval(604800), windowDurationMins: 10080) })
+    func observation(_ remaining: Int, _ sequence: Int, reset: Double = 3600, second: Int? = nil, epoch: String = "a", age: Double = 0, time: Double? = nil, used: Double? = nil) -> QuotaObservation {
+        let at = now.addingTimeInterval((time ?? Double(sequence)*20)-age)
+        let q = AllowanceSnapshot(usedPercent: used ?? Double(100-remaining), remainingPercent: remaining, resetsAt: now.addingTimeInterval(reset), receivedAt: at, windowDurationMins: 300, planType: "plus", secondary: second.map { QuotaWindowSnapshot(usedPercent: Double(100-$0), remainingPercent: $0, resetsAt: now.addingTimeInterval(604800), windowDurationMins: 10080) })
         return QuotaObservation(epoch: epoch, sequence: sequence, receivedAt: at, quota: q)
     }
     func observe(_ engine: inout QuotaWarningEngine, _ remaining: Int, _ sequence: Int, reset: Double = 3600, second: Int? = nil, threshold: Int = 20) -> [QuotaWarningEvent] {
         engine.observe(observation(remaining, sequence, reset: reset, second: second), threshold: threshold, now: now.addingTimeInterval(Double(sequence)*20))
     }
     func testSharedWarningCases() throws {
-        struct Step: Decodable { let remaining: Int; let second: Int?; let reset: Double?; let threshold: Int?; let age: Double?; let epoch: String?; let restart: Bool?; let confirm: Bool?; let expected: [NotificationCategory] }
+        struct Step: Decodable { let remaining: Int; let used: Double?; let second: Int?; let reset: Double?; let threshold: Int?; let age: Double?; let seconds: Double?; let epoch: String?; let restart: Bool?; let confirm: Bool?; let expected: [NotificationCategory] }
         struct Case: Decodable { let name: String; let steps: [Step] }
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../contracts/notifications/warning-cases.json").standardizedFileURL
         for item in try JSONDecoder().decode([Case].self, from: Data(contentsOf: url)) {
@@ -20,8 +20,8 @@ final class QuotaWarningTests: XCTestCase {
             for (i, step) in item.steps.enumerated() {
                 if step.restart == true { e = QuotaWarningEngine(state: try JSONDecoder().decode(QuotaWarningState.self, from: JSONEncoder().encode(e.state))) }
                 if step.confirm == true { e.confirmRecovery(periodIDs: ["primary", "secondary"]) }
-                let o = observation(step.remaining, i+1, reset: step.reset ?? 3600, second: step.second, epoch: step.epoch ?? "a", age: step.age ?? 0)
-                XCTAssertEqual(e.observe(o, threshold: step.threshold ?? 20, now: now.addingTimeInterval(Double(i+1)*20)).map(\.category), step.expected, item.name)
+                let o = observation(step.remaining, i+1, reset: step.reset ?? 3600, second: step.second, epoch: step.epoch ?? "a", age: step.age ?? 0, time: step.seconds, used: step.used)
+                XCTAssertEqual(e.observe(o, threshold: step.threshold ?? 20, now: now.addingTimeInterval(step.seconds ?? Double(i+1)*20)).map(\.category), step.expected, item.name)
             }
         }
     }

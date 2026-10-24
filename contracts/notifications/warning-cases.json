@@ -250,5 +250,161 @@
         "expected": []
       }
     ]
+  },
+  {
+    "name": "restart while depleted then confirmed availability rearms",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      },
+      {
+        "remaining": 100,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 100,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "restart availability under fifteen seconds does not rearm",
+    "steps": [
+      {
+        "remaining": 30,
+        "seconds": 0,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "seconds": 20,
+        "expected": [
+          "quotaExhausted"
+        ]
+      },
+      {
+        "remaining": 100,
+        "seconds": 40,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 100,
+        "seconds": 54,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "seconds": 60,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "availability gap over 120 seconds rebuilds confirmation",
+    "steps": [
+      {
+        "remaining": 30,
+        "seconds": 0,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "seconds": 20,
+        "expected": [
+          "quotaExhausted"
+        ]
+      },
+      {
+        "remaining": 100,
+        "seconds": 40,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 100,
+        "seconds": 161,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "seconds": 181,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "fractional fluctuation is not confirmed recovery",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      },
+      {
+        "remaining": 0,
+        "used": 99.9,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "used": 99.9,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "one percent confirmed availability rearms",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      },
+      {
+        "remaining": 1,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 1,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      }
+    ]
   }
 ]

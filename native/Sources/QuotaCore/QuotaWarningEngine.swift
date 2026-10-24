@@ -21,18 +21,19 @@ public struct QuotaWarningEvent: Sendable {
     public let threshold: Int
     public let incidentID: String
 }
-/// Pure cross-line detector. Recovery confirmation is supplied by the existing recovery engine.
+/// Pure cross-line detector. Fresh availability can rearm depletion without emitting a recovery alert.
 public struct QuotaWarningEngine: Sendable {
     public private(set) var state: QuotaWarningState
     private var previous: [String: Double] = [:]
+    private var availableSince: [String: Date] = [:]
     private var sequence = -1
     private var receivedAt: Date?
     public init(state: QuotaWarningState = QuotaWarningState()) {
         self.state = state.schema == 1 && state.periods.count <= 2 ? state : QuotaWarningState()
     }
-    public mutating func resetBaseline() { previous = [:]; sequence = -1; receivedAt = nil }
+    public mutating func resetBaseline() { previous = [:]; availableSince = [:]; sequence = -1; receivedAt = nil }
     public mutating func confirmRecovery(periodIDs: [String]) {
-        for id in periodIDs { state.periods[id]?.exhaustionNotified = false }
+        for id in periodIDs { state.periods[id]?.exhaustionNotified = false; availableSince[id] = nil }
     }
     public mutating func observe(_ observation: QuotaObservation, threshold: Int, now: Date) -> [QuotaWarningEvent] {
         let o = observation
@@ -43,9 +44,9 @@ public struct QuotaWarningEngine: Sendable {
         let windows: [(String, QuotaWindowSnapshot?)] = [("primary", o.quota.primary), ("secondary", o.quota.secondary)]
         guard let plan = o.quota.planType?.trimmingCharacters(in: .whitespacesAndNewlines), !plan.isEmpty,
               windows.compactMap(\.1).allSatisfy({ $0.usedPercent.isFinite && (0...100).contains($0.usedPercent) && ($0.windowDurationMins ?? 0) > 0 && $0.resetsAt.timeIntervalSince1970.isFinite }) else {
-            previous = [:]; return []
+            previous = [:]; availableSince = [:]; return []
         }
-        if state.plan != plan { state.periods = [:]; previous = [:]; state.plan = plan }
+        if state.plan != plan { state.periods = [:]; previous = [:]; availableSince = [:]; state.plan = plan }
         let threshold = [10, 20, 30].contains(threshold) ? threshold : 20
         if state.threshold != threshold {
             state.threshold = threshold; previous = [:]
@@ -53,7 +54,7 @@ public struct QuotaWarningEngine: Sendable {
         var groups: [NotificationCategory: [String]] = [:]
         var identities: [NotificationCategory: [String]] = [:]
         for (id, window) in windows {
-            guard let window else { previous[id] = nil; continue }
+            guard let window else { previous[id] = nil; availableSince[id] = nil; continue }
             let remaining = 100 - window.usedPercent
             let minutes = window.windowDurationMins!
             var period = state.periods[id] ?? QuotaWarningPeriodState(resetAnchor: window.resetsAt, windowMinutes: minutes)
@@ -61,8 +62,15 @@ public struct QuotaWarningEngine: Sendable {
             if period.windowMinutes != minutes || drift >= 60 || drift < 0 {
                 // Backwards metadata is unknown. Establish one baseline at the new fixed anchor.
                 period = QuotaWarningPeriodState(resetAnchor: window.resetsAt, windowMinutes: minutes)
-                previous[id] = nil
+                previous[id] = nil; availableSince[id] = nil
             }
+            if period.exhaustionNotified && remaining >= 1 {
+                if let since = availableSince[id] {
+                    let elapsed = o.receivedAt.timeIntervalSince(since)
+                    if elapsed > 120 { availableSince[id] = o.receivedAt }
+                    else if elapsed >= 15 { period.exhaustionNotified = false; availableSince[id] = nil }
+                } else { availableSince[id] = o.receivedAt }
+            } else { availableSince[id] = nil }
             let old = previous[id]
             var category: NotificationCategory?
             if let old {

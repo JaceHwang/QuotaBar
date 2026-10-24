@@ -17,11 +17,12 @@ public sealed record QuotaWarningEvent(NotificationCategory Category,IReadOnlyLi
 public sealed class QuotaWarningEngine {
  public QuotaWarningState State { get; private set; }
  readonly Dictionary<string,double> previous=[];
+ readonly Dictionary<string,DateTimeOffset> availableSince=[];
  long sequence=-1;
  DateTimeOffset? receivedAt;
  public QuotaWarningEngine(QuotaWarningState? state=null) { State=state is { Schema:1,Periods.Count:<=2 }?state:new(); }
- public void ResetBaseline() { previous.Clear(); sequence=-1; receivedAt=null; }
- public void ConfirmRecovery(IEnumerable<string> periodIDs) { foreach(var id in periodIDs) if(State.Periods.TryGetValue(id,out var p)) p.ExhaustionNotified=false; }
+ public void ResetBaseline() { previous.Clear(); availableSince.Clear(); sequence=-1; receivedAt=null; }
+ public void ConfirmRecovery(IEnumerable<string> periodIDs) { foreach(var id in periodIDs) if(State.Periods.TryGetValue(id,out var p)) { p.ExhaustionNotified=false; availableSince.Remove(id); } }
  public IReadOnlyList<QuotaWarningEvent> Observe(QuotaObservation o,int threshold,DateTimeOffset now) {
   if(o.Source!=ObservationSource.FullRead||(now-o.ReceivedAt).TotalSeconds is < -5 or >120) return [];
   if(State.Epoch!=o.Epoch) { State=new() { Epoch=o.Epoch }; ResetBaseline(); }
@@ -29,17 +30,21 @@ public sealed class QuotaWarningEngine {
   sequence=o.Sequence; receivedAt=o.ReceivedAt;
   var windows=new (string Id,QuotaWindow? Window)[]{("primary",o.Quota.Primary),("secondary",o.Quota.Secondary)};
   var plan=o.Quota.Plan?.Trim();
-  if(string.IsNullOrEmpty(plan)||windows.Where(w=>w.Window!=null).Any(w=>!double.IsFinite(w.Window!.UsedPercent)||w.Window.UsedPercent is <0 or >100||w.Window.WindowMinutes is null or <=0)) { previous.Clear(); return []; }
-  if(State.Plan!=plan) { State.Periods.Clear(); previous.Clear(); State.Plan=plan; }
+  if(string.IsNullOrEmpty(plan)||windows.Where(w=>w.Window!=null).Any(w=>!double.IsFinite(w.Window!.UsedPercent)||w.Window.UsedPercent is <0 or >100||w.Window.WindowMinutes is null or <=0)) { previous.Clear(); availableSince.Clear(); return []; }
+  if(State.Plan!=plan) { State.Periods.Clear(); previous.Clear(); availableSince.Clear(); State.Plan=plan; }
   threshold=threshold is 10 or 20 or 30?threshold:20;
   if(State.Threshold!=threshold) { State.Threshold=threshold; previous.Clear(); }
   Dictionary<NotificationCategory,List<string>> groups=[],identities=[];
   foreach(var (id,window) in windows) {
-   if(window is null) { previous.Remove(id); continue; }
+   if(window is null) { previous.Remove(id); availableSince.Remove(id); continue; }
    var remaining=100-window.UsedPercent; var minutes=window.WindowMinutes!.Value;
    var period=State.Periods.TryGetValue(id,out var oldPeriod)?oldPeriod:new() { ResetAnchor=window.ResetsAt,WindowMinutes=minutes };
    var drift=(window.ResetsAt-period.ResetAnchor).TotalSeconds;
-   if(period.WindowMinutes!=minutes||drift>=60||drift<0) { period=new() { ResetAnchor=window.ResetsAt,WindowMinutes=minutes }; previous.Remove(id); }
+   if(period.WindowMinutes!=minutes||drift>=60||drift<0) { period=new() { ResetAnchor=window.ResetsAt,WindowMinutes=minutes }; previous.Remove(id); availableSince.Remove(id); }
+   if(period.ExhaustionNotified&&remaining>=1) {
+    if(availableSince.TryGetValue(id,out var since)) { var elapsed=(o.ReceivedAt-since).TotalSeconds; if(elapsed>120) availableSince[id]=o.ReceivedAt; else if(elapsed>=15) { period.ExhaustionNotified=false; availableSince.Remove(id); } }
+    else availableSince[id]=o.ReceivedAt;
+   } else availableSince.Remove(id);
    NotificationCategory? category=null;
    if(previous.TryGetValue(id,out var old)) {
     if(old>0&&remaining<=0&&!period.ExhaustionNotified) { category=NotificationCategory.QuotaExhausted; period.ExhaustionNotified=true; period.Incident++; }
