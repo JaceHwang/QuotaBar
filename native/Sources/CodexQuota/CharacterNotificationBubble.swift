@@ -140,7 +140,7 @@ enum NotificationCharacterArtwork: String { case attention, recovery, bank, neut
         let body = label(displayBody, font: bodyFont, y: bodyY, height: bodyHeight, lines: 4)
         body.textColor = dark ? NSColor(calibratedWhite: 0.78, alpha: 1) : NSColor(calibratedRed: 0.35, green: 0.41, blue: 0.53, alpha: 1)
         body.toolTip = message.body; body.setAccessibilityLabel(message.body)
-        let title = message.kind == .bank ? copy.text("View Bank", "查看 Bank", "查看 Bank") : message.kind == .update ? copy.text("View update", "查看更新", "查看更新") : copy.text("View details", "查看详情", "查看詳情")
+        let title = message.kind == .bank ? copy.text("View Bank", "查看 Bank", "查看 Bank") : message.kind == .update ? copy.text("Update now", "立即更新", "立即更新") : copy.text("View details", "查看详情", "查看詳情")
         let available = textWidth - 14
         let primaryWidth = floor(available * 1.2 / 2.2)
         func button(_ title: String, primary: Bool, x: CGFloat, width: CGFloat, action: Selector, identifier: String) {

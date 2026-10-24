@@ -50,7 +50,7 @@ internal sealed class CharacterNotificationBubble : Window,IDisposable {
         void Place(FrameworkElement element,double y) { element.Width=innerWidth; Canvas.SetLeft(element,CardLeft+20); Canvas.SetTop(element,y); canvas.Children.Add(element); }
         Place(title,42); Place(text,bodyY);
         var actions=new Grid { Height=32 }; actions.ColumnDefinitions.Add(new() { Width=new GridLength(1.2,GridUnitType.Star) }); actions.ColumnDefinitions.Add(new() { Width=new GridLength(14) }); actions.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) });
-        var label=message.Kind==ExperienceNotificationKind.Bank?copy.Text("View Bank","查看 Bank","查看 Bank"):message.Kind==ExperienceNotificationKind.Update?copy.Text("View update","查看更新","查看更新"):copy.Text("View details","查看详情","查看詳情");
+        var label=message.Kind==ExperienceNotificationKind.Bank?copy.Text("View Bank","查看 Bank","查看 Bank"):message.Kind==ExperienceNotificationKind.Update?copy.Text("Update now","立即更新","立即更新"):copy.Text("View details","查看详情","查看詳情");
         var primary=Ui.Button(label,()=>ActionRequested?.Invoke(message.Id,message.DeliveryToken)); primary.Tag="notification.primary";
         var acknowledge=Ui.Button(copy.Text("Got it","知道了","知道了"),()=>Acknowledged?.Invoke(message.Id,message.DeliveryToken)); acknowledge.Tag="notification.acknowledge";
         foreach(var button in new[]{primary,acknowledge}) {

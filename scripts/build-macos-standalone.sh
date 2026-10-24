@@ -24,6 +24,7 @@ xcrun swift build -c release --arch arm64 --package-path "$package_root"
 bin="$(xcrun swift build -c release --arch arm64 --show-bin-path --package-path "$package_root")"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources"
 install -m 755 "$bin/CodexQuota" "$app/Contents/MacOS/CodexQuota"
+install -m 755 "$bin/QuotaBarUpdater" "$app/Contents/Helpers/QuotaBarUpdater"
 install -m 755 "$runtime" "$app/Contents/Helpers/codex"
 ditto "$bin/CodexQuota_CodexQuota.bundle" "$app/Contents/Resources/CodexQuota_CodexQuota.bundle"
 install -m 644 "$package_root/Sources/CodexQuota/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
@@ -49,9 +50,12 @@ provenance['sourceSnapshotSha256']=hashlib.sha256(source_snapshot.encode()).hexd
 PY
 identity="$(select_signing_identity)"
 codesign --force --sign "$identity" "$app/Contents/Helpers/codex"
+codesign --force --sign "$identity" "$app/Contents/Helpers/QuotaBarUpdater"
 python3 - "$app" <<'PY'
 import hashlib,json,pathlib,sys
 app=pathlib.Path(sys.argv[1]);path=app/'Contents/Resources/PROVENANCE.json';info=json.loads(path.read_text())
+info['updateProtocol']=1
+info['updaterSignedSha256']=hashlib.sha256((app/'Contents/Helpers/QuotaBarUpdater').read_bytes()).hexdigest()
 info['runtimeSignedSha256']=hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest()
 info['applicationUnsignedSha256']=hashlib.sha256((app/'Contents/MacOS/CodexQuota').read_bytes()).hexdigest()
 path.write_text(json.dumps(info,indent=2)+'\n')

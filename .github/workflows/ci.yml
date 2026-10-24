@@ -22,6 +22,8 @@ jobs:
           dotnet-version: 10.0.x
       - name: Validate standalone repository
         run: ./governance check all
+      - name: Native update helper transactions
+        run: python3 scripts/test-macos-in-app-update.py
       - name: Download pinned official runtime
         run: |
           mkdir -p .dist/runtime
@@ -79,6 +81,12 @@ jobs:
           $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
           python scripts/test-windows-standalone-install.py $candidate.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Concrete installation smoke failed.' }
+      - name: Native in-app update handshake and health rollback
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem .dist/standalone-windows/candidate-*/QuotaBar -Directory | Select-Object -Last 1
+          python scripts/test-windows-in-app-update.py $candidate.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Native in-app update test failed.' }
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: quotabar-windows-candidate

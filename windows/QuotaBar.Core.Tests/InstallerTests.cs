@@ -4,6 +4,12 @@ using QuotaBar.Core;
 
 static class InstallerTests {
     public static void Run() {
+        Check(!InstallationProcessIdentity.Matches(()=>throw new System.ComponentModel.Win32Exception(299),()=>true,"target"),"exited process partial module read is ignored");
+        var liveRefused=false;
+        try { InstallationProcessIdentity.Matches(()=>throw new System.ComponentModel.Win32Exception(299),()=>false,"target"); }
+        catch(System.ComponentModel.Win32Exception) { liveRefused=true; }
+        Check(liveRefused,"live process with unknown identity fails safely");
+        Check(!InstallationProcessIdentity.Matches(()=>"unrelated",()=>false,"target"),"unrelated same-name process is not owned");
         var root=Path.Combine(Path.GetTempPath(),"quotabar-install-"+Guid.NewGuid()); Directory.CreateDirectory(root);
         try {
             var one=Candidate(root,"one"); var two=Candidate(root,"two");
@@ -15,6 +21,8 @@ static class InstallerTests {
             fail=true; Throws(()=>installer.Rollback()); Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="two","failed rollback keeps current");
             installer.Rollback(); Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","rollback");
             fail=true; Throws(()=>installer.Install(two)); Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one" && activated==target,"failed activation restored");
+            Throws(()=>installer.Install(two,()=>throw new IOException("new application failed health")));
+            Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","health failure restores old version under transaction lock");
             File.WriteAllText(Path.Combine(two,"QuotaBar.exe"),"tampered"); Throws(()=>installer.Install(two));
             Check(File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","tampering rejected before mutation");
             installer.Uninstall(); Check(!Directory.Exists(target),"uninstalled into recoverable backup");
@@ -33,6 +41,7 @@ static class InstallerTests {
             legacyEnabled=true;
             var upgradeFailure=new TransactionInstaller(target,new InstallHooks(()=>{},()=>false,(_,_)=>throw new IOException("persistent shortcut failure"),()=>{},()=>new LegacyState(legacyEnabled,false,[]),()=>legacyEnabled=false,s=>legacyEnabled=s.PluginEnabled==true));
             Throws(()=>upgradeFailure.Install(one));
+            Check(upgradeFailure.RecoveryPending,"incomplete recovery retains journal for manual recovery");
             Check(legacyEnabled && File.ReadAllText(Path.Combine(target,"QuotaBar.exe"))=="one","legacy restored even when old application activation still fails");
         } finally { Directory.Delete(root,true); }
     }

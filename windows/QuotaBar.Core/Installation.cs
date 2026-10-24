@@ -14,7 +14,8 @@ public static class PackageVerifier {
                 if(relative.Contains('\\') || relative.StartsWith('/') || relative.Split('/').Any(p=>p is ".." or "." or "")) throw new IOException("Invalid manifest path");
                 var path=System.IO.Path.GetFullPath(System.IO.Path.Combine(directory,relative));
                 EnsureInside(directory,path);
-                var actual=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+                using var input=File.OpenRead(path);
+                var actual=Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant();
                 if(!string.Equals(actual,expected,StringComparison.Ordinal)) throw new IOException("Package checksum mismatch: "+relative);
             }
             foreach(var path in Directory.GetFiles(directory,"*",SearchOption.AllDirectories)) {
@@ -42,13 +43,14 @@ public sealed class TransactionInstaller {
     private sealed record Journal(string Target,string Stage,string Backup,bool HadPrevious,bool Startup,string? PreviousHistory,LegacyState? Legacy);
     private sealed record History(string Backup,bool Startup);
     readonly string target,store,journalPath,historyPath;
+    public bool RecoveryPending=>File.Exists(journalPath);
     readonly InstallHooks hooks;
     public TransactionInstaller(string target,InstallHooks hooks) {
         this.target=Path.GetFullPath(target); this.hooks=hooks;
         store=Path.Combine(Path.GetDirectoryName(this.target)!,".QuotaBar-install"); journalPath=Path.Combine(store,"journal.json"); historyPath=Path.Combine(store,"history.json");
     }
     FileStream Lock() { Directory.CreateDirectory(store); return new(Path.Combine(store,"install.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None); }
-    public void Install(string candidate) {
+    public void Install(string candidate,Action? verifyHealth=null) {
         using var locked=Lock(); Recover();
         candidate=Path.GetFullPath(candidate); PackageVerifier.Verify(candidate);
         if(candidate==target || candidate.StartsWith(target+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)) throw new IOException("Candidate cannot be inside active installation");
@@ -61,6 +63,7 @@ public sealed class TransactionInstaller {
             if(j.HadPrevious) Directory.Move(target,backup);
             Directory.Move(stage,target);
             hooks.Activate(target,j.Startup);
+            verifyHealth?.Invoke();
             if(j.HadPrevious) Write(historyPath,new History(backup,j.Startup));
             File.Delete(journalPath);
         } catch { Recover(); throw; }
@@ -135,5 +138,13 @@ public sealed class TransactionInstaller {
         Directory.CreateDirectory(destination);
         foreach(var file in Directory.GetFiles(source)) File.Copy(file,Path.Combine(destination,Path.GetFileName(file)));
         foreach(var dir in Directory.GetDirectories(source)) Copy(dir,Path.Combine(destination,Path.GetFileName(dir)));
+    }
+}
+
+/// Module enumeration can race a process exiting. Never ignore an unidentified live process.
+public static class InstallationProcessIdentity {
+    public static bool Matches(Func<string?> executable,Func<bool> exited,string expected) {
+        try { return string.Equals(executable(),expected,StringComparison.OrdinalIgnoreCase); }
+        catch(System.ComponentModel.Win32Exception error) when(error.NativeErrorCode==299 && exited()) { return false; }
     }
 }

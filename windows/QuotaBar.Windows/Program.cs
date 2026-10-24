@@ -13,6 +13,7 @@ public static class Program {
         var stopWait=ThreadPool.RegisterWaitForSingleObject(shutdown,(_,_)=>app.Dispatcher.BeginInvoke(()=>coordinator?.Quit()),null,Timeout.Infinite,false);
         var showWait=ThreadPool.RegisterWaitForSingleObject(show,(_,_)=>app.Dispatcher.BeginInvoke(()=>coordinator?.ShowSettings()),null,Timeout.Infinite,false);
         app.Startup+=(_,_)=> {
+            try { UpdateLocations.AcknowledgeHealth(args,Environment.ProcessPath??""); } catch { app.Shutdown(1); return; }
             coordinator=new Coordinator(app);
             coordinator.Start();
         };

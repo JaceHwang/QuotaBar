@@ -1,0 +1,55 @@
+namespace QuotaBar.Core;
+/// Owns one explicit update operation. Late callbacks from a cancelled generation are inert.
+public sealed class ApplicationUpdateOperation(Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task> execute,SynchronizationContext? dispatch=null,Action<CancellationToken>? commit=null,Action<CancellationToken>? abandon=null) {
+    readonly object gate=new();
+    readonly SynchronizationContext? context=dispatch??SynchronizationContext.Current;
+    CancellationTokenSource? cancellation;
+    long generation;
+    readonly HashSet<Task> workers=new();
+    ApplicationUpdateProgress progress=new(ApplicationUpdatePhase.Idle,0,0,null);
+    public string? TargetVersion { get; private set; }
+    public ApplicationUpdateProgress Progress { get { lock(gate) return progress; } }
+    public event Action? Changed,Ready;
+    static bool Busy(ApplicationUpdatePhase phase)=>phase is ApplicationUpdatePhase.Resolving or ApplicationUpdatePhase.Downloading or ApplicationUpdatePhase.Verifying or ApplicationUpdatePhase.Preparing or ApplicationUpdatePhase.HandingOff or ApplicationUpdatePhase.Installing;
+    public static bool CanCancel(ApplicationUpdatePhase phase)=>phase is ApplicationUpdatePhase.Resolving or ApplicationUpdatePhase.Downloading or ApplicationUpdatePhase.Verifying or ApplicationUpdatePhase.Preparing;
+    void Notify(Action? action) { if(context is null) action?.Invoke(); else context.Post(_=>action?.Invoke(),null); }
+    public void Start(string version) {
+        long id; CancellationTokenSource source;
+        lock(gate) { if(Busy(progress.Phase)) return; id=++generation; TargetVersion=version; cancellation=source=new(); progress=new(ApplicationUpdatePhase.Resolving,0,0,null); }
+        Notify(Changed);
+        Task worker;
+        lock(gate) { worker=Task.Run(async ()=> {
+            try {
+                await execute(version,update=> { lock(gate) { if(id!=generation || !CanCancel(progress.Phase)) return; progress=update; } Notify(Changed); },source.Token);
+                await DeliverCompletion(()=> {
+                    lock(gate) { if(id!=generation || source.IsCancellationRequested) return; commit?.Invoke(source.Token); progress=new(ApplicationUpdatePhase.HandingOff,0,0,null); cancellation=null; }
+                    Changed?.Invoke(); Ready?.Invoke();
+                },source.Token);
+            } catch {
+                lock(gate) { if(id!=generation) return; progress=new(source.IsCancellationRequested?ApplicationUpdatePhase.Cancelled:ApplicationUpdatePhase.Failed,0,0,null); cancellation=null; }
+                Notify(Changed);
+            } finally { try { abandon?.Invoke(source.Token); } finally { source.Dispose(); } }
+        }); workers.Add(worker); }
+        _=worker.ContinueWith(done=> { lock(gate) workers.Remove(done); },TaskScheduler.Default);
+    }
+    public async Task WaitForCleanup() {
+        Cancel(); Task[] pending; lock(gate) pending=workers.ToArray();
+        await Task.WhenAll(pending);
+    }
+    async Task DeliverCompletion(Action action,CancellationToken cancel) {
+        if(context is null) { cancel.ThrowIfCancellationRequested(); action(); return; }
+        var completed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration=cancel.Register(()=>completed.TrySetCanceled(cancel));
+        context.Post(_=> { try { action(); completed.TrySetResult(); } catch(Exception error) { completed.TrySetException(error); } },null);
+        await completed.Task;
+    }
+    public void ReportResult(ApplicationUpdatePhase phase) {
+        if(phase is not (ApplicationUpdatePhase.Succeeded or ApplicationUpdatePhase.RolledBack or ApplicationUpdatePhase.Failed)) return;
+        lock(gate) { if(progress.Phase!=ApplicationUpdatePhase.Idle) return; progress=new(phase,0,0,null); }
+        Notify(Changed);
+    }
+    public void Cancel() {
+        lock(gate) { if(!CanCancel(progress.Phase)) return; generation++; cancellation?.Cancel(); cancellation=null; progress=new(ApplicationUpdatePhase.Cancelled,0,0,null); }
+        Notify(Changed);
+    }
+}

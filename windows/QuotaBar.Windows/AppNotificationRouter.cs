@@ -81,7 +81,8 @@ internal sealed class AppNotificationRouter : IDisposable {
         if(read) consumed.Add(id);
         var active=state.ActiveId==id; state.Dismiss(id,read); previews.Remove(id); if(active) { bubbleTimer.Stop(); HideBubble?.Invoke(); } UnreadChanged?.Invoke(); Dispatch();
     }
-    public void ActivateLatest(string id,string? token=null) { if(consumed.Contains(id)||!messages.TryGetValue(id,out var m)||token!=null&&token!=m.DeliveryToken) return; if(m.Kind==ExperienceNotificationKind.Update) { Activate(id); return; } Dismiss(id,true); clicked(m); }
+    public Action? SystemUpdateRequested;
+    public void ActivateLatest(string id,string? token=null) { if(consumed.Contains(id)||!messages.TryGetValue(id,out var m)||token!=null&&token!=m.DeliveryToken) return; if(m.Kind==ExperienceNotificationKind.Update) { if(valid(m)) { Dismiss(id,true,token); SystemUpdateRequested?.Invoke(); } return; } Dismiss(id,true); clicked(m); }
     public void Activate(string id,string? token=null) { if(consumed.Contains(id)) return; if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return; if(messages.TryGetValue(id,out var message)&&(valid(message)||previews.Contains(id))) { consumed.Add(id); Receipt(message); Suspend(); state.Dismiss(id,true); UnreadChanged?.Invoke(); clicked(message); } else Dismiss(id,true); }
     void DispatchSystem() {
         if(stopped||!preferences.UsesSystem||nativeTimeout.IsEnabled) return;
@@ -94,7 +95,7 @@ internal sealed class AppNotificationRouter : IDisposable {
         }
     }
     void Shown(object? sender,EventArgs e) { if(nativeActive is { } m&&m.Valid(DateTimeOffset.UtcNow)) Receipt(m); }
-    void Clicked(object? sender,EventArgs e) { if(nativeActive is { } m) Activate(m.Id,m.DeliveryToken); nativeActive=null; /* cooldown guards trailing native events */ }
+    void Clicked(object? sender,EventArgs e) { if(nativeActive is { } m) { if(m.Kind==ExperienceNotificationKind.Update) { if(valid(m)) { Dismiss(m.Id,true,m.DeliveryToken); SystemUpdateRequested?.Invoke(); } } else Activate(m.Id,m.DeliveryToken); } nativeActive=null; /* cooldown guards trailing native events */ }
     void Closed(object? sender,EventArgs e) { if(nativeActive is { } m&&!receipted.Contains(m.Id)) MarkFailed(m); nativeActive=null; }
     public void CancelMessage(string id,bool cancelMobile=true) {
         if(cancelMobile) Mobile?.Cancel(id);

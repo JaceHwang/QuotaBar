@@ -161,6 +161,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             if snapshot == nil { showSettings() } else { detailFromFloating = false; showingDetail = true; render(); refresh() }
         }
         let router = AppNotificationRouter.shared
+        router.openUpdates = { [weak self] in self?.showSettings(); (self?.settings?.contentView as? QuotaSettingsShellView)?.selectPage(4) }
         // LaunchServices' isolated-home smoke host must never open the login Keychain.
         if bark == nil, ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"] == nil {
             bark = BarkNotificationController(defaults: defaults, secrets: KeychainBarkSecretStore(), transport: BarkPushClient(), deliveries: BarkDeliveryStore(url: root.appendingPathComponent("bark-deliveries.json")))
@@ -611,7 +612,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         networkMonitor?.cancel(); networkMonitor = nil
         removeMouseMonitors()
         for task in tasks { task.cancel() }
-        Task { if let client { await client.stop() }; sender.reply(toApplicationShouldTerminate: true) }
+        Task { await updates?.waitForUpdateCleanup(); if let client { await client.stop() }; sender.reply(toApplicationShouldTerminate: true) }
         return .terminateLater
     }
     private func removeMouseMonitors() {

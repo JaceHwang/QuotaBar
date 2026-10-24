@@ -7,7 +7,8 @@ internal sealed class SettingsWindow : Window {
     public void UpdateMobileStatus()=>mobile?.Refresh();
     TextBlock? updateStatus,updateNotes;
     StackPanel? updateActions;
-    Button? updateCheck;
+    Button? updateCheck,installButton,cancelInstallButton;
+    public void ShowAbout() { selectedPage="updates"; Build(); }
     TextBlock status=Ui.Text("");
     TextBlock accountName=Ui.Text("");
     ProgressBar? updateProgress;
@@ -26,13 +27,19 @@ internal sealed class SettingsWindow : Window {
     public void UpdateUpdateStatus() {
         if(updateStatus is null) return;
         var copy=owner.Copy; var updates=owner.Updates;
-        updateStatus.Text=copy.Text("Current version","当前版本","目前版本")+" "+updates.DisplayVersion+(updates.Available is { } release?" · "+copy.Text("Available","可用更新","可用更新")+" "+release.Version:"")+"\n"+updates.Status;
+        var targetVersion=ApplicationUpdateOperation.CanCancel(updates.Installer.Operation.Progress.Phase)||updates.Installer.Operation.Progress.Phase==ApplicationUpdatePhase.HandingOff?updates.Installer.Operation.TargetVersion:updates.Available?.Version;
+        updateStatus.Text=copy.Text("Current version","当前版本","目前版本")+" "+updates.DisplayVersion+(targetVersion is { } releaseVersion?" · "+copy.Text("Available","可用更新","可用更新")+" "+releaseVersion:"")+"\n"+updates.Status;
         var notes=updates.Available?.ReleaseNotes;
         if(string.IsNullOrWhiteSpace(notes)) notes=updates.Available?.NotificationSummary;
         if(updateNotes is not null) { updateNotes.Text=notes??""; updateNotes.Visibility=string.IsNullOrWhiteSpace(notes)?Visibility.Collapsed:Visibility.Visible; }
         if(updateActions is not null) updateActions.Visibility=updates.Available is null?Visibility.Collapsed:Visibility.Visible;
-        if(updateCheck is not null) updateCheck.IsEnabled=!updates.Checking;
-        if(updateProgress is not null) updateProgress.Visibility=updates.Checking?Visibility.Visible:Visibility.Collapsed;
+        var state=updates.Installer.Operation.Progress;
+        var busy=state.Phase is ApplicationUpdatePhase.Resolving or ApplicationUpdatePhase.Downloading or ApplicationUpdatePhase.Verifying or ApplicationUpdatePhase.Preparing or ApplicationUpdatePhase.HandingOff or ApplicationUpdatePhase.Installing;
+        if(installButton is not null) { installButton.IsEnabled=!busy; installButton.Content=state.Phase==ApplicationUpdatePhase.Failed?copy.Text("Retry update","重试更新","重試更新"):copy.Text("Update now","立即更新","立即更新"); }
+        if(cancelInstallButton is not null) cancelInstallButton.Visibility=ApplicationUpdateOperation.CanCancel(state.Phase)?Visibility.Visible:Visibility.Collapsed;
+        if(updateActions is not null) foreach(var button in updateActions.Children.OfType<Button>().Skip(1)) button.IsEnabled=!busy;
+        if(updateCheck is not null) updateCheck.IsEnabled=!updates.Checking&&!busy;
+        if(updateProgress is not null) { updateProgress.Visibility=updates.Checking||busy?Visibility.Visible:Visibility.Collapsed; updateProgress.IsIndeterminate=state.Phase!=ApplicationUpdatePhase.Downloading; updateProgress.Value=state.Total>0?100d*state.Received/state.Total:0; }
     }
     public void Build() {
         mobile?.HideSecret();
@@ -108,7 +115,7 @@ internal sealed class SettingsWindow : Window {
         var statusRow=new Grid { Margin=new Thickness(0,10,0,6) }; statusRow.ColumnDefinitions.Add(new()); statusRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
         updateStatus=Ui.Text("",12,fg); updateStatus.TextWrapping=TextWrapping.Wrap; updateStatus.Margin=new Thickness(0,0,12,0); updateStatus.VerticalAlignment=VerticalAlignment.Center; statusRow.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); updateCheck.VerticalAlignment=VerticalAlignment.Center; SettingsVisual.Primary(updateCheck); Grid.SetColumn(updateCheck,1); statusRow.Children.Add(updateCheck); panel.Children.Add(statusRow);
         updateProgress=new ProgressBar { IsIndeterminate=true,Height=3,Margin=new Thickness(0,8,0,8),Visibility=Visibility.Collapsed }; panel.Children.Add(updateProgress);
-        updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; updateActions.Children.Add(Ui.Button(c.Text("View update","查看更新","查看更新"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
+        updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); updateActions.Children.Add(Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
         var links=new StackPanel(); links.Children.Add(Heading(c.Text("Related links","相关链接","相關連結"),fg));
         Link("GitHub", "github.com/JaceHwang/QuotaBar","https://github.com/JaceHwang/QuotaBar");
         Link(c.Text("Report an issue","问题反馈","問題回報"),c.Text("Share suggestions and problems","欢迎提出建议与问题","歡迎提出建議與問題"),"https://github.com/JaceHwang/QuotaBar/issues");

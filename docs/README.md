@@ -31,3 +31,5 @@
 - [C参考图气泡验收](validation/2026-10-23-character-bubble-reference.md)：左侧独立角色、对白卡、紧凑排版及两端验证。
 
 - [角色提醒与手机推送发布](releases/character-reminders.md)：本轮授权、双端来源、原生验证及正式资产进度。
+
+- [应用内下载安装](IN_APP_UPDATES.zh-CN.md)：开发候选的显式点击、官方资产校验、原生助手、回退和首版手动安装边界。

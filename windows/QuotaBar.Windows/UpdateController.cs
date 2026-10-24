@@ -6,6 +6,10 @@ using System.Text.Json;
 namespace QuotaBar.Windows;
 internal sealed class UpdateController : IDisposable {
     readonly Coordinator owner;
+    public ApplicationUpdateService Installer { get; }
+    public void Install() { if(Available is { } release && !stopped) Installer.Operation.Start(release.Version); }
+    public void CancelInstall()=>Installer.Operation.Cancel();
+    public void OpenSettings()=>owner.ShowUpdateSettings();
     readonly Func<DateTimeOffset> now;
     readonly string statePath;
     readonly DispatcherTimer timer=new() { Interval=TimeSpan.FromMinutes(1) };
@@ -20,7 +24,22 @@ internal sealed class UpdateController : IDisposable {
     UpdateState state=new();
     public UpdateRelease? Available { get; private set; }
     (string English,string Chinese,string Traditional)? statusMessage;
-    public string Status=>statusMessage is { } message?Text(message.English,message.Chinese,message.Traditional):"";
+    public string Status=>Installer.Operation.Progress.Phase!=ApplicationUpdatePhase.Idle?InstallStatus():statusMessage is { } message?Text(message.English,message.Chinese,message.Traditional):"";
+    string InstallStatus() {
+        var p=Installer.Operation.Progress;
+        return p.Phase switch {
+            ApplicationUpdatePhase.Resolving=>Text("Resolving official release…","正在获取官方版本…","正在取得官方版本…"),
+            ApplicationUpdatePhase.Downloading=>Text("Downloading","正在下载","正在下載")+$" {p.Received/1048576d:F1} / {p.Total/1048576d:F1} MB",
+            ApplicationUpdatePhase.Verifying=>Text("Verifying download…","正在校验安装包…","正在驗證安裝套件…"),
+            ApplicationUpdatePhase.Preparing=>Text("Preparing update…","正在准备更新…","正在準備更新…"),
+            ApplicationUpdatePhase.HandingOff or ApplicationUpdatePhase.Installing=>Text("Installing and restarting…","正在安装并重启…","正在安裝並重新啟動…"),
+            ApplicationUpdatePhase.Succeeded=>Text("Update installed successfully.","更新安装成功。","更新安裝成功。"),
+            ApplicationUpdatePhase.RolledBack=>Text("The new version could not start. Your previous version was restored.","新版未能正常启动，已恢复旧版本。","新版未能正常啟動，已恢復舊版本。"),
+            ApplicationUpdatePhase.Cancelled=>Text("Download cancelled; current version unchanged.","已取消下载，当前版本未变更。","已取消下載，目前版本未變更。"),
+            ApplicationUpdatePhase.Failed=>Text("Update failed. Retry or install manually from the release page. Use the standard per-user installation.","更新失败，可重试或从更新页面手动安装。请使用标准每用户安装目录。","更新失敗，可重試或從更新頁面手動安裝。請使用標準每使用者安裝目錄。"),
+            _=>""
+        };
+    }
     void SetStatus(string english,string chinese,string traditional) { statusMessage=(english,chinese,traditional); }
     public bool Checking=>inFlight;
     public string Version=>typeof(UpdateController).Assembly.GetName().Version?.ToString(3)??"0.0.0";
@@ -39,10 +58,10 @@ internal sealed class UpdateController : IDisposable {
         public DateTimeOffset? LastSuccess { get; init; }
         public UpdateReminderPolicy Policy { get; init; }=new();
     }
-    public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null) {
+    public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? updateExecute=null) {
         now=clock??(()=>DateTimeOffset.UtcNow); next=now().AddSeconds(30);
         http=transport??new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromSeconds(15) };
-        this.owner=owner; statePath=Path.Combine(root,"updates.json");
+        this.owner=owner; Installer=new(Version,updateExecute); Installer.Operation.Changed+=()=>Changed?.Invoke(); Installer.Operation.Ready+=owner.Quit; statePath=Path.Combine(root,"updates.json");
         try { state=JsonSerializer.Deserialize<UpdateState>(File.ReadAllText(statePath))??new(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
         state=state with { Policy=state.Policy??new UpdateReminderPolicy() };
         timer.Tick+=(_,_)=> { Check(); Notify(); }; timer.Start();
@@ -107,5 +126,5 @@ internal sealed class UpdateController : IDisposable {
         pendingReminder=null;
     }
     public void PreferencesChanged() { Changed?.Invoke(); Notify(); }
-    public void Dispose() { if(stopped) return; stopped=true; timer.Stop(); lifetime.Cancel(); http.Dispose(); lifetime.Dispose(); }
+    public void Dispose() { if(stopped) return; Installer.Operation.Cancel(); stopped=true; timer.Stop(); lifetime.Cancel(); http.Dispose(); lifetime.Dispose(); }
 }

@@ -18,6 +18,11 @@ try {
     if(Path.GetFullPath(AppContext.BaseDirectory).StartsWith(target+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)) throw new IOException("Run setup from the extracted download or the registered uninstall entry, not the active application folder.");
     var installer=new TransactionInstaller(target,new(StopOwned,StartupEnabled,Activate,Deactivate,CaptureLegacy,SuspendLegacy,RestoreLegacy));
     switch(command) {
+        case "update":
+            if(args.Length!=2) throw new IOException("Expected managed update job");
+            var directory=UpdateLocations.DirectoryPath(args[1]); var job=UpdateInstallJob.Read(directory);
+            ApplicationUpdateTransaction.Run(job,directory,installer,(exe,arguments)=> { var p=new ProcessStartInfo(exe) { UseShellExecute=false }; foreach(var a in arguments) p.ArgumentList.Add(a); Process.Start(p); });
+            break;
         case "install":
             var index=Array.IndexOf(args,"--candidate");
             var candidate=index>=0 && index+1<args.Length ? args[index+1] : Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))!.FullName;
@@ -37,7 +42,7 @@ void StopOwned() {
     foreach(var p in Process.GetProcessesByName("QuotaBar")) {
         using(p) {
             try {
-                if(!string.Equals(p.MainModule?.FileName,Path.Combine(target,"QuotaBar.exe"),StringComparison.OrdinalIgnoreCase)) continue;
+                if(!InstallationProcessIdentity.Matches(()=>p.MainModule?.FileName,()=>p.WaitForExit(1000),Path.Combine(target,"QuotaBar.exe"))) continue;
                 try { using var signal=EventWaitHandle.OpenExisting("Local\\QuotaBar.Shutdown"); signal.Set(); } catch(WaitHandleCannotBeOpenedException) { }
                 if(!p.WaitForExit(6000)) { p.Kill(entireProcessTree:true); if(!p.WaitForExit(6000)) throw new IOException("Installed application did not stop"); }
             } catch(InvalidOperationException) { }

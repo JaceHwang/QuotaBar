@@ -17,7 +17,8 @@ using QuotaBar.Windows;
 
 internal static class Program {
     [STAThread]
-    static int Main() {
+    static int Main(string[] args) {
+        if(args.Contains("--quit-cleanup")) return TestQuitCleanup();
         if(!OperatingSystem.IsWindows()) return 1;
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
@@ -335,13 +336,35 @@ internal static class Program {
                     var settings=new SettingsWindow(owner); settings.Show(); Pump();
                     Tree(settings).OfType<Button>().First(b=>b.Tag?.ToString()=="settings-nav-updates").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<TextBlock>().Any(c=>c.Text.Contains("改善更新提醒")),"embedded release notes visible");
-                    Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="查看更新" && c.IsVisible),"discovered update actions visible");
+                    Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="立即更新" && c.IsVisible),"discovered update actions visible");
                     var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
                     var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,"settings-update-available-"+(dark?"dark":"light")+".png"))) encoder.Save(file);
                     settings.Close();
                 }
                 owner.Updates.Skip(); Check(File.ReadAllText(Path.Combine(updateRoot,"updates.json")).Contains("999.0.0"),"skip persisted");
                 owner.Updates.Dispose(); owner.Updates.Dispose(); owner.Updates.ReminderShown();
+            }
+            foreach(var phase in new[]{ApplicationUpdatePhase.Downloading,ApplicationUpdatePhase.Verifying,ApplicationUpdatePhase.Preparing,ApplicationUpdatePhase.Failed}) foreach(var language in new[]{"en","zh-CN","zh-TW"}) foreach(var dark in new[]{false,true}) {
+                var phaseRoot=Path.Combine(updateRoot,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(phaseRoot);
+                using var owner=new Coordinator(app,phaseRoot,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),updateExecute:(version,emit,cancel)=> {
+                    if(version!="999.0.0") throw new IOException("Target snapshot changed");
+                    if(phase==ApplicationUpdatePhase.Failed) throw new IOException("fixture failure");
+                    emit(new(phase,1048576,2097152,null)); return Task.Delay(30000,cancel);
+                });
+                owner.Save(new Preferences { Theme=dark?"dark":"light",Language=language,AutomaticUpdates=false },false);
+                owner.Updates.Check(true); var end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Checking&&DateTime.UtcNow<end) Pump();
+                owner.ShowUpdateSettings(); var settings=app.Windows.OfType<SettingsWindow>().Single(w=>w.IsVisible); settings.Width=840; settings.Height=560; settings.ShowAbout(); Pump();
+                var label=language=="en"?"Update now":"立即更新";
+                var updateInstallButton=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==label); updateInstallButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Installer.Operation.Progress.Phase!=phase&&DateTime.UtcNow<end) Pump();
+                Pump(); Check(owner.Updates.Installer.Operation.Progress.Phase==phase,"real update button starts pinned pipeline");
+                var cancel=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==(language=="en"?"Cancel download":language=="zh-CN"?"取消下载":"取消下載"));
+                Check(cancel.IsVisible==ApplicationUpdateOperation.CanCancel(phase),"cancel matches real phase");
+                if(cancel.IsVisible) { cancel.BringIntoView(); Pump(); var bounds=cancel.TransformToAncestor(settings).TransformBounds(new Rect(cancel.RenderSize)); Check(new Rect(settings.RenderSize).Contains(bounds),"cancel remains reachable at 840x560"); }
+                var bitmap=new RenderTargetBitmap((int)settings.ActualWidth,(int)settings.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(settings);
+                var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using(var file=File.Create(Path.Combine(output,$"update-{phase}-{language}-{dark}.png"))) encoder.Save(file);
+                if(phase!=ApplicationUpdatePhase.Failed) { cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Check(owner.Updates.Installer.Operation.Progress.Phase==ApplicationUpdatePhase.Cancelled,"native cancel button cancels pipeline"); }
+                settings.Close();
             }
             var clock=DateTimeOffset.FromUnixTimeSeconds(100000);
             File.WriteAllText(Path.Combine(updateRoot,"updates.json"),JsonSerializer.Serialize(new { LastSuccess=clock }));
@@ -383,9 +406,31 @@ internal static class Program {
                 detail.Render(quota,tokens,new AccountIdentity("Example with a long account name",null,null),state,prefs with { DetailHeight=220 },new Copy(language),true,true,Platform.Bounds(button)); Pump();
                 Check(detail.Content is Border { Child:ScrollViewer },"short detail viewport can scroll fixed bands");
             }
+            using(var quitTest=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute=false,ArgumentList={"--quit-cleanup"} })!) {
+                Check(quitTest.WaitForExit(30000)&&quitTest.ExitCode==0,"actual Quit awaits updater cleanup without a runtime");
+            }
             Console.WriteLine("PASS Windows native floating visibility/hover/close/restore and light/dark detail rendering"); return 0;
         } catch(Exception e) { Console.Error.WriteLine("FAIL Windows UI: "+e); return 1; }
         finally { button.Close(); detail.Close(); app.Shutdown(); }
+    }
+    [STAThread]
+    static int TestQuitCleanup() {
+        var root=Path.Combine(Path.GetTempPath(),"quotabar-quit-cleanup-"+Guid.NewGuid()); Directory.CreateDirectory(root);
+        var owned=Path.Combine(root,"owned-update"); Directory.CreateDirectory(owned);
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleaned=false; var exitAfterCleanup=false;
+        var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        using var owner=new Coordinator(app,root,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),async (_,_,cancel)=> {
+            entered.SetResult();
+            try { await Task.Delay(Timeout.Infinite,cancel); }
+            finally { await Task.Delay(150); Directory.Delete(owned,true); cleaned=true; }
+        });
+        app.Exit+=(_,_)=>exitAfterCleanup=cleaned&&!Directory.Exists(owned);
+        app.Dispatcher.BeginInvoke(async ()=> { owner.Updates.Installer.Operation.Start("2.0.0"); await entered.Task; owner.Quit(); });
+        app.Run();
+        Directory.Delete(root,true);
+        if(!exitAfterCleanup) { Console.Error.WriteLine("Quit exited before updater cleanup"); return 1; }
+        Console.WriteLine("PASS actual native Quit waits for updater cleanup with no runtime"); return 0;
     }
     static void Pump() { var frame=new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background,()=>frame.Continue=false); Dispatcher.PushFrame(frame); }
     static System.Collections.Generic.IEnumerable<DependencyObject> Tree(DependencyObject root) {
