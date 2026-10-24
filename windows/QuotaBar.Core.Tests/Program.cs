@@ -134,6 +134,8 @@ await ApplicationUpdateOperationTests.Run(); } catch(Exception e) { failed++; Co
 try { TrustedUpdateReleaseTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL trusted update: "+e); }
 try { BarkTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL Bark: "+e); }
 try { ExperienceTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL experience: "+e); }
+try { QuotaWarningTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL quota warnings: "+e); }
+try { NotificationPolicyTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL notification policy: "+e); }
 try { NotificationPresentationTests.Run(); } catch(Exception e) { failed++; Console.Error.WriteLine("FAIL presentation: "+e); }
 foreach(var test in tests) {
     try { test.Run(); Console.WriteLine("PASS "+test.Name); }

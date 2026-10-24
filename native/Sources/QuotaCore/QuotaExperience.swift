@@ -57,6 +57,7 @@ public struct ExperienceState: Codable, Sendable {
     public var schema = 1
     public var epoch: String
     public var receipts: [String: BankReceipt] = [:]
+    public var pendingBankBaselines: Set<Int>? = nil
     public init(epoch: String = UUID().uuidString) { self.epoch = epoch }
 }
 public struct BankExpiryEvent: Equatable, Sendable {
@@ -82,6 +83,9 @@ public struct QuotaExperienceEngine: Sendable {
     public mutating func configure(_ value: QuotaExperiencePreferences) {
         if preferences.recovery != value.recovery || preferences.celebration != value.celebration { resetBaseline() }
         preferences = value
+    }
+    public mutating func suppressBankStages(_ stages: Set<Int>) {
+        state.pendingBankBaselines = (state.pendingBankBaselines ?? []).union(stages.filter { $0 == 24 || $0 == 72 })
     }
     public mutating func resetBaseline() { baseline = nil; candidates = [:]; sequence = -1 }
     public mutating func rotateEpoch() { state = ExperienceState(); resetBaseline(); suppressFirstBank = false }
@@ -110,6 +114,7 @@ public struct QuotaExperienceEngine: Sendable {
         }
         if preferences.bank, o.bankFieldState == .value, let bank = q.bank {
             output.bank = bankEvents(bank, now: now)
+            if let pending = state.pendingBankBaselines { output.bank.removeAll { pending.contains($0.stage) }; if bankInventoryIsComplete(bank) { state.pendingBankBaselines = nil } }
             if suppressFirstBank {
                 output.bank = []
                 if bank.availableCount == 0 || bank.credits?.contains(where: { $0.status == "available" && $0.expiresAt != nil }) == true { suppressFirstBank = false }
@@ -149,6 +154,14 @@ public struct QuotaExperienceEngine: Sendable {
             let remaining = event.expiresAt.timeIntervalSince(now)
             return count >= event.count && remaining > 0 && remaining <= 72*3600 && (remaining <= 24*3600 ? 24 : 72) == event.stage
         }
+    }
+    private func bankInventoryIsComplete(_ bank: BankResetSummary) -> Bool {
+        guard bank.availableCount >= 0 else { return false }
+        let available = bank.credits?.filter { $0.status == "available" } ?? []
+        if bank.availableCount == 0 { return available.isEmpty }
+        guard bank.credits != nil, available.allSatisfy({ $0.expiresAt != nil }) else { return false }
+        let groups = Dictionary(grouping: available, by: bankKey)
+        return groups.values.reduce(0) { $0 + ($1.first?.id == nil ? $1.count : 1) } == bank.availableCount
     }
     private mutating func bankEvents(_ bank: BankResetSummary, now: Date) -> [BankExpiryEvent] {
         guard bank.availableCount > 0, let credits = bank.credits else { return [] }

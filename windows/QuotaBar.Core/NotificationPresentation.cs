@@ -32,11 +32,11 @@ public sealed class NotificationPresentationState {
     public void Enqueue(ExperienceNotification m,bool canPresent,DateTimeOffset now) {
         if(stopped||entries.Any(e=>e.Message.Id==m.Id)) return;
         Prune(now); entries.Add(new(m,!canPresent));
-        if(entries.Count>32) { var worst=entries.Where(e=>e.Message.Id!=ActiveId).Max(e=>e.Message.Kind); entries.Remove(entries.First(e=>e.Message.Id!=ActiveId&&e.Message.Kind==worst)); }
+        if(entries.Count>32) { var worst=entries.Where(e=>e.Message.Id!=ActiveId).Max(e=>e.Message.Priority); entries.Remove(entries.First(e=>e.Message.Id!=ActiveId&&e.Message.Priority==worst)); }
     }
     public ExperienceNotification? Next(bool canPresent,DateTimeOffset now) {
         Prune(now); if(stopped||!canPresent||ActiveId!=null) return null;
-        var e=entries.Where(e=>!e.Deferred&&!e.Presented&&!e.Read&&e.Message.Valid(now)).OrderBy(e=>e.Message.Kind).FirstOrDefault();
+        var e=entries.Where(e=>!e.Deferred&&!e.Presented&&!e.Read&&e.Message.Valid(now)).OrderBy(e=>e.Message.Priority).FirstOrDefault();
         if(e==null) return null;
         ActiveId=e.Message.Id; return e.Message;
     }

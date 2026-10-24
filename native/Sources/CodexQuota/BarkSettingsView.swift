@@ -1,6 +1,7 @@
 import AppKit
 
 @MainActor final class BarkSettingsView: NSView, NSTextFieldDelegate {
+    private let enableMobile: ((Bool) -> Bool)?
     private let controller: BarkNotificationController?
     private let text: (String, String, String) -> String
     private let toggle = QuotaSettingsSwitch()
@@ -13,8 +14,8 @@ import AppKit
     private var showingSaved = false
     var onLayoutChange: (() -> Void)?
     private var revealed = false
-    init(controller: BarkNotificationController?, text: @escaping (String, String, String) -> String) {
-        self.controller = controller; self.text = text
+    init(controller: BarkNotificationController?, enableMobile: ((Bool) -> Bool)? = nil, text: @escaping (String, String, String) -> String) {
+        self.enableMobile = enableMobile; self.controller = controller; self.text = text
         super.init(frame: .zero)
         let stack = QuotaSettingsStyle.column(14)
         stack.translatesAutoresizingMaskIntoConstraints = false; addSubview(stack)
@@ -100,9 +101,9 @@ import AppKit
         eye.setAccessibilityLabel(text("Show Key", "显示 Key", "顯示 Key")); eye.toolTip = text("Show Key", "显示 Key", "顯示 Key")
     }
     override func viewWillMove(toWindow newWindow: NSWindow?) { if newWindow == nil { conceal() }; super.viewWillMove(toWindow: newWindow) }
-    @objc private func toggleChanged() { _ = controller?.setEnabled(toggle.state == .on); refresh() }
+    @objc private func toggleChanged() { if let enableMobile { _ = enableMobile(toggle.state == .on) } else { _ = controller?.setEnabled(toggle.state == .on) }; refresh() }
     @objc private func save() { guard !showingSaved else { return }; let value = revealed ? plain.stringValue : keyField.stringValue; if controller?.saveKey(value) == true { conceal(); keyField.stringValue = "" }; refresh() }
-    @objc private func clear() { if controller?.clearKey() == true { conceal(); keyField.stringValue = "" }; refresh() }
+    @objc private func clear() { if controller?.clearKey() == true { _ = enableMobile?(false); conceal(); keyField.stringValue = "" }; refresh() }
     @objc private func test() { controller?.sendTest(title: text("QuotaBar test", "QuotaBar 测试", "QuotaBar 測試"), body: text("Example: quota recovered to 100%.", "示例：额度已恢复至 100%。", "範例：額度已恢復至 100%。")) }
     private func refresh() {
         toggle.state = controller?.preferences.enabled == true ? .on : .off

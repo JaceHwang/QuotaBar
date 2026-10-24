@@ -1,0 +1,254 @@
+[
+  {
+    "name": "low threshold crossing",
+    "steps": [
+      {
+        "remaining": 21,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 19,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "direct zero",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "startup depleted",
+    "steps": [
+      {
+        "remaining": 0,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "low oscillation",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "fixed anchor drift",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 25,
+        "reset": 3630,
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "reset": 3660,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "threshold change",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "threshold": 10,
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "threshold": 10,
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "threshold": 10,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "confirmed recovery rearms",
+    "steps": [
+      {
+        "remaining": 10,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      },
+      {
+        "remaining": 100,
+        "confirm": true,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "expected": [
+          "quotaExhausted"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "restart suppresses duplicate",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 30,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "secondary merge",
+    "steps": [
+      {
+        "remaining": 30,
+        "second": 30,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "second": 20,
+        "expected": [
+          "quotaLow"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "secondary unknown",
+    "steps": [
+      {
+        "remaining": 30,
+        "second": 30,
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "second": 0,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "stale rejected",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "age": 121,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "epoch change",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "epoch": "b",
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "threshold change retains once-per-cycle receipt",
+    "steps": [
+      {
+        "remaining": 30,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 40,
+        "threshold": 30,
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "threshold": 30,
+        "expected": []
+      }
+    ]
+  }
+]

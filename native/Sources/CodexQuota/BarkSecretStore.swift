@@ -4,16 +4,24 @@ import LocalAuthentication
 
 @MainActor protocol BarkSecretStore: AnyObject {
     func read() throws -> String?
+    func readForDelivery() async throws -> String?
     func save(_ key: String) throws
     func clear() throws
+}
+extension BarkSecretStore {
+    func readForDelivery() async throws -> String? { try read() }
 }
 enum BarkSecretError: Error { case unavailable }
 
 /// Accessed only by the explicitly installed application backend, never by view fixtures.
 @MainActor final class KeychainBarkSecretStore: BarkSecretStore {
     private let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "QuotaBar.Bark", kSecAttrAccount as String: "device-key"]
-    func read() throws -> String? {
-        var q = query; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
+    func read() throws -> String? { try Self.readKey() }
+    func readForDelivery() async throws -> String? {
+        try await Task.detached(priority: .utility) { try Self.readKey() }.value
+    }
+    nonisolated private static func readKey() throws -> String? {
+        var q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "QuotaBar.Bark", kSecAttrAccount as String: "device-key"]; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         let context = LAContext(); context.interactionNotAllowed = true
         q[kSecUseAuthenticationContext as String] = context
         var result: CFTypeRef?

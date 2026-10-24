@@ -24,6 +24,11 @@ internal static class ExperienceTests {
         var credit=new BankCredit("available",null,now.AddHours(72),null,null,"credit1","codex");
         var inventory=new BankSummary(1,[credit]); var bankEngine=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); bankEngine.Configure(new(false,false,false,true));
         var observation=new QuotaObservation("a",1,now,Q(0,bank:inventory),BankFieldState.Value);
+        var suppressed=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); suppressed.SuppressBankStages([72]);
+        var suppressedRestart=new QuotaExperienceEngine(System.Text.Json.JsonSerializer.Deserialize<ExperienceState>(System.Text.Json.JsonSerializer.Serialize(suppressed.State))!);
+        Check(suppressedRestart.Observe(observation with { Quota=Q(0,bank:new(1,null)) },now).Bank.Count==0&&suppressedRestart.State.PendingBankBaselines?.Contains(72)==true,"partial inventory keeps pending baseline");
+        Check(suppressedRestart.Observe(observation with { Sequence=2,Quota=Q(0,bank:new(1,[credit,credit with { Id="other" }])) },now).Bank.Count==0&&suppressedRestart.State.PendingBankBaselines?.Contains(72)==true,"invalid inventory keeps pending baseline");
+        Check(suppressedRestart.Observe(observation with { Sequence=3 },now).Bank.Count==0,"pending Bank baseline survives restart");
         var bankEvents=bankEngine.Observe(observation,now).Bank;
         Check(bankEvents.Count==1 && bankEvents[0].Stage==72,"72h inclusive");
         Check(bankEngine.BankEventsAreCurrent(bankEvents,observation,now),"matching inventory");

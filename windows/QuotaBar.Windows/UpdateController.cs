@@ -108,11 +108,12 @@ internal sealed class UpdateController : IDisposable {
     public void Open() { if(Available is { } release) Platform.OpenUrl(release.ReleaseNotesURL.AbsoluteUri); }
     public void Snooze() { if(Available is { } release) owner.Notifications.CancelMessage("update-"+release.Version); pendingReminder=null; retryReminder=DateTimeOffset.MinValue; state=state with { Policy=state.Policy with { SkippedVersion=state.Policy.SkippedVersion==Available?.Version?null:state.Policy.SkippedVersion,SnoozeUntil=DateTimeOffset.UtcNow.AddDays(1) } }; SetStatus("Reminder postponed for 24 hours","已延后提醒 24 小时","已延後提醒 24 小時"); Persist(); Changed?.Invoke(); }
     public void Skip() { if(Available is { } release) owner.Notifications.CancelMessage("update-"+release.Version); pendingReminder=null; state=state with { Policy=state.Policy with { SkippedVersion=Available?.Version,SnoozeUntil=null } }; SetStatus("Version skipped","已跳过此版本","已跳過此版本"); Persist(); Changed?.Invoke(); }
-    public bool ReminderValid(string version)=>!stopped && owner.Preferences.UpdateReminders && Available?.Version==version && state.Policy.SkippedVersion!=version && !(state.Policy.SnoozeUntil>DateTimeOffset.UtcNow);
+    bool Reminders=>owner.Notifications.PolicyActive?owner.Notifications.PolicyPreferences.Rules.TryGetValue(NotificationCategory.UpdateAvailable,out var channels)&&channels.Count>0:owner.Preferences.UpdateReminders;
+    public bool ReminderValid(string version)=>!stopped && Reminders && Available?.Version==version && state.Policy.SkippedVersion!=version && !(state.Policy.SnoozeUntil>DateTimeOffset.UtcNow);
     string ReminderGeneration=>state.Policy.SnoozeUntil is { } until?"snooze:"+until.ToUnixTimeMilliseconds():"initial";
-    public ExperienceNotification? CurrentReminder=>Available is { } release?new("update-"+release.Version,ExperienceNotificationKind.Update,null,"", "",DateTimeOffset.UtcNow,ReminderGeneration:ReminderGeneration):null;
+    public ExperienceNotification? CurrentReminder=>Available is { } release?new("update-"+release.Version,ExperienceNotificationKind.Update,null,"", "",DateTimeOffset.UtcNow,ReminderGeneration:ReminderGeneration,Category:owner.Notifications.PolicyActive?NotificationCategory.UpdateAvailable:null):null;
     public void Notify() {
-        if(stopped || !owner.Preferences.UpdateReminders || Available is not { } release || !state.Policy.ShouldNotify(release.Version,DateTimeOffset.UtcNow)) return;
+        if(stopped || !Reminders || Available is not { } release || !state.Policy.ShouldNotify(release.Version,DateTimeOffset.UtcNow)) return;
         if(DateTimeOffset.UtcNow<retryReminder) return;
         pendingReminder=release.Version; retryReminder=DateTimeOffset.UtcNow.AddMinutes(30);
         owner.ShowUpdateReminder(release.Version,release.NotificationSummary,ReminderGeneration);
@@ -120,7 +121,7 @@ internal sealed class UpdateController : IDisposable {
     public void ReminderShown(string? expectedVersion=null) {
         if(expectedVersion is not null && pendingReminder!=expectedVersion) return;
         if(stopped) return;
-        if(pendingReminder is { } version && owner.Preferences.UpdateReminders && Available?.Version==version && state.Policy.ShouldNotify(version,DateTimeOffset.UtcNow)) {
+        if(pendingReminder is { } version && Reminders && Available?.Version==version && state.Policy.ShouldNotify(version,DateTimeOffset.UtcNow)) {
             state=state with { Policy=state.Policy with { NotifiedVersion=version,SnoozeUntil=null } }; Persist();
         }
         pendingReminder=null;

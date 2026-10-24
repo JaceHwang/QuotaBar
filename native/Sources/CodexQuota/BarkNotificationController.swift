@@ -27,16 +27,34 @@ import QuotaCore
     private var suppressionCapacityExceeded = false
     private var queue: [Pending] = []
     private var active: Pending?
+    private var discovery: Task<Void, Never>?
     private var worker: Task<Void, Never>?
     private var workerRun = UUID()
     private var stopped = false
     init(defaults: UserDefaults, secrets: any BarkSecretStore, transport: any BarkPushTransport, deliveries: BarkDeliveryStore, now: @escaping () -> Date = Date.init) {
         self.defaults = defaults; self.secrets = secrets; self.transport = transport; self.deliveries = deliveries; self.now = now
         preferences = (defaults.data(forKey: "bark.preferences").flatMap { try? JSONDecoder().decode(BarkPreferences.self, from: $0) } ?? BarkPreferences()).validated()
-        do { configured = try secrets.read().map(BarkPayload.isValidDeviceKey) ?? false; status = configured ? .configured : .unconfigured }
-        catch { status = .unavailable }
-        if !configured { preferences.enabled = false; persist() }
+        // Metadata only at launch. The first delivery verifies the secure credential off the UI thread.
+        configured = defaults.bool(forKey: "bark.configured") || preferences.enabled
+        status = configured ? .configured : .unconfigured
         if deliveries.needsBaseline { preferences.enabled = false; persist(); status = .historyRecovery }
+        let generation = preferences.configurationGeneration
+        discovery = Task { [weak self] in
+            guard let self, !stopped, preferences.configurationGeneration == generation else { return }
+            do {
+                let key = try await secrets.readForDelivery()
+                guard !Task.isCancelled, !stopped, preferences.configurationGeneration == generation else { return }
+                configured = key.map(BarkPayload.isValidDeviceKey) ?? false
+                defaults.set(configured, forKey: "bark.configured")
+                if active == nil && !testing && !deliveries.needsBaseline { status = configured ? .configured : .unconfigured }
+                onChange?()
+            } catch {
+                guard !Task.isCancelled, !stopped, preferences.configurationGeneration == generation else { return }
+                configured = false
+                if active == nil && !testing && !deliveries.needsBaseline { status = .unavailable }
+                onChange?()
+            }
+        }
     }
     private func persist() { defaults.set(try? JSONEncoder().encode(preferences), forKey: "bark.preferences") }
     private func changed(_ status: Status) { self.status = status; lastOperation = now(); onChange?() }
@@ -44,7 +62,7 @@ import QuotaCore
         let key = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard BarkPayload.isValidDeviceKey(key) else { changed(.invalidKey); return false }
         do { try secrets.save(key) } catch { changed(.unavailable); return false }
-        cancelAll(); preferences.configurationGeneration = UUID().uuidString; configured = true; draft = ""; onConfigurationChange?(); let baseline = persistSuppression(); if !baseline { preferences.enabled = false }; persist(); changed(baseline ? .configured : .persistenceFailure); return true
+        cancelAll(); preferences.configurationGeneration = UUID().uuidString; configured = true; defaults.set(true, forKey: "bark.configured"); draft = ""; onConfigurationChange?(); let baseline = persistSuppression(); if !baseline { preferences.enabled = false }; persist(); changed(baseline ? .configured : .persistenceFailure); return true
     }
     /// Read back only for an explicit local reveal action. Never changes delivery state.
     func keyForExplicitReveal() -> String? {
@@ -54,7 +72,7 @@ import QuotaCore
     @discardableResult func clearKey() -> Bool {
         cancelAll(); preferences.enabled = false; preferences.configurationGeneration = UUID().uuidString; persist()
         do { try secrets.clear() } catch { changed(.unavailable); return false }
-        configured = false; draft = ""; persist(); changed(.unconfigured); return true
+        configured = false; defaults.set(false, forKey: "bark.configured"); draft = ""; persist(); changed(.unconfigured); return true
     }
     @discardableResult func setEnabled(_ enabled: Bool) -> Bool {
         if enabled {
@@ -112,7 +130,8 @@ import QuotaCore
                 }
                 guard item.valid(), item.message.valid(now: now()), item.configuration == preferences.configurationGeneration, (item.isTest || preferences.enabled) else { active = nil; continue }
                 do {
-                    guard let key = try secrets.read(), BarkPayload.isValidDeviceKey(key) else { changed(.unconfigured); active = nil; continue }
+                    guard let key = try await secrets.readForDelivery(), BarkPayload.isValidDeviceKey(key) else { configured = false; changed(.unconfigured); active = nil; continue }
+                    guard !Task.isCancelled, workerRun == run, item.valid(), item.configuration == preferences.configurationGeneration, item.isTest || preferences.enabled else { continue }
                     let payload = try BarkPayload.encode(deviceKey: key, title: item.message.title, body: item.message.body)
                     let protected = Set(known.filter { $0.value.valid() }.map(\.key))
                     if !item.isTest {
@@ -137,12 +156,12 @@ import QuotaCore
     func cancel(epoch: String) { queue.removeAll { $0.message.epoch == epoch }; if active?.message.epoch == epoch { cancelActive() } }
     func cancelInvalid() { queue.removeAll { !$0.valid() }; if let active, !active.valid() { cancelActive() } }
     private func cancelAll() { queue = []; workerRun = UUID(); active = nil; worker?.cancel(); worker = nil; testing = false }
-    func stop() { stopped = true; cancelAll() }
+    func stop() { stopped = true; discovery?.cancel(); cancelAll() }
     func sendTest(title: String, body: String) {
         guard !stopped, configured, !testing, queue.count + (active == nil ? 0 : 1) < 32 else { return }
         testing = true
         let message = ExperienceNotification(id: "bark-test-" + UUID().uuidString, kind: .test, epoch: nil, title: title, body: body, createdAt: now(), validUntil: now().addingTimeInterval(30))
         queue.append(Pending(token: UUID(), identity: BarkEventIdentity(id: message.id), message: message, valid: { true }, accepted: {}, configuration: preferences.configurationGeneration)); onChange?(); start()
     }
-    func waitUntilIdle() async { while let task = worker { await task.value } }
+    func waitUntilIdle() async { await discovery?.value; while let task = worker { await task.value } }
 }

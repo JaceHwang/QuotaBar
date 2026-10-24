@@ -48,6 +48,9 @@ internal sealed class Coordinator : IDisposable {
         Mobile.Changed+=()=> { if(!stopping) settings?.UpdateMobileStatus(); };
         Experience=new(this,root); Notifications.Failed=Experience.NotificationFailed;
         Notifications.Configure(Preferences.Notifications);
+        Notifications.LoadPolicy(new NotificationPolicyStore(Path.Combine(root,"notification-policy.json")),new(Preferences.Notifications.Mode,Preferences.Experience.Recovery,Preferences.Experience.Celebration,Preferences.Experience.Bank,Preferences.UpdateReminders,Preferences.Bark.Enabled,Preferences.Notifications.PausedUntil));
+        Notifications.PolicyChanged=()=> { Experience.Configure(); Mobile.Revalidate(); settings?.UpdateUpdateStatus(); };
+        Experience.Configure();
         Notifications.PresentBubble=m=>floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&notificationBubble.ShowMessage(m,Platform.Bounds(floating),Platform.IsDark(Preferences),Copy,VisualTreeHelper.GetDpi(floating).DpiScaleX);
         Notifications.HideBubble=notificationBubble.Dismiss;
         Notifications.UnreadChanged=()=>floating.HasUnread=Notifications.Unread.Count>0;
@@ -194,7 +197,7 @@ internal sealed class Coordinator : IDisposable {
         detailFromFloating=false; trayDetail=true; Render(); Refresh();
     }
     internal bool ShowUpdateReminder(string version,string? summary=null,string reminderGeneration="initial") {
-        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration)); return true;
+        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration,Category:Notifications.PolicyActive?NotificationCategory.UpdateAvailable:null)); return true;
     }
     public void ShowUpdateSettings() { ShowSettings(); settings?.ShowAbout(); }
     public void ShowSettings() {

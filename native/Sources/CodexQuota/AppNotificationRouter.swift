@@ -10,6 +10,77 @@ import QuotaCore
     private struct Delivery { let message: ExperienceNotification; let valid: () -> Bool; let failed: () -> Void; let shown: () -> Void; let action: (() -> Void)? }
     private var deliveries: [String: Delivery] = [:]
     var bark: BarkNotificationController?
+    private(set) var policyActive = false
+    private(set) var policyPreferences = NotificationPolicyPreferences()
+    private var policyStore: NotificationPolicyStore?
+    private var snapshots: [BarkEventIdentity: NotificationDeliverySnapshot] = [:]
+    private var snapshotOrder: [BarkEventIdentity] = []
+    var policyError = false
+    var onPolicyChange: (() -> Void)?
+    @discardableResult func loadPolicy(store: NotificationPolicyStore, legacy: LegacyNotificationPreferences) -> Bool {
+        do {
+            let value = try store.loadOrMigrate(legacy: legacy)
+            policyStore = store; applyPolicy(value); policyError = store.corrupted
+            return true
+        } catch { policyError = true; return false }
+    }
+    @discardableResult func configurePolicy(_ value: NotificationPolicyPreferences) -> Bool {
+        do { try policyStore?.save(value) } catch { policyError = true; return false }
+        policyError = false; applyPolicy(value); return true
+    }
+    @discardableResult func setChannelEnabled(_ channel: NotificationChannel, enabled: Bool) -> Bool {
+        var value = policyPreferences
+        let oldMobile = bark?.preferences.enabled ?? false
+        if channel == .mobile {
+            guard let bark, bark.setEnabled(enabled) else { return false }
+        }
+        if enabled { value.enabledChannels.insert(channel) } else { value.enabledChannels.remove(channel) }
+        guard configurePolicy(value) else {
+            if channel == .mobile { _ = bark?.setEnabled(oldMobile) }
+            return false
+        }
+        return true
+    }
+    private func applyPolicy(_ value: NotificationPolicyPreferences) {
+        policyActive = true; policyPreferences = value
+        for key in snapshots.keys { snapshots[key]?.restrict(to: value, now: Date()) }
+        for delivery in deliveries.values where delivery.message.category != nil {
+            let m = delivery.message
+            if !channelAllowed(m, .bubble) {
+                let active = state.activeID == m.id
+                state.dismiss(id: m.id, read: false)
+                if active { hideBubble?(); timer?.invalidate(); timer = nil }
+            }
+            if !channelAllowed(m, .system) {
+                let ids = [m.id + "." + (m.deliveryToken ?? "")]
+                center?.removeDeliveredNotifications(withIdentifiers: ids)
+                center?.removePendingNotificationRequests(withIdentifiers: ids)
+            }
+        }
+        bark?.cancelInvalid(); onPolicyChange?(); dispatch()
+    }
+    private func channelAllowed(_ m: ExperienceNotification, _ channel: NotificationChannel) -> Bool {
+        guard let category = m.category else {
+            switch channel { case .bubble: return preferences.mode.usesBubble && !preferences.paused(now: Date()); case .system: return preferences.mode.usesSystem; case .mobile: return true }
+        }
+        let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
+        return snapshots[identity]?.eligible.contains(channel) == true && NotificationPolicy.decision(category: category, channel: channel, preferences: policyPreferences, now: Date()) == .allowed
+    }
+    private func canStartChannel(_ m: ExperienceNotification, _ channel: NotificationChannel) -> Bool {
+        guard m.category != nil else { return channelAllowed(m, channel) }
+        return snapshots[BarkEventIdentity(id: m.id, generation: m.reminderGeneration)]?.allows(channel, preferences: policyPreferences, now: Date()) == true
+    }
+    private func snapshot(_ m: ExperienceNotification) {
+        guard let category = m.category else { return }
+        let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
+        guard snapshots[identity] == nil else { return }
+        snapshots[identity] = NotificationDeliverySnapshot(category: category, preferences: policyPreferences, now: Date())
+        snapshotOrder.append(identity)
+        if snapshotOrder.count > 256 { let old = snapshotOrder.removeFirst(); snapshots.removeValue(forKey: old) }
+    }
+    private func recordChannel(_ m: ExperienceNotification, _ channel: NotificationChannel) {
+        snapshots[BarkEventIdentity(id: m.id, generation: m.reminderGeneration)]?.recordAccepted(channel)
+    }
     private var sharedReceived: Set<BarkEventIdentity> = []
     private var received: Set<String> = []
     private var previews: Set<String> = []
@@ -46,7 +117,7 @@ import QuotaCore
     }
     func retryFailedDeliveries(allUndelivered: Bool = false) {
         let candidates = allUndelivered ? Array(deliveries.values) : failedDeliveries.compactMap { deliveries[$0] }
-        let retry = candidates.filter { !received.contains($0.message.id) && !consumed.contains($0.message.id) }
+        let retry = candidates.filter { $0.message.category == nil && !received.contains($0.message.id) && !consumed.contains($0.message.id) }
         failedDeliveries = []
         for d in retry {
             cancelMessage(id: d.message.id, cancelMobile: false)
@@ -54,7 +125,7 @@ import QuotaCore
         }
     }
     func requestPermission(completion: @escaping (String) -> Void) {
-        guard preferences.mode.usesSystem else { completion(""); return }
+        guard policyActive ? policyPreferences.enabledChannels.contains(.system) : preferences.mode.usesSystem else { completion(""); return }
         Task {
             guard let center else { completion("unavailable"); return }
             let settings = await center.notificationSettings()
@@ -83,15 +154,18 @@ import QuotaCore
             guard let self, !self.sharedReceived.contains(identity), valid() else { return }
             self.sharedReceived.insert(identity); shown()
         }
-        if !forceBubble { bark?.enqueue(m, valid: valid, accepted: sharedShown) }
-        guard deliveries[m.id] == nil, (preferences.mode != .off || forceBubble) else { return }
+        snapshot(m)
+        if !forceBubble, canStartChannel(m, .mobile) {
+            bark?.enqueue(m, valid: { [weak self] in valid() && self?.channelAllowed(m, .mobile) == true }, accepted: { [weak self] in self?.recordChannel(m, .mobile); sharedShown() })
+        }
+        guard deliveries[m.id] == nil, (canStartChannel(m, .bubble) || canStartChannel(m, .system) || forceBubble) else { return }
         deliveries[m.id] = Delivery(message: m, valid: valid, failed: failed, shown: sharedShown, action: action)
         if deliveries.count > 128, let oldest = deliveries.values.filter({ $0.message.id != state.activeID }).min(by: { $0.message.createdAt < $1.message.createdAt }) { deliveries.removeValue(forKey: oldest.message.id); received.remove(oldest.message.id) }
-        if preferences.mode.usesBubble || forceBubble { state.enqueue(m, canPresent: canPresent && (!preferences.paused(now: Date()) || forceBubble), now: Date()) }
-        if preferences.mode.usesSystem && !forceBubble {
+        if canStartChannel(m, .bubble) || forceBubble { state.enqueue(m, canPresent: canPresent, now: Date()) }
+        if canStartChannel(m, .system) && !forceBubble {
             let done: (Bool) -> Void = { [weak self] success in
-                guard let self, !stopped, let d = deliveries[m.id], d.message.deliveryToken == m.deliveryToken, d.valid(), m.valid(now: Date()) else { return }
-                if success { failedDeliveries.remove(m.id); receipt(m.id, token: m.deliveryToken) } else { if !received.contains(m.id) { failedDeliveries.insert(m.id) }; d.failed() }
+                guard let self, !stopped, let d = deliveries[m.id], d.message.deliveryToken == m.deliveryToken, d.valid(), m.valid(now: Date()), channelAllowed(m, .system) else { return }
+                if success { recordChannel(m, .system); failedDeliveries.remove(m.id); receipt(m.id, token: m.deliveryToken) } else { if !received.contains(m.id) { failedDeliveries.insert(m.id) }; d.failed() }
             }
             if let sendSystem { sendSystem(m, done) } else { deliverSystem(m, done: done) }
         }
@@ -101,14 +175,14 @@ import QuotaCore
         Task { [weak self] in
             guard let self, let center else { done(false); return }
             let permission = await center.notificationSettings()
-            guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, m.valid(now: Date()), preferences.mode.usesSystem else { return }
+            guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, m.valid(now: Date()), channelAllowed(m, .system) else { return }
             guard permission.authorizationStatus == .authorized || permission.authorizationStatus == .provisional else { done(false); return }
             let content = UNMutableNotificationContent(); content.title = m.title; content.body = m.body
             content.userInfo = ["token": m.deliveryToken ?? "", "id": m.id, "kind": String(describing: m.kind), "epoch": m.epoch ?? ""]
             if m.kind == .update { let v = m.id.replacingOccurrences(of: "quotabar-update-", with: ""); if (try? UpdateFeed.versionParts(v)) != nil { content.userInfo["version"] = v } }
             do {
                 try await center.add(UNNotificationRequest(identifier: m.id + "." + (m.deliveryToken ?? ""), content: content, trigger: nil))
-                guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true else { center.removeDeliveredNotifications(withIdentifiers: [m.id + "." + (m.deliveryToken ?? "")]); return }
+                guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, channelAllowed(m, .system) else { center.removeDeliveredNotifications(withIdentifiers: [m.id + "." + (m.deliveryToken ?? "")]); return }
                 done(true)
             } catch { done(false) }
         }
@@ -122,11 +196,11 @@ import QuotaCore
         if !canPresent { suspend() } else { dispatch() }
     }
     private func dispatch() {
-        guard !stopped, canPresent, ((preferences.mode.usesBubble && !preferences.paused(now: Date())) || !previews.isEmpty) else { return }
+        guard !stopped, canPresent else { return }
         while let m = state.next(canPresent: true, now: Date()) {
-            guard deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true else { state.dismiss(id: m.id, read: false); continue }
+            guard deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, (channelAllowed(m, .bubble) || previews.contains(m.id)) else { state.dismiss(id: m.id, read: false); continue }
             guard presentBubble?(m) == true else { state.suspend(); break }
-            state.shown(id: m.id, now: Date()); receipt(m.id, token: m.deliveryToken)
+            state.shown(id: m.id, now: Date()); recordChannel(m, .bubble); receipt(m.id, token: m.deliveryToken)
             timer?.invalidate()
             timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
             RunLoop.main.add(timer!, forMode: .common)
