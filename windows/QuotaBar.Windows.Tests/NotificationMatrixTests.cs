@@ -34,6 +34,10 @@ internal static class NotificationMatrixTests {
    owner.Save(owner.Preferences with { Experience=new(true,false,false,false) },false);
    owner.Notifications.ConfigurePolicy(new() { EnabledChannels=[NotificationChannel.System],Rules=new() { [NotificationCategory.QuotaLow]=[NotificationChannel.System],[NotificationCategory.QuotaExhausted]=[NotificationChannel.System] } });
    var matrix=new NotificationMatrixSettingsView(owner);
+   var pause=Tree(matrix).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.pause"));
+   Check(System.Windows.Automation.AutomationProperties.GetName(pause)==pause.Content.ToString(),"pause accessible name initially follows label");
+   pause.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(System.Windows.Automation.AutomationProperties.GetName(pause)==pause.Content.ToString(),"pause accessible name follows resume label");
    var controls=Tree(matrix).OfType<System.Windows.Controls.CheckBox>().ToArray();
    Check(controls.Count(c=>c.Tag is string tag&&tag.StartsWith("notification.rule."))==18,"18 independent UI cells");
    var low=controls.Single(c=>Equals(c.Tag,"notification.rule.quotaLow.bubble"));

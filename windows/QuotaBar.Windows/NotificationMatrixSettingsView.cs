@@ -56,6 +56,7 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   foreach(var (channel,box) in masters) box.IsChecked=p.EnabledChannels.Contains(channel);
   threshold.SelectedIndex=Array.IndexOf(new[]{10,20,30},p.LowRemainingThreshold);
   pause.Content=p.BubblePausedUntil>DateTimeOffset.UtcNow?copy.Text("Resume bubbles","恢复气泡","恢復氣泡"):copy.Text("Pause bubbles 1 hour","暂停气泡1小时","暫停氣泡1小時");
+  System.Windows.Automation.AutomationProperties.SetName(pause,pause.Content.ToString());
   if(owner.Notifications.PolicyError) status.Text=copy.Text("Could not read or save reminder settings.","提醒设置读取或保存失败。","提醒設定讀取或儲存失敗。");
  }
  static string Key<T>(T value) where T:Enum { var name=value.ToString(); return char.ToLowerInvariant(name[0])+name[1..]; }
