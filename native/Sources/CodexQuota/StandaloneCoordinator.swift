@@ -143,6 +143,11 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.dismissOutsideClick() }
         }
+        let notificationRouter = AppNotificationRouter.shared
+        let legacyExperience = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
+        let legacyPresentation = notificationRouter.preferences
+        let legacyBark = defaults.data(forKey: "bark.preferences").flatMap { try? JSONDecoder().decode(BarkPreferences.self, from: $0) } ?? BarkPreferences()
+        notificationRouter.loadPolicy(store: NotificationPolicyStore(url: root.appendingPathComponent("notification-policy.json")), legacy: LegacyNotificationPreferences(mode: legacyPresentation.mode, recovery: legacyExperience.recovery, celebration: legacyExperience.celebration, bank: legacyExperience.bank, updatesReminders: defaults.bool(forKey: "updates.reminders"), barkEnabled: legacyBark.enabled, pausedUntil: legacyPresentation.pausedUntil))
         if updates == nil {
             updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
         }
@@ -464,8 +469,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
         let about = AboutSettingsView(version: bundleVersion ?? updates?.currentVersion ?? "—", updates: updates?.makeSettingsView(), text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
-        let mobile = BarkSettingsView(controller: bark, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
-        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: mobile), QuotaSettingsPage(title: text("About app", "关于应用", "關於應用程式"), symbol: "info.circle", content: about)]
+        let mobile = BarkSettingsView(controller: bark, enableMobile: { AppNotificationRouter.shared.setChannelEnabled(.mobile, enabled: $0) }, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Reminder settings", "提醒设置", "提醒設定"), symbol: "bell", content: experiences, navigationTitle: text("Reminders", "提醒", "提醒")), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: mobile), QuotaSettingsPage(title: text("About app", "关于应用", "關於應用程式"), symbol: "info.circle", content: about)]
         let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? updates?.currentVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }
         settingsShell = shell

@@ -18,6 +18,54 @@ internal sealed class AppNotificationRouter : IDisposable {
     readonly Action<ExperienceNotification> clicked,shown;
     ExperienceNotification? nativeActive;
     NotificationPresentationPreferences preferences=new();
+    public bool PolicyActive { get; private set; }
+    public NotificationPolicyPreferences PolicyPreferences { get; private set; }=new();
+    NotificationPolicyStore? policyStore;
+    readonly Dictionary<BarkEventIdentity,NotificationDeliverySnapshot> snapshots=[];
+    readonly Queue<BarkEventIdentity> snapshotOrder=[];
+    public bool PolicyError { get; private set; }
+    public Action? PolicyChanged;
+    public bool LoadPolicy(NotificationPolicyStore store,LegacyNotificationPreferences legacy) {
+        try { var p=store.LoadOrMigrate(legacy); policyStore=store; ApplyPolicy(p); PolicyError=store.Corrupted; return true; }
+        catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) { PolicyError=true; return false; }
+    }
+    public bool ConfigurePolicy(NotificationPolicyPreferences value) {
+        try { policyStore?.Save(value); } catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) { PolicyError=true; return false; }
+        PolicyError=false; ApplyPolicy(value); return true;
+    }
+    public bool SetChannelEnabled(NotificationChannel channel,bool enabled) {
+        var channels=new HashSet<NotificationChannel>(PolicyPreferences.EnabledChannels); var oldMobile=Mobile?.Preferences.Enabled??false;
+        if(channel==NotificationChannel.Mobile&&(Mobile is null||!Mobile.SetEnabled(enabled))) return false;
+        if(enabled) channels.Add(channel); else channels.Remove(channel);
+        if(ConfigurePolicy(PolicyPreferences with { EnabledChannels=channels })) return true;
+        if(channel==NotificationChannel.Mobile) Mobile?.SetEnabled(oldMobile);
+        return false;
+    }
+    void ApplyPolicy(NotificationPolicyPreferences value) {
+        PolicyActive=true; PolicyPreferences=value;
+        foreach(var snapshot in snapshots.Values) snapshot.Restrict(value,DateTimeOffset.UtcNow);
+        foreach(var m in messages.Values.Where(m=>m.Category!=null).ToArray()) {
+            if(!ChannelAllowed(m,NotificationChannel.Bubble)) { var active=state.ActiveId==m.Id; state.Dismiss(m.Id,false); if(active) { HideBubble?.Invoke(); bubbleTimer.Stop(); } }
+            if(!ChannelAllowed(m,NotificationChannel.System)) { systemQueue.CancelId(m.Id); if(nativeActive?.Id==m.Id) { nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); } }
+        }
+        Mobile?.Revalidate(); PolicyChanged?.Invoke(); Dispatch(); DispatchSystem();
+    }
+    bool ChannelAllowed(ExperienceNotification m,NotificationChannel channel) {
+        if(m.Category is not {} category) return channel switch { NotificationChannel.Bubble=>preferences.UsesBubble&&!preferences.Paused(DateTimeOffset.UtcNow),NotificationChannel.System=>preferences.UsesSystem,_=>true };
+        return snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)&&snapshot.Eligible(channel)&&NotificationPolicy.Decision(category,channel,PolicyPreferences,DateTimeOffset.UtcNow)==NotificationDecision.Allowed;
+    }
+    bool CanStartChannel(ExperienceNotification m,NotificationChannel channel) {
+        if(m.Category is null) return ChannelAllowed(m,channel);
+        return snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)&&snapshot.Allows(channel,PolicyPreferences,DateTimeOffset.UtcNow);
+    }
+    void Snapshot(ExperienceNotification m) {
+        if(m.Category is not {} category) return;
+        var identity=new BarkEventIdentity(m.Id,m.ReminderGeneration);
+        if(snapshots.ContainsKey(identity)) return;
+        snapshots[identity]=new(category,PolicyPreferences,DateTimeOffset.UtcNow); snapshotOrder.Enqueue(identity);
+        if(snapshotOrder.Count>256) snapshots.Remove(snapshotOrder.Dequeue());
+    }
+    void RecordChannel(ExperienceNotification m,NotificationChannel channel) { if(snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)) snapshot.RecordAccepted(channel); }
     bool stopped,canPresent;
     public Action? Failed,HideBubble,UnreadChanged;
     public Func<ExperienceNotification,bool>? PresentBubble;
@@ -33,7 +81,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     public void Configure(NotificationPresentationPreferences value) { if(preferences==value) return; var channelChanged=preferences.Mode!=value.Mode; preferences=value; while(systemQueue.Next(DateTimeOffset.UtcNow)!=null) { } nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); Suspend(); RetryFailedDeliveries(channelChanged); Dispatch(); }
     public void RetryFailedDeliveries(bool allUndelivered=false) {
         var candidates=allUndelivered?messages.Keys.ToArray():failedDeliveries.ToArray();
-        var retry=candidates.Where(id=>messages.ContainsKey(id)&&!receipted.Contains(id)&&!consumed.Contains(id)).Select(id=>messages[id]).ToArray(); failedDeliveries.Clear();
+        var retry=candidates.Where(id=>messages.ContainsKey(id)&&messages[id].Category==null&&!receipted.Contains(id)&&!consumed.Contains(id)).Select(id=>messages[id]).ToArray(); failedDeliveries.Clear();
         foreach(var m in retry) { CancelMessage(m.Id,false); if(valid(m)&&m.Valid(DateTimeOffset.UtcNow)) Enqueue(m); }
     }
     void MarkFailed(ExperienceNotification m) { if(!receipted.Contains(m.Id)) failedDeliveries.Add(m.Id); Failed?.Invoke(); }
@@ -49,20 +97,21 @@ internal sealed class AppNotificationRouter : IDisposable {
         if(stopped||messages.ContainsKey(message.Id)||!forceBubble&&!valid(message)||!message.Valid(DateTimeOffset.UtcNow)) return;
         messages[message.Id]=message;
         if(messages.Count>128) { var oldest=messages.Values.Where(m=>m.Id!=state.ActiveId&&m.Id!=nativeActive?.Id).OrderBy(m=>m.CreatedAt).First(); messages.Remove(oldest.Id); receipted.Remove(oldest.Id); semanticReceipts.Remove(new(oldest.Id,oldest.ReminderGeneration)); }
-        if(!forceBubble) Mobile?.Enqueue(message,valid,MobileReceipt);
-        if(preferences.UsesBubble||forceBubble) state.Enqueue(message,canPresent&&(!preferences.Paused(DateTimeOffset.UtcNow)||forceBubble),DateTimeOffset.UtcNow);
-        if(preferences.UsesSystem&&!forceBubble) systemQueue.Enqueue(message);
+        Snapshot(message);
+        if(!forceBubble&&CanStartChannel(message,NotificationChannel.Mobile)) Mobile?.Enqueue(message,m=>valid(m)&&ChannelAllowed(m,NotificationChannel.Mobile),m=> { RecordChannel(m,NotificationChannel.Mobile); MobileReceipt(m); });
+        if(CanStartChannel(message,NotificationChannel.Bubble)||forceBubble) state.Enqueue(message,canPresent,DateTimeOffset.UtcNow);
+        if(CanStartChannel(message,NotificationChannel.System)&&!forceBubble) systemQueue.Enqueue(message);
         UnreadChanged?.Invoke(); Dispatch(); DispatchSystem();
     }
     void Receipt(ExperienceNotification message) { if(stopped||!messages.TryGetValue(message.Id,out var current)||current.DeliveryToken!=message.DeliveryToken||!valid(message)||!receipted.Add(message.Id)) return; SemanticReceipt(message); }
     void SemanticReceipt(ExperienceNotification message) { if(semanticReceipts.Add(new(message.Id,message.ReminderGeneration))) shown(message); }
     void MobileReceipt(ExperienceNotification message) { if(!stopped&&message.Valid(DateTimeOffset.UtcNow)&&valid(message)) SemanticReceipt(message); }
     void Dispatch() {
-        if(stopped||(!preferences.UsesBubble||preferences.Paused(DateTimeOffset.UtcNow))&&previews.Count==0||!canPresent) return;
+        if(stopped||!canPresent) return;
         while(state.Next(true,DateTimeOffset.UtcNow) is { } message) {
-            if(!valid(message)&&!previews.Contains(message.Id)) { state.Dismiss(message.Id,false); continue; }
+            if((!valid(message)||!ChannelAllowed(message,NotificationChannel.Bubble))&&!previews.Contains(message.Id)) { state.Dismiss(message.Id,false); continue; }
             if(PresentBubble?.Invoke(message)!=true) { state.Suspend(); break; }
-            state.Shown(message.Id,DateTimeOffset.UtcNow); Receipt(message); bubbleTimer.Start(); break;
+            state.Shown(message.Id,DateTimeOffset.UtcNow); RecordChannel(message,NotificationChannel.Bubble); Receipt(message); bubbleTimer.Start(); break;
         }
     }
     void Tick() {
@@ -85,16 +134,16 @@ internal sealed class AppNotificationRouter : IDisposable {
     public void ActivateLatest(string id,string? token=null) { if(consumed.Contains(id)||!messages.TryGetValue(id,out var m)||token!=null&&token!=m.DeliveryToken) return; if(m.Kind==ExperienceNotificationKind.Update) { if(valid(m)) { Dismiss(id,true,token); SystemUpdateRequested?.Invoke(); } return; } Dismiss(id,true); clicked(m); }
     public void Activate(string id,string? token=null) { if(consumed.Contains(id)) return; if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return; if(messages.TryGetValue(id,out var message)&&(valid(message)||previews.Contains(id))) { consumed.Add(id); Receipt(message); Suspend(); state.Dismiss(id,true); UnreadChanged?.Invoke(); clicked(message); } else Dismiss(id,true); }
     void DispatchSystem() {
-        if(stopped||!preferences.UsesSystem||nativeTimeout.IsEnabled) return;
+        if(stopped||nativeTimeout.IsEnabled) return;
         while(systemQueue.Next(DateTimeOffset.UtcNow) is { } next) {
-            if(!valid(next)) continue;
+            if(!valid(next)||!ChannelAllowed(next,NotificationChannel.System)) continue;
             nativeActive=next; nativeTimeout.Start();
-            try { if(SystemDelivery is { } send) send(next,success=> { if(stopped||!messages.TryGetValue(next.Id,out var current)||current.DeliveryToken!=next.DeliveryToken||!valid(next)) return; if(success && preferences.UsesSystem && next.Valid(DateTimeOffset.UtcNow)) Receipt(next); else if(!success) MarkFailed(next); if(nativeActive?.DeliveryToken==next.DeliveryToken) { nativeActive=null; nativeTimeout.Stop(); DispatchSystem(); } }); else tray.ShowBalloonTip(10000,next.Title,next.Body,Forms.ToolTipIcon.Info); }
+            try { if(SystemDelivery is { } send) send(next,success=> { if(stopped||!messages.TryGetValue(next.Id,out var current)||current.DeliveryToken!=next.DeliveryToken||!valid(next)) return; if(success && ChannelAllowed(next,NotificationChannel.System) && next.Valid(DateTimeOffset.UtcNow)) { RecordChannel(next,NotificationChannel.System); Receipt(next); } else if(!success) MarkFailed(next); if(nativeActive?.DeliveryToken==next.DeliveryToken) { nativeActive=null; nativeTimeout.Stop(); DispatchSystem(); } }); else tray.ShowBalloonTip(10000,next.Title,next.Body,Forms.ToolTipIcon.Info); }
             catch(InvalidOperationException) { nativeActive=null; nativeTimeout.Stop(); MarkFailed(next); continue; }
             break;
         }
     }
-    void Shown(object? sender,EventArgs e) { if(nativeActive is { } m&&m.Valid(DateTimeOffset.UtcNow)) Receipt(m); }
+    void Shown(object? sender,EventArgs e) { if(nativeActive is { } m&&m.Valid(DateTimeOffset.UtcNow)&&ChannelAllowed(m,NotificationChannel.System)) { RecordChannel(m,NotificationChannel.System); Receipt(m); } }
     void Clicked(object? sender,EventArgs e) { if(nativeActive is { } m) { if(m.Kind==ExperienceNotificationKind.Update) { if(valid(m)) { Dismiss(m.Id,true,m.DeliveryToken); SystemUpdateRequested?.Invoke(); } } else Activate(m.Id,m.DeliveryToken); } nativeActive=null; /* cooldown guards trailing native events */ }
     void Closed(object? sender,EventArgs e) { if(nativeActive is { } m&&!receipted.Contains(m.Id)) MarkFailed(m); nativeActive=null; }
     public void CancelMessage(string id,bool cancelMobile=true) {

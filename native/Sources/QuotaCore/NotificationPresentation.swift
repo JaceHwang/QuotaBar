@@ -36,15 +36,15 @@ public struct NotificationPresentationState: Sendable {
         prune(now)
         entries.append(Entry(message: m, deferred: !canPresent))
         if entries.count > 32 {
-            let worst = entries.filter { $0.message.id != activeID }.map { $0.message.kind.rawValue }.max()
-            if let i = entries.firstIndex(where: { $0.message.id != activeID && $0.message.kind.rawValue == worst }) { entries.remove(at: i) }
+            let worst = entries.filter { $0.message.id != activeID }.map { $0.message.priority }.max()
+            if let i = entries.firstIndex(where: { $0.message.id != activeID && $0.message.priority == worst }) { entries.remove(at: i) }
         }
     }
     public mutating func next(canPresent: Bool, now: Date) -> ExperienceNotification? {
         prune(now)
         guard !stopped, canPresent, activeID == nil else { return nil }
         let candidates = entries.indices.filter { !entries[$0].deferred && !entries[$0].presented && !entries[$0].read && entries[$0].message.valid(now: now) }
-        guard let i = candidates.min(by: { entries[$0].message.kind.rawValue < entries[$1].message.kind.rawValue }) else { return nil }
+        guard let i = candidates.min(by: { entries[$0].message.priority < entries[$1].message.priority }) else { return nil }
         activeID = entries[i].message.id
         return entries[i].message
     }

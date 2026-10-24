@@ -1,0 +1,1458 @@
+[
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "bubble",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "system",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "both",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "bubble",
+      "system",
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": false,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": []
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": false,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": false,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": false,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": false,
+    "channels": [
+      "mobile"
+    ]
+  },
+  {
+    "mode": "off",
+    "mobile": true,
+    "recovery": true,
+    "celebration": true,
+    "bank": true,
+    "updates": true,
+    "channels": [
+      "mobile"
+    ]
+  }
+]

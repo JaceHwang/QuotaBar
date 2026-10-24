@@ -136,4 +136,129 @@ import QuotaCore
         XCTAssertEqual(bubbles, 1, "Explicit channel change retries an undelivered event")
     }
 
+    func testCategoryPolicyOverridesLegacyModeAndNeverAddsChannelsToOldEvents() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixRouting.\(UUID())")!); defer { router.stop() }
+        router.configure(NotificationPresentationPreferences(mode: .off))
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules[.quotaRecovered] = [.system]
+        XCTAssertTrue(router.configurePolicy(p))
+        var system = 0, bubbles = 0, callbacks: [(Bool) -> Void] = [], receipts = 0
+        router.sendSystem = { _, done in system += 1; callbacks.append(done) }
+        router.presentBubble = { _ in bubbles += 1; return true }; router.updateEnvironment(canPresent: true)
+        let m = ExperienceNotification(id: "matrix", kind: .recovery, epoch: "a", title: "r", body: "", createdAt: Date(), category: .quotaRecovered)
+        router.enqueue(m, valid: { true }, failed: {}, shown: { receipts += 1 })
+        XCTAssertEqual(system, 1); XCTAssertEqual(bubbles, 0)
+        p.enabledChannels = [.bubble]; p.rules[.quotaRecovered] = [.bubble]
+        XCTAssertTrue(router.configurePolicy(p)); callbacks[0](true)
+        XCTAssertEqual(receipts, 0, "Late disabled channel cannot receipt")
+        router.enqueue(m, valid: { true }, failed: {})
+        XCTAssertEqual(bubbles, 0, "No adding a channel to an old event")
+        router.enqueue(ExperienceNotification(id: "new", kind: .recovery, epoch: "a", title: "r", body: "", createdAt: Date(), category: .quotaRecovered), valid: { true }, failed: {})
+        XCTAssertEqual(bubbles, 1)
+        p.enabledChannels = []; XCTAssertTrue(router.configurePolicy(p))
+        p.enabledChannels = [.bubble]; XCTAssertTrue(router.configurePolicy(p))
+        XCTAssertEqual(bubbles, 1, "Reopen cannot replay suspended bubble")
+    }
+
+    func testMatrixMobileAndBubbleBothCompleteWithIndependentPolicy() async throws {
+        let defaults = UserDefaults(suiteName: "MatrixMobile.\(UUID())")!
+        let secrets = BarkNotificationTests.Secrets(), transport = BarkNotificationTests.Transport()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mobile = BarkNotificationController(defaults: defaults, secrets: secrets, transport: transport, deliveries: BarkDeliveryStore(url: root.appendingPathComponent("mobile.json")))
+        XCTAssertTrue(mobile.saveKey("fake-key")); XCTAssertTrue(mobile.setEnabled(true))
+        let router = AppNotificationRouter(defaults: defaults); router.bark = mobile; defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.bubble, .mobile]; p.rules[.quotaRecovered] = [.bubble, .mobile]
+        XCTAssertTrue(router.configurePolicy(p))
+        var bubbles = 0, receipts = 0
+        router.presentBubble = { _ in bubbles += 1; return true }; router.updateEnvironment(canPresent: true)
+        router.enqueue(ExperienceNotification(id: "both-matrix", kind: .recovery, epoch: "a", title: "x", body: "", createdAt: Date(), category: .quotaRecovered), valid: { true }, failed: {}, shown: { receipts += 1 })
+        await mobile.waitUntilIdle()
+        XCTAssertEqual(bubbles, 1); XCTAssertEqual(transport.sends, 1); XCTAssertEqual(receipts, 1)
+    }
+
+    func testPolicyLoadAndSaveFailurePreserveAuthority() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixStore.\(UUID())")!); defer { router.stop() }
+        let legacy = LegacyNotificationPreferences(mode: .both, recovery: false, celebration: true, bank: true, updatesReminders: false, barkEnabled: true)
+        XCTAssertTrue(router.loadPolicy(store: NotificationPolicyStore(url: root.appendingPathComponent("policy.json")), legacy: legacy))
+        XCTAssertTrue(router.policyPreferences.rules[.quotaRecovered]?.contains(.mobile) == true)
+        let before = router.policyPreferences
+        try FileManager.default.removeItem(at: root); try Data().write(to: root)
+        var changed = before; changed.enabledChannels = []
+        XCTAssertFalse(router.configurePolicy(changed))
+        XCTAssertEqual(router.policyPreferences, before)
+        XCTAssertTrue(router.policyError)
+    }
+
+    func testMatrixQuotaWarningsAndInternalRecoveryIgnoreLegacyNotificationSwitches() throws {
+        let defaults = UserDefaults(suiteName: "MatrixEvents.\(UUID())")!
+        defaults.set(try JSONEncoder().encode(QuotaExperiencePreferences(moods: true, recovery: false, celebration: false, bank: false)), forKey: "experience.preferences")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules = [.quotaLow: [.system], .quotaExhausted: [.system]]
+        XCTAssertTrue(router.configurePolicy(p))
+        var categories: [NotificationCategory] = []
+        router.sendSystem = { m, done in if let c = m.category { categories.append(c) }; done(true) }
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        let now = Date()
+        for (i, remaining) in [30, 20, 0, 100, 100, 0].enumerated() {
+            let date = now.addingTimeInterval(Double(i-5)*20)
+            controller.receive(AllowanceSnapshot(usedPercent: Double(100-remaining), remainingPercent: remaining, resetsAt: now.addingTimeInterval(3600), receivedAt: date, windowDurationMins: 300, planType: "plus"), bank: .omitted)
+        }
+        XCTAssertEqual(categories, [.quotaLow, .quotaExhausted, .quotaExhausted])
+    }
+
+    func testClosingReopeningCategoryBetweenReadsRebaselinesImmediately() throws {
+        let defaults = UserDefaults(suiteName: "MatrixReopen.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules = [.quotaLow: [.system]]
+        XCTAssertTrue(router.configurePolicy(p))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        var sends = 0; router.sendSystem = { _, done in sends += 1; done(true) }
+        let now = Date()
+        func q(_ remaining: Int) -> AllowanceSnapshot { AllowanceSnapshot(usedPercent: Double(100-remaining), remainingPercent: remaining, resetsAt: now.addingTimeInterval(3600), receivedAt: Date(), windowDurationMins: 300, planType: "plus") }
+        controller.receive(q(30), bank: .omitted)
+        p.rules[.quotaLow] = []; XCTAssertTrue(router.configurePolicy(p))
+        p.rules[.quotaLow] = [.system]; XCTAssertTrue(router.configurePolicy(p))
+        controller.receive(q(10), bank: .omitted)
+        XCTAssertEqual(sends, 0)
+    }
+    func testEnablingBankAfterKnownInventoryDoesNotReplay() throws {
+        for observeBefore in [true, false] {
+        let defaults = UserDefaults(suiteName: "MatrixBankReopen.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules = [:]
+        XCTAssertTrue(router.configurePolicy(p))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        var sends = 0; router.sendSystem = { _, done in sends += 1; done(true) }
+        let now = Date()
+        let bank = BankResetSummary(availableCount: 1, credits: [BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil, id: "known")])
+        func q() -> AllowanceSnapshot { AllowanceSnapshot(usedPercent: 20, remainingPercent: 80, resetsAt: now.addingTimeInterval(3600), receivedAt: Date(), windowDurationMins: 300, planType: "plus", bank: bank) }
+        if observeBefore { controller.receive(q(), bank: .value) }
+        p.rules[.bankExpiring24h] = [.system]; XCTAssertTrue(router.configurePolicy(p))
+        controller.receive(q(), bank: .value)
+        XCTAssertEqual(sends, 0)
+        }
+    }
+
+    func testAcceptedCategoryCannotResendWithoutNewGeneration() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixReceipt.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules = [.updateAvailable: [.system]]
+        XCTAssertTrue(router.configurePolicy(p))
+        var attempts = 0; router.sendSystem = { _, done in attempts += 1; done(true) }
+        let m = ExperienceNotification(id: "update", kind: .update, epoch: nil, title: "x", body: "", createdAt: Date(), category: .updateAvailable)
+        router.enqueue(m, valid: { true }, failed: {})
+        router.cancelMessage(id: m.id)
+        router.enqueue(m, valid: { true }, failed: {})
+        XCTAssertEqual(attempts, 1)
+        router.cancelMessage(id: m.id)
+        router.enqueue(ExperienceNotification(id: m.id, kind: .update, epoch: nil, title: "x", body: "", createdAt: Date(), reminderGeneration: "later", category: .updateAvailable), valid: { true }, failed: {})
+        XCTAssertEqual(attempts, 2)
+    }
+
 }

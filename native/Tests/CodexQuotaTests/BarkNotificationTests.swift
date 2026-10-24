@@ -21,6 +21,28 @@ import QuotaCore
         return (BarkNotificationController(defaults: defaults, secrets: secrets, transport: transport, deliveries: BarkDeliveryStore(url: url)), secrets, transport)
     }
 
+    func testStartupDoesNotReadKeychainEvenWhenMobileEnabled() throws {
+        let defaults = UserDefaults(suiteName: "BarkLazy.\(UUID())")!
+        defaults.set(try JSONEncoder().encode(BarkPreferences(enabled: true)), forKey: "bark.preferences")
+        let secrets = Secrets(), transport = Transport(); secrets.key = "fake-key"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let c = BarkNotificationController(defaults: defaults, secrets: secrets, transport: transport, deliveries: BarkDeliveryStore(url: url)); defer { c.stop() }
+        XCTAssertEqual(secrets.reads, 0, "Launching must not synchronously enter Keychain")
+        XCTAssertTrue(c.preferences.enabled)
+    }
+    func testLegacyDisabledKeyIsDiscoveredWithoutEnablingPush() async {
+        let defaults = UserDefaults(suiteName: "BarkOldDisabled.\(UUID())")!
+        let secrets = Secrets(), transport = Transport(); secrets.key = "legacy-saved-key"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let c = BarkNotificationController(defaults: defaults, secrets: secrets, transport: transport, deliveries: BarkDeliveryStore(url: url)); defer { c.stop() }
+        XCTAssertEqual(secrets.reads, 0)
+        await c.waitUntilIdle()
+        XCTAssertTrue(c.configured)
+        XCTAssertFalse(c.preferences.enabled)
+        XCTAssertEqual(transport.sends, 0)
+    }
     func testCorruptReceiptsPauseAutomaticPushUntilExplicitReenable() throws {
         let defaults=UserDefaults(suiteName:"BarkCorrupt.\(UUID())")!, secrets=Secrets(), transport=Transport()
         secrets.key="fake-key"; defaults.set(try JSONEncoder().encode(BarkPreferences(enabled:true)),forKey:"bark.preferences")

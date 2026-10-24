@@ -193,4 +193,12 @@ import QuotaCore
         XCTAssertEqual(tokens, ["original-token"])
     }
     private func tree(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(tree) }
+    func testQuotaWarningUsesAttentionCategory() {
+        let bubble = CharacterNotificationBubble()
+        let m = ExperienceNotification(id: "low", kind: .recovery, epoch: "a", title: "额度偏低", body: "20%", createdAt: Date(), category: .quotaLow)
+        let content = bubble.content(message: m, dark: false, language: .simplifiedChinese, width: 420)
+        func all(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(all) }
+        XCTAssertTrue(all(content).compactMap { $0 as? NSTextField }.contains { $0.stringValue == "额度提醒" })
+    }
+
 }

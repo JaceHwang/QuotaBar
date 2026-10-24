@@ -5,6 +5,11 @@ import QuotaCore
     private let store: QuotaExperienceStore
     private let defaults: UserDefaults
     private var engine: QuotaExperienceEngine
+    private var displayPreferences = QuotaExperiencePreferences()
+    private let warningStore: QuotaWarningStore
+    private var warningEngine: QuotaWarningEngine
+    private var warningCategories: Set<NotificationCategory> = []
+    private var bankCategories: Set<NotificationCategory>?
     private var sequence = 0
     private var lastObservation: QuotaObservation?
     private let language: () -> CodexDisplayLanguage
@@ -23,15 +28,19 @@ import QuotaCore
     var floatingVisible: () -> Bool = { false }
     var onCelebrate: (() -> Void)?
     var onCancelCelebration: (() -> Void)?
-    var preferences: QuotaExperiencePreferences { engine.preferences }
+    var preferences: QuotaExperiencePreferences { displayPreferences }
     init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil, router: AppNotificationRouter? = nil) {
         self.router = router ?? .shared
         self.requestNotificationPermission = requestPermission ?? { AppNotificationRouter.shared.requestPermission(completion: $0) }
         self.defaults = defaults; self.language = language; store = QuotaExperienceStore(url: root.appendingPathComponent("experience-state.json"))
+        warningStore = QuotaWarningStore(url: root.appendingPathComponent("warning-state.json"))
+        warningEngine = QuotaWarningEngine(state: warningStore.load())
         let state = store.load(); engine = QuotaExperienceEngine(state: state, suppressFirstBank: store.corrupted)
         super.init()
         let prefs = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
-        engine.configure(prefs); persist()
+        displayPreferences = prefs; configureDetection(); persist()
+        let priorPolicyChange = self.router.onPolicyChange
+        self.router.onPolicyChange = { [weak self] in priorPolicyChange?(); self?.configureDetection(); self?.onChange?() }
         // No startup permission prompt; only explicit system-channel choices request permission.
     }
     private var copy: ExperienceCopy { ExperienceCopy(language()) }
@@ -39,50 +48,86 @@ import QuotaCore
         notificationMessage = message; statusLabel?.stringValue = notificationStatus; statusLabel?.isHidden = notificationStatus.isEmpty
     }
     @discardableResult private func persist() -> Bool {
-        do { try store.save(engine.state); storageReady = true; return true }
+        do { try store.save(engine.state); try warningStore.save(warningEngine.state); storageReady = true; return true }
         catch { storageReady = false; setNotificationStatus(("Could not save reminder state; no alert sent", "无法保存提醒状态，本次未发提醒", "無法儲存提醒狀態，本次未發提醒")); return false }
     }
-    func resetBaseline() { router.cancelAuthenticationEpoch(engine.state.epoch); engine.resetBaseline(); lastObservation = nil; onCancelCelebration?() }
+    func resetBaseline() { router.cancelAuthenticationEpoch(engine.state.epoch); engine.resetBaseline(); warningEngine.resetBaseline(); lastObservation = nil; onCancelCelebration?() }
     func accountCleared() {
-        router.cancelAuthenticationEpoch(engine.state.epoch); engine.rotateEpoch(); sequence = 0; lastObservation = nil
+        router.cancelAuthenticationEpoch(engine.state.epoch); engine.rotateEpoch(); warningEngine = QuotaWarningEngine(); sequence = 0; lastObservation = nil
         onCancelCelebration?(); persist()
     }
     func receive(_ quota: AllowanceSnapshot, bank: BankFieldState) {
+        configureDetection()
         sequence += 1
         let o = QuotaObservation(epoch: engine.state.epoch, sequence: sequence, receivedAt: quota.receivedAt, quota: quota, bankFieldState: bank)
         lastObservation = o
         router.observeQuota(o)
         let result = engine.observe(o, now: Date())
+        let warnings = router.policyActive ? warningEngine.observe(o, threshold: router.policyPreferences.lowRemainingThreshold, now: Date()) : []
+        warningEngine.confirmRecovery(periodIDs: result.recoveries)
         guard persist() else { return }
+        for warning in warnings {
+            let title = warning.category == .quotaLow ? copy.text("Quota low", "额度偏低", "額度偏低") : copy.text("Quota depleted", "额度已耗尽", "額度已耗盡")
+            enqueue(.recovery, title: title, body: copy.recoveryBody(quota), category: warning.category, warning: warning)
+        }
         if !result.recoveries.isEmpty {
             if preferences.celebration { onCelebrate?() }
-            if preferences.recoveryNotificationEnabled { enqueue(.recovery, title: copy.text("Quota restored", "额度已恢复", "額度已恢復"), body: copy.recoveryBody(quota)) }
+            if router.policyActive ? hasRule(.quotaRecovered) : preferences.recoveryNotificationEnabled { enqueue(.recovery, title: copy.text("Quota restored", "额度已恢复", "額度已恢復"), body: copy.recoveryBody(quota), category: router.policyActive ? .quotaRecovered : nil) }
         }
-        if !result.bank.isEmpty { enqueue(.bank, title: copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期"), body: copy.bankBody(result.bank), bank: result.bank) }
+        if router.policyActive {
+            for stage in [72, 24] {
+                let events = result.bank.filter { $0.stage == stage }
+                if !events.isEmpty { enqueue(.bank, title: copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期"), body: copy.bankBody(events), bank: events, category: stage == 72 ? .bankExpiring72h : .bankExpiring24h) }
+            }
+        } else if !result.bank.isEmpty { enqueue(.bank, title: copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期"), body: copy.bankBody(result.bank), bank: result.bank) }
     }
-    private func enqueue(_ kind: ExperienceNotificationKind, title: String, body: String, bank: [BankExpiryEvent] = []) {
+    private func enqueue(_ kind: ExperienceNotificationKind, title: String, body: String, bank: [BankExpiryEvent] = [], category: NotificationCategory? = nil, warning: QuotaWarningEvent? = nil) {
         let epoch = engine.state.epoch
         let deadline = kind == .bank ? min(Date().addingTimeInterval(120), bank.map(\.expiresAt).min() ?? Date()) : nil
-        let message = ExperienceNotification(id: "quotabar-\(UUID())", kind: kind, epoch: epoch, title: title, body: body, createdAt: Date(), validUntil: deadline)
+        let message = ExperienceNotification(id: warning.map { "quotabar-warning-" + $0.incidentID } ?? "quotabar-\(UUID())", kind: kind, epoch: epoch, title: title, body: body, createdAt: Date(), validUntil: warning == nil ? deadline : Date().addingTimeInterval(120), category: category)
         router.enqueue(message, valid: { [weak self] in
             guard let self, storageReady, engine.state.epoch == epoch else { return false }
-            if kind == .recovery { return preferences.recoveryNotificationEnabled }
+            if let warning {
+                guard let latest = lastObservation, Date().timeIntervalSince(latest.receivedAt) <= 120 else { return false }
+                return warning.periodIDs.contains { id in
+                    guard let window = id == "primary" ? latest.quota.primary : latest.quota.secondary else { return false }
+                    return warning.category == .quotaExhausted ? window.usedPercent >= 100 : window.usedPercent >= Double(100-warning.threshold) && window.usedPercent < 100
+                }
+            }
+            if kind == .recovery { return router.policyActive ? hasRule(.quotaRecovered) : preferences.recoveryNotificationEnabled }
             if kind == .test { return true }
-            guard preferences.bank, let latest = lastObservation else { return false }
+            guard (router.policyActive ? category.map(hasRule) ?? false : preferences.bank), let latest = lastObservation else { return false }
             return engine.bankEventsAreCurrent(bank, observation: latest, now: Date())
         }, failed: { [weak self] in
             guard let self else { return }; setNotificationStatus(("System notifications unavailable; check system settings", "系统提醒不可用，请检查系统设置", "系統提醒不可用，請檢查系統設定"))
         })
     }
+    private func hasRule(_ category: NotificationCategory) -> Bool { !(router.policyPreferences.rules[category] ?? []).isEmpty }
+    private func configureDetection() {
+        var p = displayPreferences
+        if router.policyActive {
+            p.recovery = hasRule(.quotaRecovered) || hasRule(.quotaExhausted)
+            p.bank = true // Keep stage receipts current even when every Bank channel is off.
+            let selectedBank = Set([NotificationCategory.bankExpiring72h, .bankExpiring24h].filter(hasRule))
+            if let previous = bankCategories {
+                let added = selectedBank.subtracting(previous)
+                if !added.isEmpty { engine.suppressBankStages(Set(added.map { $0 == .bankExpiring72h ? 72 : 24 })); _ = persist() }
+            }
+            bankCategories = selectedBank
+            let categories = Set([NotificationCategory.quotaLow, .quotaExhausted].filter(hasRule))
+            if categories != warningCategories { warningEngine.resetBaseline(); warningCategories = categories }
+        }
+        engine.configure(p)
+    }
     func stop() { router.cancelAuthenticationEpoch(engine.state.epoch); onCancelCelebration?() }
     func makeSettingsView() -> NSView {
         let stack = QuotaSettingsStyle.column(12)
         let channel = NotificationSettingsView(router: router, language: language(), floatingVisible: floatingVisible(), preview: { [weak self] in self?.previewBubble() }, showUnread: { [weak self] in self?.onShowUnread?() }, enableFloating: { [weak self] in self?.onEnableFloating?() })
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(channel), in: stack)
+        QuotaSettingsStyle.fill(router.policyActive ? channel : QuotaSettingsStyle.card(channel), in: stack)
         let rows = QuotaSettingsStyle.column(0)
         let labels = [copy.text("Quota mood mode", "额度表情模式", "額度表情模式"), copy.text("Notify when quota is restored", "额度恢复时提醒", "額度恢復時提醒"), copy.text("Celebrate quota recovery", "额度恢复时播放小庆祝", "額度恢復時播放小慶祝"), copy.text("Bank expiry reminders", "Bank 到期提醒", "Bank 到期提醒")]
-        let hints = [copy.text("Show the battery character for your current quota.", "根据当前额度状态，显示对应的电池表情。", "根據目前額度狀態，顯示對應的電池表情。"), copy.text("A reminder after confirmed recovery.", "额度确认恢复时，按所选方式提醒。", "額度確認恢復時，依所選方式提醒。"), copy.text("A brief celebration with one recovery notification.", "播放短暂庆祝，并同步一条恢复通知。", "播放短暫慶祝，並同步一條恢復通知。"), copy.text("Known credits only; never redeem automatically.", "仅提醒已知权益，不会自动兑换。", "僅提醒已知權益，不會自動兌換。")]
-        for i in 0..<4 {
+        let hints = [copy.text("Show the battery character for your current quota.", "根据当前额度状态，显示对应的电池表情。", "根據目前額度狀態，顯示對應的電池表情。"), copy.text("A reminder after confirmed recovery.", "额度确认恢复时，按所选方式提醒。", "額度確認恢復時，依所選方式提醒。"), copy.text("A brief animation, independent of reminders.", "播放短暂庆祝，与提醒独立。", "播放短暫慶祝，與提醒獨立。"), copy.text("Known credits only; never redeem automatically.", "仅提醒已知权益，不会自动兑换。", "僅提醒已知權益，不會自動兌換。")]
+        for i in (router.policyActive ? [0, 2] : [0, 1, 2, 3]) {
             let item = QuotaSettingsStyle.column(8)
             let toggle = QuotaSettingsSwitch(); toggle.tag = i; toggle.target = self; toggle.action = #selector(changed(_:)); toggle.setAccessibilityLabel(labels[i])
             toggle.state = [preferences.moods, preferences.recovery, preferences.celebration, preferences.bank][i] ? .on : .off
@@ -132,7 +177,7 @@ import QuotaCore
     @objc private func changed(_ sender: QuotaSettingsSwitch) {
         var p = preferences; let on = sender.state == .on
         switch sender.tag { case 0: p.moods = on; case 1: p.recovery = on; case 2: p.celebration = on; default: p.bank = on }
-        engine.configure(p); defaults.set(try? JSONEncoder().encode(p), forKey: "experience.preferences"); router.bark?.cancelInvalid()
+        displayPreferences = p; configureDetection(); defaults.set(try? JSONEncoder().encode(p), forKey: "experience.preferences"); router.bark?.cancelInvalid()
         if !p.celebration { onCancelCelebration?() }
         if on && (sender.tag == 1 || sender.tag == 2 || sender.tag == 3) { permission() }
         onChange?()

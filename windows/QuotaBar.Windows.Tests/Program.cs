@@ -23,6 +23,9 @@ internal static class Program {
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        NotificationMatrixTests.Run(app);
+        NotificationMatrixTests.TestWarningProducer(app);
+        NotificationMatrixTests.TestUpdateProducer(app);
         var quota=QuotaDecoder.Decode(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/rate-limits/read-response.json")));
         quota=quota with { Primary=quota.Primary with { ResetsAt=DateTimeOffset.Now.AddHours(5) },Secondary=quota.Secondary is { } second ? second with { ResetsAt=DateTimeOffset.Now.AddDays(4) } : null };
         var today=DateOnly.FromDateTime(DateTime.Now);
@@ -211,10 +214,12 @@ internal static class Program {
                     var settings=new SettingsWindow(owner); settings.Show(); Pump();
                     var controls=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().ToArray();
                     Check(controls.Any(c=>c.Content?.ToString()=="自动检查更新" && c.IsChecked==false),"update opt-out visible");
-                    Check(controls.Any(c=>c.Content?.ToString()=="更新提醒" && c.IsChecked==false),"system reminders opt in");
+                    Check(!controls.Any(c=>c.Content?.ToString()=="更新提醒")&&owner.Notifications.PolicyPreferences.Rules[NotificationCategory.UpdateAvailable].Count==0,"update reminders owned by matrix and default off");
+                    var matrixCells=controls.Where(c=>c.Tag is string tag&&tag.StartsWith("notification.rule.")).ToArray();
+                    Check(matrixCells.Length==18&&matrixCells.Count(c=>c.IsChecked==true)==3,"18 matrix cells with only recovery and Bank bubble defaults");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
                     var experienceToggles=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().Where(b=>new[]{"额度表情模式","额度恢复时提醒","额度恢复时播放小庆祝","Bank 到期提醒"}.Contains(b.Content?.ToString())).ToArray();
-                    Check(experienceToggles.Length==4 && experienceToggles.All(b=>b.IsChecked==true),"four independent default-on controls present");
+                    Check(experienceToggles.Length==2 && experienceToggles.All(b=>b.IsChecked==true),"appearance switches independent; recovery and Bank channels owned by matrix");
                     Check(Tree(settings).OfType<ScrollViewer>().Any(),"settings remain reachable on short screens");
                     Check(Tree(settings).OfType<QuotaMoodView>().Count()==6,"inline five mood states plus recovery illustration");
                     Check(Tree(settings).OfType<CheckBox>().Count(b=>b.Content?.ToString()=="显示悬浮按钮")==1,"one owning page for general settings");

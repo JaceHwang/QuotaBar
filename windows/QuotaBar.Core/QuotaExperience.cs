@@ -28,6 +28,7 @@ public sealed record BankReceipt(int Stage,DateTimeOffset ExpiresAt);
 public sealed record ExperienceState {
     public int Schema { get; init; }=1;
     public string Epoch { get; init; }=Guid.NewGuid().ToString();
+    public HashSet<int>? PendingBankBaselines { get; init; }
     public Dictionary<string,BankReceipt> Receipts { get; init; }=[];
 }
 public sealed record BankExpiryEvent(string Key,int Stage,int Count,DateTimeOffset ExpiresAt);
@@ -44,6 +45,7 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         if(Preferences.Recovery!=p.Recovery || Preferences.Celebration!=p.Celebration) ResetBaseline();
         Preferences=p;
     }
+    public void SuppressBankStages(IEnumerable<int> stages) { State=State with { PendingBankBaselines=(State.PendingBankBaselines??[]).Concat(stages.Where(s=>s is 24 or 72)).ToHashSet() }; }
     public void ResetBaseline() { baseline=null; candidates.Clear(); sequence=-1; }
     public void RotateEpoch() { State=new(); ResetBaseline(); suppressBank=false; }
     public ExperienceUpdate Observe(QuotaObservation o,DateTimeOffset now) {
@@ -68,11 +70,18 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         }
         if(Preferences.Bank && o.BankFieldState==BankFieldState.Value && q.Bank is { } inventory) {
             bank=BankEvents(inventory,now);
+            if(State.PendingBankBaselines is {} pending) { bank.RemoveAll(e=>pending.Contains(e.Stage)); if(BankInventoryIsComplete(inventory)) State=State with { PendingBankBaselines=null }; }
             if(suppressBank) { bank.Clear(); if(inventory.AvailableCount==0 || inventory.Credits?.Any(c=>c.Status=="available" && c.ExpiresAt is not null)==true) suppressBank=false; }
         }
         State=State with { Receipts=State.Receipts.Where(p=>p.Value.ExpiresAt>now.AddDays(-1) && p.Value.ExpiresAt<now.AddDays(30)).ToDictionary() };
         if(State.Receipts.Count>2048) { State=State with { Receipts=State.Receipts.OrderBy(p=>p.Key,StringComparer.Ordinal).Take(2048).ToDictionary() }; bank.Clear(); }
         return new(recovery,bank);
+    }
+    bool BankInventoryIsComplete(BankSummary bank) {
+        if(bank.AvailableCount<0) return false;
+        var available=bank.Credits?.Where(c=>c.Status=="available").ToArray()??[];
+        if(bank.AvailableCount==0) return available.Length==0;
+        return bank.Credits is not null&&available.All(c=>c.ExpiresAt!=null)&&available.GroupBy(BankKey).Sum(g=>g.First().Id is null?g.Count():1)==bank.AvailableCount;
     }
     static bool Restored(QuotaWindow old,QuotaWindow next) {
         var delta=(next.ResetsAt-old.ResetsAt).TotalSeconds;

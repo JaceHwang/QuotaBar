@@ -19,6 +19,7 @@ internal sealed class CharacterNotificationBubble : Window,IDisposable {
         return Math.Ceiling(Math.Min(metrics.Height,rows.Height));
     }
     public void Build(ExperienceNotification message,bool dark,Copy copy,NotificationCharacterArtwork? artwork=null) {
+        artwork ??= message.Category is NotificationCategory.QuotaLow or NotificationCategory.QuotaExhausted?NotificationCharacterArtwork.Attention:null;
         var fg=ColorBrush(dark?"#F5F6FF":"#10182F"); var muted=ColorBrush(dark?"#C2CBE0":"#596987");
         var innerWidth=Width-CardLeft-40;
         var title=Ui.Text(message.Title,17,fg); title.FontWeight=FontWeights.SemiBold; title.TextWrapping=TextWrapping.Wrap; title.TextTrimming=TextTrimming.CharacterEllipsis; title.ToolTip=message.Title;
