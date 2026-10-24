@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/JaceHwang/QuotaBar/compare/v1.3.0...v1.4.0) (2026-10-24)
+
+
+### Features
+
+* add verified in-app updates with native rollback ([#57](https://github.com/JaceHwang/QuotaBar/issues/57)) ([da12c60](https://github.com/JaceHwang/QuotaBar/commit/da12c6047314d2b97ca3a9cc4648f8f493c1725e))
+
 ## [1.3.0](https://github.com/JaceHwang/QuotaBar/compare/v1.2.0...v1.3.0) (2026-10-23)
 
 
