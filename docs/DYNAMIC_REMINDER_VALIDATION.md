@@ -23,3 +23,8 @@ Whole-branch review found two P2 integration cases: remove/re-add low levels bet
 - Column shortcut now toggles full→none, partial/none→full, preserving peers/masters/thresholds and handling every custom Bank mapping. Swift UI and .NET policy regressions plus native WPF repeat-click assertions added.
 - Complete local governance:192 Core +140 AppKit and all .NET/installer/build checks passed; independent review no P1/P2. Native CI40196405902 still running.
 - Clean candidate-20261025-210853 installed with matching SHA, ready/has_quota=true. Actual installed UI added15% and12h, retained them across page rebuild, and toggled bubble all→none→all without peer changes. Test values removed to restore original empty lists; no real test push sent.
+
+
+## Windows policy-load failure recovery
+
+Device installed DLL matches delivered candidate; user confirmed migration-failure hint. Red native regression8af6acd / CI40214945923 job121233946943 fails at keeping matrix visible after locked-policy load. Fix retains store/legacy input on failure, blocks unread-policy writes, always renders approved matrix with read-only error/retry state, and reloads persisted settings before enabling edits. Native coverage adds lock→failed retry→unlock recovery with byte-for-byte policy preservation, failed initial migration write→successful original fresh migration, and error/recovered PNGs. Local full governance192Core+140AppKit plus.NET and three Windows builds passes; source review noP1/P2. Green native execution and candidate delivery pending; underlying user IO cause not yet captured.

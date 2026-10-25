@@ -871,3 +871,10 @@ Windows原生CI40194686867的Native Windows UI smoke and rendering已通过，�
 ### 2026-10-26 Windows实机界面缺失调查
 
 用户反馈提供的Windows候选安装后整个设置界面仍与旧版相同，尚未确认根因，不再把CI通过等同用户设备通过。已直接核验下载artifact内QuotaBar.dll SHA256为ed3c60e0ff211a69eeb3b611ef97980d87e55bd2aa9e2cc29f57e3d1a675b0aa，与package.json一致，二进制包含气泡通知/手机推送通知/notification.selectAll./Bank到期提醒代码；候选来源已验证。当前源码Program使用跨目录Local\QuotaBar.Standalone单实例锁，新副本启动时若旧副本已持锁只发ShowSettings并退出；Setup.StopOwned仅关闭安装目标路径的QuotaBar，所以其他目录旧副本是待证实假设。另一路径为LoadPolicy IO/权限错误会让PolicyActive=false而展示旧版提醒UI。已询问Windows任务管理器当前进程的“打开文件所在位置”完整路径；未拿到设备路径/来源/策略错误证据前不归因于用户操作或贸然改安装器。MemoraX focused search无结果，使用实时源码与包内容。
+
+
+### 2026-10-26 Windows通知配置失败恢复
+
+用户提供的安装目录及DLL SHA与候选一致，并确认看到了迁移失败提示，排除磁盘包过旧；隐藏矩阵原因是PolicyActive=false时切回旧UI。沿用已批准A与既有直接实施授权，不改变矩阵布局，增加原生错误说明/重试恢复状态。先提交真实Windows窗口回归8af6acd，CI40214945923 job121233946943在“failed policy load must keep matrix visible”失败，复现用户分支；不把本机交叉编译视为Windows执行。
+
+修复已实现：失败时保留store/迁移输入，保存和渠道切换在未读入原配置前拒绝，避免旧代码load失败后store=null而ConfigurePolicy仅内存成功；UI始终矩阵，读取失败时只读并显示OS错误，重试成功重新读取原阈值和渠道后解锁，保持加载失败期间原运行行为。增加独占文件锁失败→重试仍失败→解锁恢复、原文件逐字保留，以及首次迁移写入阻塞→恢复→持久化fresh默认的原生回归，生成失败/恢复PNG。完整本地治理192Core+140AppKit及.NET行为/生命周期和Windows三工程Release编译零警告错误通过，独立代码复核无P1/P2；最新修复Windows原生执行和候选安装包尚待CI。用户设备具体IO错误尚未取得，不宣称其文件权限/占用已被修复，不删除原配置。

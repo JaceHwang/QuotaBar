@@ -92,12 +92,12 @@ internal sealed class QuotaExperienceController {
     }
     public UIElement MakeSettingsView() {
         var copy=owner.Copy; var p=owner.Preferences.Experience; var stack=new StackPanel(); var dark=Platform.IsDark(owner.Preferences); var fg=Ui.Foreground(dark); var muted=SettingsVisual.Muted(dark);
-        if(owner.Notifications.PolicyActive) stack.Children.Add(new NotificationSettingsView(owner)); else stack.Children.Add(SettingsVisual.Card(new NotificationSettingsView(owner),dark));
+        stack.Children.Add(new NotificationSettingsView(owner));
         var rows=new StackPanel();
         var titles=new[]{copy.Text("Quota mood mode","额度表情模式","額度表情模式"),copy.Text("Notify when quota is restored","额度恢复时提醒","額度恢復時提醒"),copy.Text("Celebrate quota recovery","额度恢复时播放小庆祝","額度恢復時播放小慶祝"),copy.Text("Bank expiry reminders","Bank 到期提醒","Bank 到期提醒")};
         var hints=new[]{copy.Text("Show the battery character for your current quota.","根据当前额度状态，显示对应的电池表情。","根據目前額度狀態，顯示對應的電池表情。"),copy.Text("A reminder after confirmed recovery.","额度确认恢复时，按所选方式提醒。","額度確認恢復時，依所選方式提醒。"),copy.Text("A brief animation, independent of reminders.","播放短暂庆祝，与提醒独立。","播放短暫慶祝，與提醒獨立。"),copy.Text("Known credits only; never redeem automatically.","仅提醒已知权益，不会自动兑换。","僅提醒已知權益，不會自動兌換。")};
         var values=new[]{p.Moods,p.Recovery,p.Celebration,p.Bank};
-        foreach(var i in owner.Notifications.PolicyActive?new[]{0,2}:new[]{0,1,2,3}) {
+        foreach(var i in new[]{0,2}) {
             var index=i; var row=new StackPanel { Margin=new Thickness(0,8,0,12) };
             row.Children.Add(SettingsVisual.Toggle(titles[i],values[i],fg,on=> {
                 var next=owner.Preferences.Experience;
@@ -126,7 +126,6 @@ internal sealed class QuotaExperienceController {
             row.Children.Add(right); rows.Children.Add(row); if(i!=3) { var divider=Ui.Divider(); divider.Margin=new Thickness(0,5,0,5); rows.Children.Add(divider); }
         }
         stack.Children.Add(SettingsVisual.Card(rows,dark));
-        if(!owner.Notifications.PolicyActive) { var actions=new WrapPanel(); actions.Children.Add(Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),TestNotification)); stack.Children.Add(actions); }
         var note=Ui.Text(copy.Text("Celebrations play only while the floating button is visible. Tests use example notifications and do not change reminder history.","小庆祝仅在悬浮按钮可见时播放；测试使用示例通知，不改变提醒记录。","小慶祝僅在懸浮按鈕可見時播放；測試使用範例通知，不改變提醒記錄。"),11,muted); note.TextWrapping=TextWrapping.Wrap; note.Margin=new Thickness(0,0,0,10); stack.Children.Add(note);
         statusLabel=Ui.Text(CurrentStatus,11,muted); statusLabel.TextWrapping=TextWrapping.Wrap; stack.Children.Add(statusLabel);
         var settings=Ui.Button(copy.Text("Notification settings…","通知设置…","通知設定…"),()=> {

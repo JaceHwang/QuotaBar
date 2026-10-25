@@ -64,6 +64,8 @@ internal static class NotificationMatrixTests {
    var cells=Tree(view).OfType<System.Windows.Controls.CheckBox>().Where(c=>c.Tag is string t&&t.StartsWith("notification.rule.")).ToArray();
    Check(cells.Length==15&&cells.All(c=>!c.IsEnabled),"unloaded matrix cannot edit unknown persisted rules");
    Check(!Tree(view).OfType<System.Windows.Controls.ComboBox>().Any(c=>Equals(c.Tag,"notification.channel")),"load failure cannot silently restore old settings UI");
+   Check(Tree(view).OfType<System.Windows.Controls.TextBlock>().Any(t=>Equals(t.Tag,"notification.policy.failure")&&t.Text.Contains("notification-policy.json")),"load error includes concrete file failure");
+   RenderPolicyState(view,"policy-load-failed");
    Check(!owner.Notifications.ConfigurePolicy(NotificationPolicyPreferences.AllSelected())&&!owner.Notifications.PolicyActive,"failed load cannot become memory-only success or replace unread settings");
    var retry=Tree(view).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.policy.retry"));
    retry.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -74,7 +76,32 @@ internal static class NotificationMatrixTests {
    Check(owner.Notifications.PolicyActive&&!owner.Notifications.PolicyError,"retry recovers policy after temporary lock without restart");
    Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual([30,15])&&owner.Notifications.PolicyPreferences.ConfiguredBankHours.SequenceEqual([48,12]),"retry reads persisted custom thresholds");
    Check(System.IO.File.ReadAllText(path)==before,"recovery does not overwrite unread existing policy");
+   RenderPolicyState(view,"policy-load-recovered");
    Check(Tree(view).OfType<System.Windows.Controls.CheckBox>().Where(c=>c.Tag is string t&&t.StartsWith("notification.rule.")&&t.EndsWith(".bubble")).All(c=>c.IsEnabled),"successful retry unlocks correct columns");
+  } finally { System.IO.Directory.Delete(root,true); }
+ }
+ static void RenderPolicyState(System.Windows.FrameworkElement view,string name) {
+  var output=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS"); if(output is null) return;
+  System.IO.Directory.CreateDirectory(output);
+  var host=new System.Windows.Controls.Border { Background=System.Windows.Media.Brushes.White,Padding=new System.Windows.Thickness(12),Child=view };
+  host.Measure(new System.Windows.Size(720,double.PositiveInfinity)); var height=Math.Ceiling(host.DesiredSize.Height);
+  host.Arrange(new System.Windows.Rect(0,0,720,height)); host.UpdateLayout();
+  var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(720,(int)height,96,96,System.Windows.Media.PixelFormats.Pbgra32); bitmap.Render(host);
+  var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+  using(var file=System.IO.File.Create(System.IO.Path.Combine(output,name+".png"))) encoder.Save(file);
+  host.Child=null;
+ }
+ public static void TestInitialMigrationFailureRecovery(System.Windows.Application app) {
+  var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"policy-migration-"+Guid.NewGuid());
+  var path=System.IO.Path.Combine(root,"notification-policy.json"); System.IO.Directory.CreateDirectory(path);
+  try {
+   using var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets());
+   Check(!owner.Notifications.PolicyActive&&owner.Notifications.PolicyLoadFailed,"failed initial policy write is recoverable");
+   Check(!owner.Notifications.ConfigurePolicy(NotificationPolicyPreferences.AllSelected()),"initial failed migration cannot report memory-only save");
+   System.IO.Directory.Delete(path);
+   Check(owner.Notifications.RetryPolicy()&&owner.Notifications.PolicyActive&&!owner.Notifications.PolicyLoadFailed,"initial migration retries original fresh-install intent");
+   Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>()))&&owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals([NotificationChannel.Bubble]),"retry keeps fresh all-selected defaults and independent masters");
+   Check(System.IO.File.Exists(path),"successful retry persists policy");
   } finally { System.IO.Directory.Delete(root,true); }
  }
  public static void TestWarningProducer(System.Windows.Application app) {

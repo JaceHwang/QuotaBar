@@ -24,6 +24,7 @@ internal static class Program {
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
         NotificationMatrixTests.TestPolicyFailureRecovery(app);
+        NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
         NotificationMatrixTests.TestDynamicBankProducer(app);

@@ -21,19 +21,31 @@ internal sealed class AppNotificationRouter : IDisposable {
     public bool PolicyActive { get; private set; }
     public NotificationPolicyPreferences PolicyPreferences { get; private set; }=new();
     NotificationPolicyStore? policyStore;
+    LegacyNotificationPreferences? policyLegacy;
+    public bool PolicyLoadFailed { get; private set; }
+    public string? PolicyFailure { get; private set; }
     readonly Dictionary<BarkEventIdentity,NotificationDeliverySnapshot> snapshots=[];
     readonly Queue<BarkEventIdentity> snapshotOrder=[];
     public bool PolicyError { get; private set; }
     public Action? PolicyChanged;
     public bool LoadPolicy(NotificationPolicyStore store,LegacyNotificationPreferences? legacy) {
-        try { var p=store.LoadOrMigrate(legacy); policyStore=store; ApplyPolicy(p); PolicyError=store.Corrupted; return true; }
-        catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) { PolicyError=true; return false; }
+        // Retain the store even after failure: edits must never report an in-memory-only save.
+        policyStore=store; policyLegacy=legacy;
+        try {
+            var p=store.LoadOrMigrate(legacy); PolicyLoadFailed=false; PolicyFailure=null; PolicyError=store.Corrupted; ApplyPolicy(p); return true;
+        } catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) {
+            PolicyLoadFailed=true; PolicyError=true; PolicyFailure=e.Message; return false;
+        }
     }
+    public bool RetryPolicy()=>policyStore is {} store&&LoadPolicy(store,policyLegacy);
     public bool ConfigurePolicy(NotificationPolicyPreferences value) {
-        try { policyStore?.Save(value); } catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) { PolicyError=true; return false; }
-        PolicyError=false; ApplyPolicy(value); return true;
+        // A failed read may hide existing rules. Reload them before permitting a replacement.
+        if(PolicyLoadFailed) return false;
+        try { policyStore?.Save(value); } catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) { PolicyError=true; PolicyFailure=e.Message; return false; }
+        PolicyError=false; PolicyFailure=null; ApplyPolicy(value); return true;
     }
     public bool SetChannelEnabled(NotificationChannel channel,bool enabled) {
+        if(PolicyLoadFailed) return false;
         var channels=new HashSet<NotificationChannel>(PolicyPreferences.EnabledChannels); var oldMobile=Mobile?.Preferences.Enabled??false;
         if(channel==NotificationChannel.Mobile&&(Mobile is null||!Mobile.SetEnabled(enabled))) return false;
         if(enabled) channels.Add(channel); else channels.Remove(channel);
