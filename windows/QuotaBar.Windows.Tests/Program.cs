@@ -261,8 +261,9 @@ internal static class Program {
                             var pageActions=Tree(settings).OfType<Button>().Where(b=>b.IsVisible && !(b.Tag is string tag && tag.StartsWith("settings-nav-"))).ToArray();
                             foreach(var action in pageActions) {
                                 var eye=action.Tag?.ToString()=="bark-reveal";
-                                Check(action.Height==30 && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
-                                Check(action.MinWidth==(eye?30:100) && action.Padding==new Thickness(eye?0:12,0,eye?0:12,0),"settings actions share content-fit metrics");
+                                var compact=action.Tag is string actionTag && (actionTag.StartsWith("notification.threshold.") || actionTag.StartsWith("notification.selectAll."));
+                                Check(action.Height==(compact?24:30) && action.MinHeight==(compact?24:30) && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
+                                Check(action.MinWidth==(compact?24:eye?30:100) && action.Padding==new Thickness(compact?5:eye?0:12,0,compact?5:eye?0:12,0),"settings actions share content-fit metrics");
                                 Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
                                 if(action.IsEnabled) Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"enabled settings actions share blue and white");
                                 action.ApplyTemplate();
