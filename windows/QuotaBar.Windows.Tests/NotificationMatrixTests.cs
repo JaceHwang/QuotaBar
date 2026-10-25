@@ -48,6 +48,35 @@ internal static class NotificationMatrixTests {
   } finally { if(System.IO.Directory.Exists(testRoot)) System.IO.Directory.Delete(testRoot,true); }
 
  }
+ public static void TestPolicyFailureRecovery(System.Windows.Application app) {
+  var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"policy-recovery-"+Guid.NewGuid());
+  System.IO.Directory.CreateDirectory(root);
+  var path=System.IO.Path.Combine(root,"notification-policy.json");
+  var persisted=NotificationPolicyPreferences.AllSelected().WithLowThresholds([30,15]).WithBankHours([48,12]) with { EnabledChannels=[NotificationChannel.Bubble,NotificationChannel.System] };
+  new NotificationPolicyStore(path).Save(persisted);
+  var before=System.IO.File.ReadAllText(path);
+  try {
+   using var locked=new System.IO.FileStream(path,System.IO.FileMode.Open,System.IO.FileAccess.ReadWrite,System.IO.FileShare.None);
+   using var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets());
+   Check(!owner.Notifications.PolicyActive&&owner.Notifications.PolicyError,"locked policy load reports failure");
+   var view=new NotificationSettingsView(owner);
+   Check(Tree(view).OfType<NotificationMatrixSettingsView>().Count()==1,"failed policy load must keep matrix visible");
+   var cells=Tree(view).OfType<System.Windows.Controls.CheckBox>().Where(c=>c.Tag is string t&&t.StartsWith("notification.rule.")).ToArray();
+   Check(cells.Length==15&&cells.All(c=>!c.IsEnabled),"unloaded matrix cannot edit unknown persisted rules");
+   Check(!Tree(view).OfType<System.Windows.Controls.ComboBox>().Any(c=>Equals(c.Tag,"notification.channel")),"load failure cannot silently restore old settings UI");
+   Check(!owner.Notifications.ConfigurePolicy(NotificationPolicyPreferences.AllSelected())&&!owner.Notifications.PolicyActive,"failed load cannot become memory-only success or replace unread settings");
+   var retry=Tree(view).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.policy.retry"));
+   retry.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(!owner.Notifications.PolicyActive,"retry while locked stays safely inactive");
+   locked.Dispose();
+   retry=Tree(view).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.policy.retry"));
+   retry.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(owner.Notifications.PolicyActive&&!owner.Notifications.PolicyError,"retry recovers policy after temporary lock without restart");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual([30,15])&&owner.Notifications.PolicyPreferences.ConfiguredBankHours.SequenceEqual([48,12]),"retry reads persisted custom thresholds");
+   Check(System.IO.File.ReadAllText(path)==before,"recovery does not overwrite unread existing policy");
+   Check(Tree(view).OfType<System.Windows.Controls.CheckBox>().Where(c=>c.Tag is string t&&t.StartsWith("notification.rule.")&&t.EndsWith(".bubble")).All(c=>c.IsEnabled),"successful retry unlocks correct columns");
+  } finally { System.IO.Directory.Delete(root,true); }
+ }
  public static void TestWarningProducer(System.Windows.Application app) {
   var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
   try {

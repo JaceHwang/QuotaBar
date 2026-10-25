@@ -859,3 +859,15 @@ Windows原生CI40194686867的Native Windows UI smoke and rendering已通过，�
 用户报告两个新增按钮无效及列全选缺少取消行为。沿用用户已批准A、既有直接实施/跳过效果图授权，保留布局与按钮样式；仅恢复新增输入交互，并使已全选的列点击后全部取消，部分选中时点击全选，保留其他列/阈值/总开关。通过systematic-debugging及TDD，实际本机复现空列表点击加号后输入框消失；带真实窗口及事件循环的失败回归确认。调用makeFirstResponder后再field.selectText会立即触发空白结束编辑，自行删除draft。改为事件完成后聚焦并只在已获得的field editor上selectAll；13项AppKit设置回归通过，覆盖空列表两类新增提交与列选择切换。双端同步列切换核心及UI，Windows原生回归新增三次点击和其他列保留。完整治理、候选及本机更新尚待完成，未真实推送或发布。
 
 本次独立代码复核无P1/P2，完整治理通过192Core+140AppKit及.NET行为/生命周期、安装清理签名夹具与Windows三工程Release编译零警告错误。上一轮f7256da的完整原生CI40194686867已成功。本次新增修复的原生CI与干净候选本机更新待完成。
+
+修复3a9923f已推送（首次GitHub TLS中断，正常重试成功）；干净候选candidate-20261025-210853的来源、签名、隔离真实启动退出及DMG校验通过，事务安装完成，安装摘要一致且ready/has_quota=true。实际本机从两类空列表点击＋，输入框保持焦点；15%及12小时回车保存，切到显示再返回仍保留；气泡列连续全选按钮执行全取消→全选，其他两列保持选中。验收用15/12已删，恢复用户测试前空列表和全选状态。未发送真实通知。192Core+140AppKit完整治理及独立无P1/P2；新原生CI40196405902仍运行，不宣称最新Windows原生执行通过。
+
+
+### 2026-10-25 双端测试包交付
+
+按用户要求保留草稿PR60并提供双端安装候选。最新产品3a9923f的完整原生CI40196405902双端成功，Windows包含原生UI、独立启动、安装升级回退卸载及应用内更新健康回退。Windows artifact12600616989、Mac artifact12599887526链接已添加草稿PR；需登录GitHub，有效至2027-01-23。已下载Windows候选，内层ZIP CRC正常、SHA256为6bb9dedcd6d9037764bad104f8fe024eb41b39fd0e56c58b657b751c5a9fffa6与SHA256SUMS一致，确认包含QuotaBar/setup/QuotaBar.Setup.exe。来源cb104049为GitHub PR测试合并提交（父包含3a9923f），101份源码摘要全部与当前产品匹配。Windows实机等待用户测试反馈，不以CI代替用户设备验收；未合并、未公开发布。
+
+
+### 2026-10-26 Windows实机界面缺失调查
+
+用户反馈提供的Windows候选安装后整个设置界面仍与旧版相同，尚未确认根因，不再把CI通过等同用户设备通过。已直接核验下载artifact内QuotaBar.dll SHA256为ed3c60e0ff211a69eeb3b611ef97980d87e55bd2aa9e2cc29f57e3d1a675b0aa，与package.json一致，二进制包含气泡通知/手机推送通知/notification.selectAll./Bank到期提醒代码；候选来源已验证。当前源码Program使用跨目录Local\QuotaBar.Standalone单实例锁，新副本启动时若旧副本已持锁只发ShowSettings并退出；Setup.StopOwned仅关闭安装目标路径的QuotaBar，所以其他目录旧副本是待证实假设。另一路径为LoadPolicy IO/权限错误会让PolicyActive=false而展示旧版提醒UI。已询问Windows任务管理器当前进程的“打开文件所在位置”完整路径；未拿到设备路径/来源/策略错误证据前不归因于用户操作或贸然改安装器。MemoraX focused search无结果，使用实时源码与包内容。
