@@ -111,6 +111,11 @@ internal static class NotificationMatrixTests {
    Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.Contains(NotificationChannel.System)),"system shortcut selects system");
    Check(owner.Notifications.PolicyPreferences.Rules.All(r=>r.Value.Contains(NotificationChannel.Mobile)==(beforeSelect.Rules.GetValueOrDefault(r.Key)?.Contains(NotificationChannel.Mobile)==true)),"system shortcut preserves mobile");
    Check(owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(beforeSelect.EnabledChannels)&&owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(beforeSelect.ConfiguredLowThresholds)&&owner.Notifications.PolicyPreferences.BubblePausedUntil==beforeSelect.BubblePausedUntil,"column selection retains masters thresholds pause");
+   Click("notification.selectAll.system");
+   Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>!c.Contains(NotificationChannel.System))&&owner.Notifications.PolicyPreferences.ConfiguredBankHours.All(h=>!owner.Notifications.PolicyPreferences.BankChannels(h).Contains(NotificationChannel.System)),"second shortcut click clears only system including Bank mapping");
+   Check(owner.Notifications.PolicyPreferences.Rules.All(r=>r.Value.Contains(NotificationChannel.Mobile)==(beforeSelect.Rules.GetValueOrDefault(r.Key)?.Contains(NotificationChannel.Mobile)==true)),"clear preserves mobile");
+   Click("notification.selectAll.system");
+   Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.Contains(NotificationChannel.System)),"third shortcut click selects again");
    var mixed=beforeSelect with { BankExpiryHours=new[]{72,24},BankThresholdChannels=new() { [72]=[NotificationChannel.System],[24]=[] } };
    owner.Notifications.ConfigurePolicy(mixed);
    var mixedMatrix=new NotificationMatrixSettingsView(owner);

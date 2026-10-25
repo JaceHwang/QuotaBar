@@ -36,6 +36,12 @@ public sealed record NotificationPolicyPreferences {
   var rules=Rules.ToDictionary(r=>r.Key,r=>new HashSet<NotificationChannel>(r.Value)); foreach(var category in new[]{NotificationCategory.BankExpiring72h,NotificationCategory.BankExpiring24h}) { if(!rules.TryGetValue(category,out var set)) rules[category]=set=[]; if(enabled) set.Add(channel); else set.Remove(channel); }
   return this with { Rules=rules,BankThresholdChannels=mapping };
  }
+ public NotificationPolicyPreferences ToggleColumn(NotificationChannel channel) {
+  var enabled=!(Enum.GetValues<NotificationCategory>().Where(c=>c is not NotificationCategory.BankExpiring72h and not NotificationCategory.BankExpiring24h).All(c=>Rules.GetValueOrDefault(c)?.Contains(channel)==true)&&BankChannelSelected(channel)==true);
+  var rules=Rules.ToDictionary(r=>r.Key,r=>new HashSet<NotificationChannel>(r.Value));
+  foreach(var category in Enum.GetValues<NotificationCategory>()) { if(!rules.TryGetValue(category,out var set)) rules[category]=set=[]; if(enabled) set.Add(channel); else set.Remove(channel); }
+  return (this with { Rules=rules }).WithBankChannel(channel,enabled);
+ }
  public NotificationPolicyPreferences SelectColumn(NotificationChannel channel) { var rules=Rules.ToDictionary(r=>r.Key,r=>new HashSet<NotificationChannel>(r.Value)); foreach(var category in Enum.GetValues<NotificationCategory>()) { if(!rules.TryGetValue(category,out var set)) rules[category]=set=[]; set.Add(channel); } return (this with { Rules=rules }).WithBankChannel(channel,true); }
  public DateTimeOffset? BubblePausedUntil { get; init; }
  public static NotificationPolicyPreferences AllSelected()=>new() { Rules=Enum.GetValues<NotificationCategory>().ToDictionary(c=>c,c=>Enum.GetValues<NotificationChannel>().ToHashSet()) };

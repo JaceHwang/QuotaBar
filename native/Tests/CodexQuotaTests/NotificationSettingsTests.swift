@@ -131,6 +131,35 @@ import QuotaCore
         for category in NotificationCategory.allCases { XCTAssertTrue(after.rules[category]?.contains(.system) == true); XCTAssertEqual(after.rules[category]?.contains(.mobile), before.rules[category]?.contains(.mobile)) }
         XCTAssertEqual(after.bankChannels(for: 24), [.bubble,.mobile,.system])
     }
+    func testAddDraftSurvivesRealWindowFocusAndCommitsBothKinds() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "AddFocus.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.setLowThresholds([]); p.setBankHours([]); XCTAssertTrue(router.configurePolicy(p))
+        let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {})
+        let window = NSWindow(contentRect:NSRect(x:0,y:0,width:640,height:1000),styleMask:[.titled],backing:.buffered,defer:false)
+        window.isReleasedWhenClosed=false; defer { window.close() }; window.contentView=view; window.makeKeyAndOrderFront(nil); view.layoutSubtreeIfNeeded()
+        for (kind,value) in [("low",15),("bank",12)] {
+            let add = try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "notification.threshold.\(kind).add" })
+            add.performClick(nil)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            let field = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == "notification.threshold.\(kind).draft" }, "New input must stay visible in a real window")
+            XCTAssertTrue(window.firstResponder === field.currentEditor())
+            field.stringValue=String(value); field.currentEditor()?.string=String(value)
+            NSApp.sendAction(field.action!,to:field.target,from:field)
+            XCTAssertEqual(kind == "low" ? router.policyPreferences.configuredLowThresholds : router.policyPreferences.configuredBankHours,[value])
+        }
+    }
+    func testColumnShortcutTogglesAllAndNoneWithoutChangingPeers() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "ColumnToggle.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences.allSelected(); p.setBankHours([72,24,12]); XCTAssertTrue(router.configurePolicy(p))
+        let view = NotificationMatrixSettingsView(router:router,language:.english,preview:{},unread:{})
+        let button = try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "notification.selectAll.bubble" })
+        button.performClick(nil)
+        for category in NotificationCategory.allCases { XCTAssertFalse(router.policyPreferences.rules[category]?.contains(.bubble) == true); XCTAssertTrue(router.policyPreferences.rules[category]?.contains(.system) == true) }
+        for hour in [72,24,12] { XCTAssertFalse(router.policyPreferences.bankChannels(for:hour).contains(.bubble)) }
+        button.performClick(nil)
+        for category in NotificationCategory.allCases { XCTAssertTrue(router.policyPreferences.rules[category]?.contains(.bubble) == true) }
+        for hour in [72,24,12] { XCTAssertTrue(router.policyPreferences.bankChannels(for:hour).contains(.bubble)) }
+    }
     func testChipFocusMovesBetweenExistingInputsAfterEdits() throws {
         for input in ["20", "18", "bad"] {
             let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "ChipFocus.\(UUID())")!); defer { router.stop() }

@@ -107,7 +107,11 @@ import QuotaCore
     }
     @objc private func addTapped() {
         guard values.count < 32, draft == nil else { return }
-        let chip = makeChip(nil); draft = chip; arrangeParts(); layoutSubtreeIfNeeded(); window?.makeFirstResponder(chip.field); chip.field.selectText(nil)
+        let chip = makeChip(nil); draft = chip; arrangeParts(); layoutSubtreeIfNeeded()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.draft?.field === chip.field, let window = self.window else { return }
+            window.makeFirstResponder(chip.field); chip.field.currentEditor()?.selectAll(nil)
+        }
     }
     @objc private func removeTapped(_ sender: RemoveButton) {
         if let original = sender.original { _ = change(original, nil) }

@@ -61,6 +61,14 @@ public struct NotificationPolicyPreferences: Codable, Equatable, Sendable {
         for category in NotificationCategory.allCases { rules[category, default: []].insert(channel) }
         setBankChannel(channel, enabled: true)
     }
+    public mutating func toggleColumn(_ channel: NotificationChannel) {
+        let ordinary = NotificationCategory.allCases.filter { $0 != .bankExpiring72h && $0 != .bankExpiring24h }
+        let enabled = !(ordinary.allSatisfy { rules[$0]?.contains(channel) == true } && bankChannelSelected(channel) == true)
+        for category in NotificationCategory.allCases {
+            if enabled { rules[category, default: []].insert(channel) } else { rules[category]?.remove(channel) }
+        }
+        setBankChannel(channel, enabled: enabled)
+    }
     public var bubblePausedUntil: Date?
     public init() {
         rules = Dictionary(uniqueKeysWithValues: NotificationCategory.allCases.map { ($0, [.quotaRecovered, .bankExpiring72h, .bankExpiring24h].contains($0) ? [.bubble] : []) })

@@ -190,7 +190,7 @@ import QuotaCore
     @objc private func selectColumn(_ sender: NSButton) {
         let channel = NotificationChannel.allCases[sender.tag]
         guard router.policyPreferences.enabledChannels.contains(channel) else { return }
-        var p = router.policyPreferences; p.selectColumn(channel); _ = router.configurePolicy(p); refresh()
+        var p = router.policyPreferences; p.toggleColumn(channel); _ = router.configurePolicy(p); refresh()
     }
     @objc private func testTapped() { guard !router.policyPreferences.enabledChannels.isEmpty else { return }; test() }
     @objc private func previewTapped() { preview() }

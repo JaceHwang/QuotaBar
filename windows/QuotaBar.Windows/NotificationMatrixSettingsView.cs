@@ -29,7 +29,7 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   foreach(var channel in Enum.GetValues<NotificationChannel>()) {
    var heading=new StackPanel { HorizontalAlignment=HorizontalAlignment.Center };
    heading.Children.Add(Ui.Text(ChannelTitle(channel),12,muted));
-   var select=Ui.Button(copy.Text("Select all","全选","全選"),()=> { var p=owner.Notifications.PolicyPreferences; if(p.EnabledChannels.Contains(channel)) owner.Notifications.ConfigurePolicy(p.SelectColumn(channel)); Refresh(); });
+   var select=Ui.Button(copy.Text("Select all","全选","全選"),()=> { var p=owner.Notifications.PolicyPreferences; if(p.EnabledChannels.Contains(channel)) owner.Notifications.ConfigurePolicy(p.ToggleColumn(channel)); Refresh(); });
    select.Tag="notification.selectAll."+Key(channel); columnActions[channel]=select;
    System.Windows.Automation.AutomationProperties.SetName(select,ChannelTitle(channel)+" · "+copy.Text("Select all","全选","全選"));
    heading.Children.Add(select); Add(grid,0,(int)channel+1,heading);

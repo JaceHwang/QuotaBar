@@ -31,6 +31,12 @@ static class NotificationPolicyTests {
   Check(dynamicPolicy.EnabledChannels.SetEquals(new[]{NotificationChannel.Bubble})&&dynamicPolicy.ConfiguredLowThresholds.SequenceEqual(new[]{15}),"column selection preserves master and thresholds");
   Check(dynamicPolicy.BankChannels(24).SetEquals(new[]{NotificationChannel.Mobile,NotificationChannel.System}),"column only changes its Bank channel");
   Check(NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(dynamicPolicy,NotificationPolicyPreferences.JsonOptions)).BankChannels(48).SetEquals(dynamicPolicy.BankChannels(48)),"dynamic Bank map roundtrip");
+  var toggle=NotificationPolicyPreferences.AllSelected().WithBankHours([72,24,12]);
+  toggle=toggle.ToggleColumn(NotificationChannel.Bubble);
+  Check(toggle.Rules.Values.All(c=>!c.Contains(NotificationChannel.Bubble))&&toggle.ConfiguredBankHours.All(h=>!toggle.BankChannels(h).Contains(NotificationChannel.Bubble)),"full column toggles off including custom Bank hours");
+  Check(toggle.Rules.Values.All(c=>c.Contains(NotificationChannel.System)),"toggle leaves peer channel intact");
+  toggle=toggle.ToggleColumn(NotificationChannel.Bubble);
+  Check(toggle.Rules.Values.All(c=>c.Contains(NotificationChannel.Bubble))&&toggle.ConfiguredBankHours.All(h=>toggle.BankChannels(h).Contains(NotificationChannel.Bubble)),"empty column toggles on");
   var defaultsRoundtrip=NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(new NotificationPolicyPreferences(),NotificationPolicyPreferences.JsonOptions));
   Check(defaultsRoundtrip.ConfiguredLowThresholds.SequenceEqual(new[]{20})&&defaultsRoundtrip.ConfiguredBankHours.SequenceEqual(new[]{72,24}),"missing optional lists survive old-style roundtrip");
   var exact=NotificationPolicyPreferences.AllSelected() with { EnabledChannels=Enum.GetValues<NotificationChannel>().ToHashSet() };

@@ -843,3 +843,19 @@ a252c9b的PR原生CI40171868585 Mac完整通过，Windows UI在自定义Bank12�
 
 
 最终修正a5a98a4已提交并推送，原两项review P2复核ADDR。Scoped复核额外发现pending低级别只累加会消费已删除的未读取阈值；同一修复wave已补配置及observe双重当前集合裁剪，保证之后重加仍可正常触发，并统一先去重后32项限制。Swift/.NET共享case均先red再green；覆盖Swift6 warning+21 controller/router、.NET Core行为/生命周期全套通过，最后scoped确认和新HEAD原生CI待完成。本机仍未替换为新动态候选。
+
+
+### 2026-10-25 动态提醒本机安装验收
+
+f4488e0最终scoped review全部ADDR，无新增P1/P2；pre-push完整治理通过192Core+138AppKit及.NET/Windows跨编译。干净候选candidate-20261025-204450来源f4488e0、workingTreeDirty=false，隔离实际启动退出（含fresh全选断言）、签名与DMG通过；事务安装成功，凭据及备份保留。安装后二进制摘要与候选一致，ready且has_quota=true。实际提醒页AX和截图确认5类15格、三个准确总开关命名、每列全选、百分比与Bank小时编辑/增删标签及矩阵下测试按钮。未发送真实推送。
+
+Windows原生CI的通用样式断言仍统一期望30px，遗漏已批准24px紧凑按钮。f7256da仅修正测试，分别断言24/30高度、最小高度、宽度及padding，保留字体、颜色、圆角和可访问性校验；完整本地治理再次通过。Windows原生重跑待确认，未将跨编译当成实机通过。已安装产品源码与此测试提交一致；未合并或公开发布。
+
+Windows原生CI40194686867的Native Windows UI smoke and rendering已通过，动态阈值/焦点/失败恢复及紧凑样式回归完成；候选打包和升级整轮CI仍进行中，不宣称Windows物理设备验收或整轮CI通过。本机气泡关闭后5格与本列全选disabled、勾选保留，恢复开启后可编辑已实际验证并恢复原状态。
+
+
+### 2026-10-25 新增阈值与列全选修复
+
+用户报告两个新增按钮无效及列全选缺少取消行为。沿用用户已批准A、既有直接实施/跳过效果图授权，保留布局与按钮样式；仅恢复新增输入交互，并使已全选的列点击后全部取消，部分选中时点击全选，保留其他列/阈值/总开关。通过systematic-debugging及TDD，实际本机复现空列表点击加号后输入框消失；带真实窗口及事件循环的失败回归确认。调用makeFirstResponder后再field.selectText会立即触发空白结束编辑，自行删除draft。改为事件完成后聚焦并只在已获得的field editor上selectAll；13项AppKit设置回归通过，覆盖空列表两类新增提交与列选择切换。双端同步列切换核心及UI，Windows原生回归新增三次点击和其他列保留。完整治理、候选及本机更新尚待完成，未真实推送或发布。
+
+本次独立代码复核无P1/P2，完整治理通过192Core+140AppKit及.NET行为/生命周期、安装清理签名夹具与Windows三工程Release编译零警告错误。上一轮f7256da的完整原生CI40194686867已成功。本次新增修复的原生CI与干净候选本机更新待完成。
