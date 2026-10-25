@@ -12,21 +12,26 @@ import QuotaCore
     private let testButton = SettingsAccentButton(frame: .zero)
     private let test: () -> Void
     private let threshold = NSPopUpButton()
+    private let customThreshold: (Int) -> Int?
     private let status = NSTextField(wrappingLabelWithString: "")
     private let systemStatus = NSTextField(wrappingLabelWithString: "")
     private let mobileStatus = NSTextField(wrappingLabelWithString: "")
     private let pause = SettingsAccentButton(frame: .zero)
     private let preview: () -> Void
     private let unread: () -> Void
-    init(router: AppNotificationRouter, language: CodexDisplayLanguage, preview: @escaping () -> Void, unread: @escaping () -> Void, test: @escaping () -> Void = {}) {
-        self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.unread = unread; self.test = test
+    init(router: AppNotificationRouter, language: CodexDisplayLanguage, preview: @escaping () -> Void, unread: @escaping () -> Void, test: @escaping () -> Void = {}, customThreshold: ((Int) -> Int?)? = nil) {
+        self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.unread = unread; self.test = test; self.customThreshold = customThreshold ?? { Self.promptCustomThreshold($0, language: language) }
         super.init(frame: .zero); orientation = .vertical; alignment = .leading; spacing = 12
         let channels = NSStackView(); channels.orientation = .horizontal; channels.spacing = 16; channels.distribution = .fillEqually
         for (i, channel) in NotificationChannel.allCases.enumerated() {
             let column = QuotaSettingsStyle.column(5)
             let button = QuotaSettingsSwitch(); button.target = self; button.action = #selector(masterChanged(_:))
             button.tag = i; button.identifier = .init("notification.master.\(channel.rawValue)"); button.setAccessibilityLabel(channelTitle(channel))
-            masters.append(button); QuotaSettingsStyle.fill(QuotaSettingsStyle.row(channelTitle(channel), control: button), in: column)
+            let pair = NSStackView(); pair.orientation = .horizontal; pair.alignment = .centerY; pair.spacing = 8
+            let name = QuotaSettingsStyle.label(channelTitle(channel), size: 13)
+            name.setContentHuggingPriority(.required, for: .horizontal)
+            pair.addArrangedSubview(name); pair.addArrangedSubview(button)
+            masters.append(button); column.addArrangedSubview(pair)
             let label = channel == .system ? systemStatus : channel == .mobile ? mobileStatus : QuotaSettingsStyle.label(copy.text("Independent channel", "独立接收渠道", "獨立接收管道"), size: 11, secondary: true)
             label.font = .systemFont(ofSize: 11); label.textColor = .secondaryLabelColor; QuotaSettingsStyle.fill(label, in: column)
             channels.addArrangedSubview(column)
@@ -43,12 +48,16 @@ import QuotaCore
             let hint = QuotaSettingsStyle.label(categoryHint(category), size: 11, secondary: true)
             hint.identifier = .init("notification.hint.\(category.rawValue)")
             name.preferredMaxLayoutWidth = 240; hint.preferredMaxLayoutWidth = 240
-            QuotaSettingsStyle.fill(name, in: title); QuotaSettingsStyle.fill(hint, in: title)
             if category == .quotaLow {
-                threshold.addItems(withTitles: ["10%", "20%", "30%"]); threshold.identifier = .init("notification.threshold")
+                threshold.addItems(withTitles: ["10%", "20%", "30%", copy.text("Custom…", "自定义…", "自訂…")]); threshold.identifier = .init("notification.threshold")
                 threshold.target = self; threshold.action = #selector(thresholdChanged)
-                threshold.setAccessibilityLabel(copy.text("Low remaining quota threshold", "剩余额度偏低阈值", "剩餘額度偏低閾值")); title.addArrangedSubview(threshold)
-            }
+                threshold.setAccessibilityLabel(copy.text("Low remaining quota threshold", "剩余额度偏低阈值", "剩餘額度偏低閾值"))
+                threshold.widthAnchor.constraint(equalToConstant: 112).isActive = true
+                let inline = NSStackView(); inline.orientation = .horizontal; inline.alignment = .centerY; inline.spacing = 8
+                name.setContentHuggingPriority(.required, for: .horizontal)
+                inline.addArrangedSubview(name); inline.addArrangedSubview(threshold); title.addArrangedSubview(inline)
+            } else { QuotaSettingsStyle.fill(name, in: title) }
+            QuotaSettingsStyle.fill(hint, in: title)
             var row: [NSView] = [title]
             for (j, channel) in NotificationChannel.allCases.enumerated() {
                 let box = NSButton(checkboxWithTitle: "", target: self, action: #selector(ruleChanged(_:)))
@@ -115,7 +124,9 @@ import QuotaCore
         }
         testButton.isEnabled = !p.enabledChannels.isEmpty
         for (i, box) in masters.enumerated() { box.state = p.enabledChannels.contains(NotificationChannel.allCases[i]) ? .on : .off }
-        threshold.selectItem(at: [10, 20, 30].firstIndex(of: p.lowRemainingThreshold) ?? 1)
+        let preset = [10, 20, 30].firstIndex(of: p.lowRemainingThreshold)
+        threshold.item(at: 3)?.title = preset == nil ? copy.text("Custom: \(p.lowRemainingThreshold)%", "自定义：\(p.lowRemainingThreshold)%", "自訂：\(p.lowRemainingThreshold)%") : copy.text("Custom…", "自定义…", "自訂…")
+        threshold.selectItem(at: preset ?? 3)
         pause.title = (p.bubblePausedUntil.map { $0 > Date() } ?? false) ? copy.text("Resume bubbles", "恢复气泡", "恢復氣泡") : copy.text("Pause bubbles 1 hour", "暂停气泡1小时", "暫停氣泡1小時")
         mobileStatus.stringValue = router.bark?.configured == true ? copy.text("Configured", "已配置", "已設定") : copy.text("Not configured", "未配置", "未設定")
         if router.policyError { status.stringValue = copy.text("Reminder settings could not be read or saved. Check storage access.", "提醒设置读取或保存失败，请检查存储权限。", "提醒設定讀取或儲存失敗，請檢查儲存權限。") }
@@ -144,7 +155,26 @@ import QuotaCore
             systemStatus.stringValue = result.isEmpty ? copy.text("Authorized", "已授权", "已授權") : copy.text("Not authorized", "未授权", "未授權")
         }
     }
-    @objc private func thresholdChanged() { var p = router.policyPreferences; p.lowRemainingThreshold = [10, 20, 30][threshold.indexOfSelectedItem]; _ = router.configurePolicy(p); refresh() }
+    @objc private func thresholdChanged() {
+        var p = router.policyPreferences
+        let value = threshold.indexOfSelectedItem == 3 ? customThreshold(p.lowRemainingThreshold) : [10, 20, 30].indices.contains(threshold.indexOfSelectedItem) ? [10, 20, 30][threshold.indexOfSelectedItem] : nil
+        if let value, (1...99).contains(value) { p.lowRemainingThreshold = value; _ = router.configurePolicy(p) }
+        refresh()
+    }
+    private static func promptCustomThreshold(_ current: Int, language: CodexDisplayLanguage) -> Int? {
+        let alert = NSAlert()
+        let copy = ExperienceCopy(language)
+        alert.messageText = copy.text("Custom low quota threshold", "自定义额度偏低阈值", "自訂額度偏低閾值")
+        alert.informativeText = copy.text("Enter a whole percentage from 1 to 99.", "请输入 1–99 的整数百分比。", "請輸入 1–99 的整數百分比。")
+        alert.addButton(withTitle: copy.text("Save", "保存", "儲存")); alert.addButton(withTitle: copy.text("Cancel", "取消", "取消"))
+        let field = NSTextField(string: String(current)); field.frame = NSRect(x: 0, y: 0, width: 240, height: 24)
+        field.setAccessibilityLabel(alert.messageText); alert.accessoryView = field; alert.window.initialFirstResponder = field
+        while alert.runModal() == .alertFirstButtonReturn {
+            if let value = Int(field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)), (1...99).contains(value) { return value }
+            alert.informativeText = copy.text("Use an integer from 1 to 99, without the % sign.", "请输入 1–99 的整数，不含 % 符号。", "請輸入 1–99 的整數，不含 % 符號。")
+        }
+        return nil
+    }
     @objc private func pauseTapped() { var p = router.policyPreferences; p.bubblePausedUntil = (p.bubblePausedUntil.map { $0 > Date() } ?? false) ? nil : Date().addingTimeInterval(3600); _ = router.configurePolicy(p); refresh() }
     @objc private func testTapped() { guard !router.policyPreferences.enabledChannels.isEmpty else { return }; test() }
     @objc private func previewTapped() { preview() }

@@ -12,27 +12,31 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
  readonly Button pause;
  readonly Button test;
  bool refreshing;
- public NotificationMatrixSettingsView(Coordinator owner) {
+ readonly Func<int,int?> customThreshold;
+ public NotificationMatrixSettingsView(Coordinator owner,Func<int,int?>? customThreshold=null) {
+  this.customThreshold=customThreshold??PromptCustomThreshold;
   this.owner=owner; copy=owner.Copy; dark=Platform.IsDark(owner.Preferences); var fg=Ui.Foreground(dark); var muted=SettingsVisual.Muted(dark); status=Ui.Text("",11,muted); status.TextWrapping=TextWrapping.Wrap;
   var channels=new Grid();
   foreach(var channel in Enum.GetValues<NotificationChannel>()) {
    channels.ColumnDefinitions.Add(new()); var column=new StackPanel { Margin=new Thickness(0,0,12,0) };
-   var box=SettingsVisual.Toggle(ChannelTitle(channel),owner.Notifications.PolicyPreferences.EnabledChannels.Contains(channel),fg,on=> { if(refreshing) return; if(!owner.Notifications.SetChannelEnabled(channel,on)) status!.Text=copy.Text("Could not change channel. Check configuration or storage.","无法更改渠道，请检查配置或存储。","無法更改管道，請檢查設定或儲存。"); Refresh(); });
+   var box=SettingsVisual.Toggle(ChannelTitle(channel),owner.Notifications.PolicyPreferences.EnabledChannels.Contains(channel),fg,on=> { if(refreshing) return; if(!owner.Notifications.SetChannelEnabled(channel,on)) status!.Text=copy.Text("Could not change channel. Check configuration or storage.","无法更改渠道，请检查配置或存储。","無法更改管道，請檢查設定或儲存。"); Refresh(); },compact:true);
    box.Tag="notification.master."+Key(channel); masters[channel]=box; column.Children.Add(box);
    var label=channel switch { NotificationChannel.Bubble=>copy.Text("Independent channel","独立接收渠道","獨立接收管道"),NotificationChannel.System=>copy.Text("Controlled by system settings","由系统设置控制显示","由系統設定控制顯示"),_=>owner.Mobile.HasKey?copy.Text("Configured","已配置","已設定"):copy.Text("Not configured","未配置","未設定") };
    var note=Ui.Text(label,11,muted); note.TextWrapping=TextWrapping.Wrap; column.Children.Add(note); Grid.SetColumn(column,(int)channel); channels.Children.Add(column);
   }
   Children.Add(SettingsVisual.Card(channels,dark));
-  var grid=new Grid(); grid.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star),MinWidth=180 });
+  var grid=new Grid(); grid.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star),MinWidth=210 });
   for(var i=0;i<3;i++) grid.ColumnDefinitions.Add(new() { Width=new GridLength(66) });
   AddRow(grid,0,Ui.Text(copy.Text("Reminder content","提醒内容","提醒內容"),13,fg));
   foreach(var channel in Enum.GetValues<NotificationChannel>()) Add(grid,0,(int)channel+1,Ui.Text(ChannelTitle(channel),12,muted));
-  threshold=new ComboBox { ItemsSource=new[]{"10%","20%","30%"},Width=80,HorizontalAlignment=HorizontalAlignment.Left,Tag="notification.threshold",Margin=new Thickness(0,5,0,0) };
+  threshold=new ComboBox { IsEditable=true,IsReadOnly=true,IsTextSearchEnabled=false,Width=112,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Tag="notification.threshold",Margin=new Thickness(8,0,0,0) };
+  foreach(var text in new[]{"10%","20%","30%",copy.Text("Custom…","自定义…","自訂…")}) threshold.Items.Add(text);
   System.Windows.Automation.AutomationProperties.SetName(threshold,copy.Text("Low remaining quota threshold","剩余额度偏低阈值","剩餘額度偏低閾值"));
   for(var i=0;i<categories.Length;i++) {
    var category=categories[i]; var label=new StackPanel { Margin=new Thickness(0,8,8,8) };
-   label.Children.Add(Ui.Text(Title(category),13,fg)); var hint=Ui.Text(Hint(category),11,muted); hint.TextWrapping=TextWrapping.Wrap; label.Children.Add(hint);
-   if(category==NotificationCategory.QuotaLow) label.Children.Add(threshold);
+   var name=Ui.Text(Title(category),13,fg); name.VerticalAlignment=VerticalAlignment.Center;
+   if(category==NotificationCategory.QuotaLow) { var inline=new StackPanel { Orientation=Orientation.Horizontal }; inline.Children.Add(name); inline.Children.Add(threshold); label.Children.Add(inline); } else label.Children.Add(name);
+   var hint=Ui.Text(Hint(category),11,muted); hint.TextWrapping=TextWrapping.Wrap; label.Children.Add(hint);
    AddRow(grid,i+1,label);
    foreach(var channel in Enum.GetValues<NotificationChannel>()) {
     var box=new CheckBox { IsChecked=owner.Notifications.PolicyPreferences.Rules.TryGetValue(category,out var selected)&&selected.Contains(channel),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Tag="notification.rule."+Key(category)+"."+Key(channel) };
@@ -52,7 +56,12 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   Children.Add(status);
   if(!owner.Preferences.FloatingEnabled) Children.Add(Ui.Button(copy.Text("Enable floating button","开启悬浮按钮","開啟懸浮按鈕"),()=>owner.Save(owner.Preferences with { FloatingEnabled=true })));
   Refresh();
-  threshold.SelectionChanged+=(_,_)=> { if(threshold.SelectedIndex>=0) { owner.Notifications.ConfigurePolicy(owner.Notifications.PolicyPreferences with { LowRemainingThreshold=new[]{10,20,30}[threshold.SelectedIndex] }); Refresh(); } };
+  threshold.SelectionChanged+=(_,_)=> {
+   if(refreshing||threshold.SelectedIndex<0) return;
+   var value=threshold.SelectedIndex==3?this.customThreshold(owner.Notifications.PolicyPreferences.LowRemainingThreshold):new[]{10,20,30}[threshold.SelectedIndex];
+   if(value is >=1 and <=99) owner.Notifications.ConfigurePolicy(owner.Notifications.PolicyPreferences with { LowRemainingThreshold=value.Value });
+   Refresh();
+  };
  }
  void Refresh() {
   refreshing=true;
@@ -60,11 +69,24 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   foreach(var (key,box) in cells) { box.IsChecked=p.Rules.TryGetValue(key.Item1,out var selected)&&selected.Contains(key.Item2); box.IsEnabled=p.EnabledChannels.Contains(key.Item2); box.Opacity=box.IsEnabled?1:0.45; }
   test.IsEnabled=p.EnabledChannels.Count>0;
   foreach(var (channel,box) in masters) box.IsChecked=p.EnabledChannels.Contains(channel);
-  threshold.SelectedIndex=Array.IndexOf(new[]{10,20,30},p.LowRemainingThreshold);
+  var preset=Array.IndexOf(new[]{10,20,30},p.LowRemainingThreshold);
+  threshold.SelectedIndex=preset;
+  if(preset<0) threshold.Text=copy.Text($"Custom: {p.LowRemainingThreshold}%",$"自定义：{p.LowRemainingThreshold}%",$"自訂：{p.LowRemainingThreshold}%");
   pause.Content=p.BubblePausedUntil>DateTimeOffset.UtcNow?copy.Text("Resume bubbles","恢复气泡","恢復氣泡"):copy.Text("Pause bubbles 1 hour","暂停气泡1小时","暫停氣泡1小時");
   System.Windows.Automation.AutomationProperties.SetName(pause,pause.Content.ToString());
   refreshing=false;
   if(owner.Notifications.PolicyError) status.Text=copy.Text("Could not read or save reminder settings.","提醒设置读取或保存失败。","提醒設定讀取或儲存失敗。");
+ }
+ int? PromptCustomThreshold(int current) {
+  var dialog=new Window { Title=copy.Text("Custom low quota threshold","自定义额度偏低阈值","自訂額度偏低閾值"),SizeToContent=SizeToContent.WidthAndHeight,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Owner=Window.GetWindow(this),ShowInTaskbar=false,Background=Ui.Surface(dark) };
+  var stack=new StackPanel { Margin=new Thickness(20),MinWidth=280 };
+  var note=Ui.Text(copy.Text("Enter a whole percentage from 1 to 99.","请输入 1–99 的整数百分比。","請輸入 1–99 的整數百分比。"),13,Ui.Foreground(dark)); stack.Children.Add(note);
+  var input=new TextBox { Text=current.ToString(),Width=120,HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,12,0,8) }; System.Windows.Automation.AutomationProperties.SetName(input,dialog.Title); stack.Children.Add(input);
+  var error=Ui.Text("",12,Ui.Foreground(dark)); error.TextWrapping=TextWrapping.Wrap; stack.Children.Add(error);
+  int? result=null; var actions=new WrapPanel { Margin=new Thickness(0,12,0,0) };
+  var save=Ui.Button(copy.Text("Save","保存","儲存"),()=> { if(int.TryParse(input.Text,out var value)&&value is >=1 and <=99) { result=value; dialog.DialogResult=true; } else error.Text=copy.Text("Use an integer from 1 to 99, without %.","请输入 1–99 的整数，不含 %。","請輸入 1–99 的整數，不含 %。"); }); save.IsDefault=true;
+  var cancel=Ui.Button(copy.Text("Cancel","取消","取消"),()=>dialog.DialogResult=false); cancel.IsCancel=true; actions.Children.Add(save); actions.Children.Add(cancel); stack.Children.Add(actions); SettingsVisual.ApplyButtons(stack,dark);
+  dialog.Content=stack; dialog.Loaded+=(_,_)=> { input.Focus(); input.SelectAll(); }; dialog.ShowDialog(); return result;
  }
  static string Key<T>(T value) where T:Enum { var name=value.ToString(); return char.ToLowerInvariant(name[0])+name[1..]; }
  static void Add(Grid grid,int row,int column,UIElement child) { Grid.SetRow(child,row); Grid.SetColumn(child,column); grid.Children.Add(child); }

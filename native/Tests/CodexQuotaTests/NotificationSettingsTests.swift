@@ -105,6 +105,23 @@ import QuotaCore
         try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.test" }).performClick(nil)
         await mobile.waitUntilIdle(); XCTAssertEqual(transport.sends, 1); XCTAssertEqual(permissions, 1); XCTAssertGreaterThan(bubbles, 0)
     }
+    func testCustomThresholdOptionSavesAndCancelPreservesValue() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "CustomThreshold.\(UUID())")!); defer { router.stop() }
+        XCTAssertTrue(router.configurePolicy(NotificationPolicyPreferences()))
+        var selected: Int? = 15
+        let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {}, customThreshold: { _ in selected })
+        let popup = try XCTUnwrap(tree(view).compactMap { $0 as? NSPopUpButton }.first)
+        XCTAssertEqual(popup.numberOfItems, 4)
+        popup.selectItem(at: 3); NSApp.sendAction(popup.action!, to: popup.target, from: popup)
+        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
+        XCTAssertTrue(popup.titleOfSelectedItem?.contains("15%") == true)
+        selected = nil
+        NSApp.sendAction(popup.action!, to: popup.target, from: popup)
+        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
+        selected = 100
+        NSApp.sendAction(popup.action!, to: popup.target, from: popup)
+        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
+    }
     func testMatrixRendersAllLanguagesAndThemesWithoutClippingControls() throws {
         for language in [CodexDisplayLanguage.simplifiedChinese, .traditionalChinese, .english] {
             for theme in [NSAppearance.Name.aqua, .darkAqua] {
@@ -116,6 +133,14 @@ import QuotaCore
                 let host = try XCTUnwrap(window.contentView); host.wantsLayer = true; window.appearance?.performAsCurrentDrawingAppearance { host.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }; view.translatesAutoresizingMaskIntoConstraints = false; host.addSubview(view)
                 NSLayoutConstraint.activate([view.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: 18), view.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -18), view.topAnchor.constraint(equalTo: host.topAnchor, constant: 18)])
                 window.orderFront(nil); host.layoutSubtreeIfNeeded(); host.displayIfNeeded()
+                for master in tree(view).compactMap({ $0 as? NSSwitch }) {
+                    let label = try XCTUnwrap(tree(master.superview!).compactMap { $0 as? NSTextField }.first { $0.stringValue == master.accessibilityLabel() })
+                    let gap = master.convert(master.bounds, to: view).minX - label.convert(label.bounds, to: view).maxX
+                    XCTAssertGreaterThanOrEqual(gap, 4); XCTAssertLessThanOrEqual(gap, 12)
+                }
+                let lowName = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { ["Quota low", "额度偏低", "額度偏低"].contains($0.stringValue) })
+                let popup = try XCTUnwrap(tree(view).compactMap { $0 as? NSPopUpButton }.first)
+                XCTAssertLessThan(abs(lowName.convert(lowName.bounds, to: view).midY - popup.convert(popup.bounds, to: view).midY), 2)
                 for box in tree(view).compactMap({ $0 as? NSButton }).filter({ $0.identifier?.rawValue.hasPrefix("notification.rule.") == true }) {
                     XCTAssertGreaterThan(box.bounds.width, 8)
                     XCTAssertTrue(view.bounds.insetBy(dx: -1, dy: -1).contains(box.convert(box.bounds, to: view)))

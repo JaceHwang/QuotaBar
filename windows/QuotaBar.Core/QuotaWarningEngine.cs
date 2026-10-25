@@ -32,7 +32,7 @@ public sealed class QuotaWarningEngine {
   var plan=o.Quota.Plan?.Trim();
   if(string.IsNullOrEmpty(plan)||windows.Where(w=>w.Window!=null).Any(w=>!double.IsFinite(w.Window!.UsedPercent)||w.Window.UsedPercent is <0 or >100||w.Window.WindowMinutes is null or <=0)) { previous.Clear(); availableSince.Clear(); return []; }
   if(State.Plan!=plan) { State.Periods.Clear(); previous.Clear(); availableSince.Clear(); State.Plan=plan; }
-  threshold=threshold is 10 or 20 or 30?threshold:20;
+  threshold=threshold is >=1 and <=99?threshold:20;
   if(State.Threshold!=threshold) { State.Threshold=threshold; previous.Clear(); }
   Dictionary<NotificationCategory,List<string>> groups=[],identities=[];
   foreach(var (id,window) in windows) {

@@ -18,7 +18,7 @@ public sealed record NotificationPolicyPreferences {
    if(!doc.RootElement.TryGetProperty("schema",out var schema)||schema.GetInt32()!=1||!doc.RootElement.TryGetProperty("enabledChannels",out _)||!doc.RootElement.TryGetProperty("rules",out _)) return Safe();
    var p=JsonSerializer.Deserialize<NotificationPolicyPreferences>(json,JsonOptions);
    if(p?.EnabledChannels is null||p.Rules is null||p.Rules.Any(r=>r.Value is null)) return Safe();
-   return p with { LowRemainingThreshold=p.LowRemainingThreshold is 10 or 20 or 30?p.LowRemainingThreshold:20 };
+   return p with { LowRemainingThreshold=p.LowRemainingThreshold is >=1 and <=99?p.LowRemainingThreshold:20 };
   } catch(Exception e) when(e is JsonException or InvalidOperationException or FormatException or OverflowException) { return Safe(); }
  }
  static NotificationPolicyPreferences Safe()=>new() { EnabledChannels=[],Rules=[],RecoveredInvalidData=true };

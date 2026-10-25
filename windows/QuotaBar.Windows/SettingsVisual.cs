@@ -64,14 +64,16 @@ internal static class SettingsVisual {
     public static UIElement Section(string title,UIElement content,bool dark) {
         var stack=new StackPanel { Margin=new Thickness(0,0,0,12) }; var label=Ui.Text(title,12,Muted(dark)); label.Margin=new Thickness(0,0,0,8); stack.Children.Add(label); stack.Children.Add(Card(content,dark)); return stack;
     }
-    public static CheckBox Toggle(string title,bool value,Brush foreground,Action<bool> changed) {
+    public static CheckBox Toggle(string title,bool value,Brush foreground,Action<bool> changed,bool compact=false) {
         var box=new CheckBox { Content=title,IsChecked=value,Foreground=foreground,FontSize=13,FontWeight=FontWeights.Normal,VerticalContentAlignment=VerticalAlignment.Center,Margin=new Thickness(0,3,0,3) };
-        box.Template=(ControlTemplate)XamlReader.Parse("""
+        var markup="""
 <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="CheckBox">
  <Border x:Name="focus" BorderBrush="Transparent" BorderThickness="1" Padding="0,8" CornerRadius="4"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{TemplateBinding Content}" TextWrapping="Wrap" VerticalAlignment="Center"/><Border Grid.Column="1" x:Name="track" Width="38" Height="22" CornerRadius="11" Background="#949BA5" Margin="16,0,0,0"><Ellipse x:Name="thumb" Width="18" Height="18" Margin="2" Fill="White" HorizontalAlignment="Left"/></Border></Grid></Border>
  <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="focus" Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="track" Property="Background" Value="#30BC58"/><Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger></ControlTemplate.Triggers>
 </ControlTemplate>
-""");
+""";
+        if(compact) { markup=markup.Replace("Margin=\"16,0,0,0\"","Margin=\"8,0,0,0\""); box.HorizontalAlignment=HorizontalAlignment.Left; }
+        box.Template=(ControlTemplate)XamlReader.Parse(markup);
         System.Windows.Automation.AutomationProperties.SetName(box,title); box.Checked+=(_,_)=>changed(true); box.Unchecked+=(_,_)=>changed(false); return box;
     }
 }

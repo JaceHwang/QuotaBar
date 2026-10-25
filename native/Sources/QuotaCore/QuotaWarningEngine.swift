@@ -47,7 +47,7 @@ public struct QuotaWarningEngine: Sendable {
             previous = [:]; availableSince = [:]; return []
         }
         if state.plan != plan { state.periods = [:]; previous = [:]; availableSince = [:]; state.plan = plan }
-        let threshold = [10, 20, 30].contains(threshold) ? threshold : 20
+        let threshold = (1...99).contains(threshold) ? threshold : 20
         if state.threshold != threshold {
             state.threshold = threshold; previous = [:]
         }

@@ -406,5 +406,71 @@
         ]
       }
     ]
+  },
+  {
+    "name": "custom threshold 1 crosses exactly once",
+    "steps": [
+      {
+        "remaining": 2,
+        "threshold": 1,
+        "expected": []
+      },
+      {
+        "remaining": 1,
+        "threshold": 1,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 1,
+        "threshold": 1,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "custom threshold 15 crosses exactly once",
+    "steps": [
+      {
+        "remaining": 16,
+        "threshold": 15,
+        "expected": []
+      },
+      {
+        "remaining": 15,
+        "threshold": 15,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 14,
+        "threshold": 15,
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "custom threshold 99 crosses exactly once",
+    "steps": [
+      {
+        "remaining": 100,
+        "threshold": 99,
+        "expected": []
+      },
+      {
+        "remaining": 99,
+        "threshold": 99,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 98,
+        "threshold": 99,
+        "expected": []
+      }
+    ]
   }
 ]

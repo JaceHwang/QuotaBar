@@ -98,6 +98,13 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertEqual(queue.next(now: date)?.category, .quotaExhausted)
         XCTAssertEqual(state.next(canPresent: true, now: date)?.category, .quotaExhausted)
     }
+    func testCustomThresholdRoundTripsAndRejectsOutOfRange() throws {
+        for value in [1, 15, 99, 0, 100, -1] {
+            var p = NotificationPolicyPreferences(); p.lowRemainingThreshold = value
+            let decoded = try JSONDecoder().decode(NotificationPolicyPreferences.self, from: JSONEncoder().encode(p))
+            XCTAssertEqual(decoded.lowRemainingThreshold, (1...99).contains(value) ? value : 20)
+        }
+    }
     func testDefaultsAndSafeDecoding() throws {
         let p = NotificationPolicyPreferences()
         XCTAssertEqual(p.rules[.quotaRecovered], [.bubble])

@@ -3,6 +3,10 @@ using QuotaBar.Core;
 static class NotificationPolicyTests {
  public static void Run() {
   var now=DateTimeOffset.FromUnixTimeSeconds(1800000000);
+  foreach(var value in new[]{1,15,99,0,100,-1}) {
+   var decoded=NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(new NotificationPolicyPreferences { LowRemainingThreshold=value },NotificationPolicyPreferences.JsonOptions));
+   Check(decoded.LowRemainingThreshold==(value is >=1 and <=99?value:20),"custom threshold range and roundtrip");
+  }
   using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/notifications/matrix-cases.json")));
   foreach(var row in doc.RootElement.EnumerateArray()) {
    var category=Enum.Parse<NotificationCategory>(row.GetProperty("category").GetString()!,true);

@@ -31,7 +31,7 @@ public struct NotificationPolicyPreferences: Codable, Equatable, Sendable {
         enabledChannels = channels
         rules = Dictionary(uniqueKeysWithValues: raw.compactMap { key, value in NotificationCategory(rawValue: key).map { ($0, value) } })
         let threshold = (try? c.decode(Int.self, forKey: .lowRemainingThreshold)) ?? 20
-        lowRemainingThreshold = [10, 20, 30].contains(threshold) ? threshold : 20
+        lowRemainingThreshold = (1...99).contains(threshold) ? threshold : 20
         bubblePausedUntil = try? c.decode(Date.self, forKey: .bubblePausedUntil)
     }
     public func encode(to encoder: Encoder) throws {
