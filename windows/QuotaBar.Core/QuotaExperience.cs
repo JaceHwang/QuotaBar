@@ -45,10 +45,11 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         if(Preferences.Recovery!=p.Recovery || Preferences.Celebration!=p.Celebration) ResetBaseline();
         Preferences=p;
     }
-    public void SuppressBankStages(IEnumerable<int> stages) { State=State with { PendingBankBaselines=(State.PendingBankBaselines??[]).Concat(stages.Where(s=>s is 24 or 72)).ToHashSet() }; }
+    public void SuppressBankStages(IEnumerable<int> stages) { State=State with { PendingBankBaselines=(State.PendingBankBaselines??[]).Concat(stages.Where(s=>s is >=1 and <=8760)).ToHashSet() }; }
     public void ResetBaseline() { baseline=null; candidates.Clear(); sequence=-1; }
     public void RotateEpoch() { State=new(); ResetBaseline(); suppressBank=false; }
-    public ExperienceUpdate Observe(QuotaObservation o,DateTimeOffset now) {
+    public ExperienceUpdate Observe(QuotaObservation o,DateTimeOffset now,IReadOnlyList<int>? bankThresholds=null) {
+        var thresholds=NormalizeBankThresholds(bankThresholds);
         var recovery=new List<string>(); var bank=new List<BankExpiryEvent>();
         if(o.Epoch!=State.Epoch || o.Source!=ObservationSource.FullRead || o.Sequence<=sequence || (now-o.ReceivedAt).TotalSeconds is >120 or < -5) return new(recovery,bank);
         sequence=o.Sequence; var q=o.Quota;
@@ -69,14 +70,16 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
             baseline=q;
         }
         if(Preferences.Bank && o.BankFieldState==BankFieldState.Value && q.Bank is { } inventory) {
-            bank=BankEvents(inventory,now);
+            bank=BankEvents(inventory,now,thresholds);
             if(State.PendingBankBaselines is {} pending) { bank.RemoveAll(e=>pending.Contains(e.Stage)); if(BankInventoryIsComplete(inventory)) State=State with { PendingBankBaselines=null }; }
-            if(suppressBank) { bank.Clear(); if(inventory.AvailableCount==0 || inventory.Credits?.Any(c=>c.Status=="available" && c.ExpiresAt is not null)==true) suppressBank=false; }
+            if(suppressBank) { bank.Clear(); if(BankInventoryIsComplete(inventory)) suppressBank=false; }
         }
-        State=State with { Receipts=State.Receipts.Where(p=>p.Value.ExpiresAt>now.AddDays(-1) && p.Value.ExpiresAt<now.AddDays(30)).ToDictionary() };
+        State=State with { Receipts=State.Receipts.Where(p=>p.Value.ExpiresAt>now.AddDays(-1) && p.Value.ExpiresAt<now.AddHours(8760).AddSeconds(1)).ToDictionary() };
         if(State.Receipts.Count>2048) { State=State with { Receipts=State.Receipts.OrderBy(p=>p.Key,StringComparer.Ordinal).Take(2048).ToDictionary() }; bank.Clear(); }
         return new(recovery,bank);
     }
+    static int[] NormalizeBankThresholds(IReadOnlyList<int>? values) => (values??new[]{72,24}).Where(v=>v is >=1 and <=8760).Distinct().OrderDescending().Take(32).ToArray();
+    static int BankStage(double hours,int[] thresholds) => thresholds.LastOrDefault(t=>hours<=t);
     bool BankInventoryIsComplete(BankSummary bank) {
         if(bank.AvailableCount<0) return false;
         var available=bank.Credits?.Where(c=>c.Status=="available").ToArray()??[];
@@ -91,10 +94,11 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         var identity=c.Id is { } id?"id:"+id:$"fallback:{c.GrantedAt?.ToUnixTimeSeconds()??0}:{c.ResetType??""}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{State.Epoch}|{identity}|{c.ExpiresAt?.ToUnixTimeSeconds()??0}")));
     }
-    public bool BankEventsAreCurrent(IReadOnlyList<BankExpiryEvent> events,QuotaObservation observation,DateTimeOffset now) {
-        if(events.Count==0 || observation.Epoch!=State.Epoch || observation.Source!=ObservationSource.FullRead || observation.BankFieldState!=BankFieldState.Value || (now-observation.ReceivedAt).TotalSeconds is >120 or < -5 || observation.Quota.Bank is not { AvailableCount:>0,Credits:not null } bank) return false;
+    public bool BankEventsAreCurrent(IReadOnlyList<BankExpiryEvent> events,QuotaObservation observation,DateTimeOffset now,IReadOnlyList<int>? bankThresholds=null) {
+        var thresholds=NormalizeBankThresholds(bankThresholds);
+        if(thresholds.Length==0 || events.Count==0 || observation.Epoch!=State.Epoch || observation.Source!=ObservationSource.FullRead || observation.BankFieldState!=BankFieldState.Value || (now-observation.ReceivedAt).TotalSeconds is >120 or < -5 || observation.Quota.Bank is not { AvailableCount:>0,Credits:not null } bank) return false;
         var inventory=new Dictionary<string,int>();
-        foreach(var c in bank.Credits.Where(c=>c.Status=="available" && c.ExpiresAt>now && c.ExpiresAt<=now.AddHours(72))) {
+        foreach(var c in bank.Credits.Where(c=>c.Status=="available" && c.ExpiresAt>now && c.ExpiresAt<=now.AddHours(thresholds.FirstOrDefault()))) {
             var key=BankKey(c); inventory.TryGetValue(key,out var count); inventory[key]=c.Id is null?count+1:1;
         }
         if(inventory.Values.Sum()>bank.AvailableCount || events.Sum(e=>e.Count)>bank.AvailableCount) return false;
@@ -102,21 +106,22 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
             var matches=bank.Credits.Where(c=>c.Status=="available" && BankKey(c)==e.Key).ToArray();
             var count=matches.FirstOrDefault()?.Id is null?matches.Length:Math.Min(1,matches.Length);
             var hours=(e.ExpiresAt-now).TotalHours;
-            return count>=e.Count && hours>0 && hours<=72 && (hours<=24?24:72)==e.Stage;
+            return e.Count>0 && count>=e.Count && hours>0 && BankStage(hours,thresholds)==e.Stage;
         });
     }
-    List<BankExpiryEvent> BankEvents(BankSummary bank,DateTimeOffset now) {
-        if(bank.AvailableCount<=0 || bank.Credits is null) return [];
+    List<BankExpiryEvent> BankEvents(BankSummary bank,DateTimeOffset now,int[] thresholds) {
+        if(thresholds.Length==0 || bank.AvailableCount<=0 || bank.Credits is null) return [];
         var groups=new Dictionary<string,(int Count,DateTimeOffset Expires)>();
         foreach(var c in bank.Credits.Where(c=>c.Status=="available")) {
-            if(c.ExpiresAt is not { } expires || expires<=now || expires>now.AddHours(72)) continue;
+            if(c.ExpiresAt is not { } expires || expires<=now || expires>now.AddHours(thresholds.FirstOrDefault())) continue;
             var key=BankKey(c);
             groups.TryGetValue(key,out var prior); groups[key]=(c.Id is null?prior.Count+1:1,expires);
         }
         if(groups.Values.Sum(g=>g.Count)>bank.AvailableCount) return [];
         var result=new List<BankExpiryEvent>();
         foreach(var (key,g) in groups.OrderBy(p=>p.Key,StringComparer.Ordinal)) {
-            var stage=(g.Expires-now).TotalHours<=24?24:72;
+            var stage=BankStage((g.Expires-now).TotalHours,thresholds);
+            if(stage==0 || ((suppressBank || State.PendingBankBaselines?.Contains(stage)==true) && !BankInventoryIsComplete(bank))) continue;
             if(State.Receipts.TryGetValue(key,out var receipt) && receipt.Stage<=stage) continue;
             State.Receipts[key]=new(stage,g.Expires); result.Add(new(key,stage,g.Count,g.Expires));
         }

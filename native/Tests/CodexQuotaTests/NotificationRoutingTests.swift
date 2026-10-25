@@ -136,6 +136,57 @@ import QuotaCore
         XCTAssertEqual(bubbles, 1, "Explicit channel change retries an undelivered event")
     }
 
+    func testDynamicLowProducerUsesEveryConfiguredLevelAndEmptyKeepsDepletion() throws {
+        let defaults = UserDefaults(suiteName: "MultiLowProducer.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules[.quotaLow] = [.system]; p.rules[.quotaExhausted] = [.system]; p.setLowThresholds([20,10]); XCTAssertTrue(router.configurePolicy(p))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        var delivered: [ExperienceNotification] = []; router.sendSystem = { message, done in delivered.append(message); done(true) }
+        let now = Date(), reset = now.addingTimeInterval(3600)
+        func receive(_ remaining: Int, _ seconds: Double) {
+            controller.receive(AllowanceSnapshot(usedPercent: Double(100-remaining), remainingPercent: remaining, resetsAt: reset, receivedAt: now.addingTimeInterval(seconds), windowDurationMins: 300, planType: "plus"), bank: .omitted)
+        }
+        receive(30,-80); receive(20,-60); receive(10,-40)
+        XCTAssertEqual(delivered.map(\.reminderThreshold), [20,10]); XCTAssertTrue(delivered.allSatisfy { $0.category == .quotaLow })
+        p.setLowThresholds([]); XCTAssertTrue(router.configurePolicy(p)); receive(30,-20); receive(0,0)
+        XCTAssertEqual(delivered.last?.category, .quotaExhausted); XCTAssertEqual(delivered.count, 3)
+    }
+    func testDynamicBankProducerAttachesExactHoursAndPreservesSplitDelivery() async throws {
+        let defaults = UserDefaults(suiteName: "MultiBankProducer.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let secrets = BarkNotificationTests.Secrets(), transport = BarkNotificationTests.Transport()
+        let mobile = BarkNotificationController(defaults: defaults, secrets: secrets, transport: transport, deliveries: BarkDeliveryStore(url: root.appendingPathComponent("mobile.json")))
+        XCTAssertTrue(mobile.saveKey("fake-key")); XCTAssertTrue(mobile.setEnabled(true))
+        let router = AppNotificationRouter(defaults: defaults); router.bark = mobile; defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system,.mobile]; p.bankExpiryHours = [72,24,12]
+        p.bankThresholdChannels = [72:[.system],24:[.mobile],12:[.system]]; XCTAssertTrue(router.configurePolicy(p))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        var systems: [ExperienceNotification] = []; router.sendSystem = { message, done in systems.append(message); done(true) }
+        let now = Date()
+        let first = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(11*3600), title:nil,description:nil,id:"twelve")
+        let second = BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(23*3600), title:nil,description:nil,id:"twentyfour")
+        func receive(_ credits: [BankResetCredit]) {
+            let bank = BankResetSummary(availableCount: credits.count, credits: credits)
+            let quota = AllowanceSnapshot(usedPercent: 50, remainingPercent:50,resetsAt:now.addingTimeInterval(3600),receivedAt:Date(),windowDurationMins:300,planType:"plus",bank:bank)
+            controller.receive(quota, bank: .value)
+        }
+        receive([first]); await mobile.waitUntilIdle()
+        XCTAssertEqual(systems.map(\.reminderThreshold), [12]); XCTAssertEqual(transport.sends,0)
+        receive([first,second]); await mobile.waitUntilIdle()
+        XCTAssertEqual(systems.count,1); XCTAssertEqual(transport.sends,1)
+    }
+    func testRemovedThresholdRejectsLateActualRouterReceipt() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName:"ExactThreshold.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences.allSelected(); p.enabledChannels = [.system]; p.setBankHours([72,24,12]); XCTAssertTrue(router.configurePolicy(p))
+        var complete: ((Bool)->Void)?, receipts = 0
+        router.sendSystem = { _, done in complete = done }
+        let message = ExperienceNotification(id:"bank-exact",kind:.bank,epoch:"a",title:"Bank",body:"",createdAt:Date(),category:.bankExpiring72h,reminderThreshold:12)
+        router.enqueue(message,valid:{true},failed:{},shown:{receipts += 1})
+        XCTAssertNotNil(complete); p.setBankHours([72,24]); XCTAssertTrue(router.configurePolicy(p)); complete?(true)
+        XCTAssertEqual(receipts,0)
+        p.setBankHours([72,24,12]); XCTAssertTrue(router.configurePolicy(p)); router.enqueue(message,valid:{true},failed:{},shown:{receipts += 1}); XCTAssertEqual(receipts,0)
+    }
     func testCategoryPolicyOverridesLegacyModeAndNeverAddsChannelsToOldEvents() {
         let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixRouting.\(UUID())")!); defer { router.stop() }
         router.configure(NotificationPresentationPreferences(mode: .off))

@@ -3,6 +3,44 @@ using QuotaBar.Core;
 static class NotificationPolicyTests {
  public static void Run() {
   var now=DateTimeOffset.FromUnixTimeSeconds(1800000000);
+  foreach(var dynamicMap in new[]{false,true}) {
+   var p=NotificationPolicyPreferences.AllSelected();
+   p.Rules[NotificationCategory.BankExpiring72h]=dynamicMap?[NotificationChannel.Mobile]:[NotificationChannel.Bubble];
+   p.Rules[NotificationCategory.BankExpiring24h]=[NotificationChannel.Mobile];
+   p=dynamicMap?p with { BankExpiryHours=[12],BankThresholdChannels=new() { [12]=[NotificationChannel.Bubble] } }:p.WithBankHours([72]);
+   var original=p;
+   p=p.WithBankHours([]);
+   Check(p.BankChannelSelected(NotificationChannel.Bubble)==true&&p.BankChannelSelected(NotificationChannel.Mobile)==false,"empty Bank preserves current selection");
+   p=NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(p,NotificationPolicyPreferences.JsonOptions));
+   Check(p.ConfiguredBankHours.Length==0&&p.BankThresholdChannels?.Count==0,"empty Bank mapping roundtrip");
+   p=p.WithBankHours([12]);
+   Check(p.BankChannels(12).SetEquals([NotificationChannel.Bubble]),"readded Bank inherits current selection without mobile expansion");
+   Check(p.EnabledChannels.SetEquals(original.EnabledChannels),"clear/readd preserves masters");
+   foreach(var category in Enum.GetValues<NotificationCategory>().Where(c=>c is not NotificationCategory.BankExpiring72h and not NotificationCategory.BankExpiring24h))
+    Check(p.Rules[category].SetEquals(original.Rules[category]),"clear/readd preserves other rules");
+   Check(original.Rules[NotificationCategory.BankExpiring24h].SetEquals([NotificationChannel.Mobile]),"clear does not mutate original rules");
+  }
+
+  var dynamicPolicy=new NotificationPolicyPreferences { LowRemainingThreshold=15,Rules=new() { [NotificationCategory.BankExpiring72h]=[NotificationChannel.Bubble],[NotificationCategory.BankExpiring24h]=[NotificationChannel.Mobile] } };
+  Check(dynamicPolicy.ConfiguredLowThresholds.SequenceEqual(new[]{15})&&dynamicPolicy.ConfiguredBankHours.SequenceEqual(new[]{72,24}),"legacy scalar/hours fallback");
+  Check(dynamicPolicy.BankChannelSelected(NotificationChannel.Bubble) is null&&dynamicPolicy.BankChannelSelected(NotificationChannel.Mobile) is null,"legacy split Bank mixed");
+  dynamicPolicy=dynamicPolicy.WithBankHours(new[]{72,24,12}); Check(dynamicPolicy.BankChannels(12).Count==0,"added Bank uses intersection");
+  dynamicPolicy=dynamicPolicy.WithBankHours(new[]{48,24,12},new Dictionary<int,int> { [48]=72 }); Check(dynamicPolicy.BankChannels(48).SetEquals(new[]{NotificationChannel.Bubble}),"edited Bank retains old channel");
+  var oldMobile=dynamicPolicy.Rules.GetValueOrDefault(NotificationCategory.QuotaLow)?.Contains(NotificationChannel.Mobile)??false;
+  dynamicPolicy=dynamicPolicy.SelectColumn(NotificationChannel.System);
+  Check(dynamicPolicy.EnabledChannels.SetEquals(new[]{NotificationChannel.Bubble})&&dynamicPolicy.ConfiguredLowThresholds.SequenceEqual(new[]{15}),"column selection preserves master and thresholds");
+  Check(dynamicPolicy.BankChannels(24).SetEquals(new[]{NotificationChannel.Mobile,NotificationChannel.System}),"column only changes its Bank channel");
+  Check(NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(dynamicPolicy,NotificationPolicyPreferences.JsonOptions)).BankChannels(48).SetEquals(dynamicPolicy.BankChannels(48)),"dynamic Bank map roundtrip");
+  var defaultsRoundtrip=NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(new NotificationPolicyPreferences(),NotificationPolicyPreferences.JsonOptions));
+  Check(defaultsRoundtrip.ConfiguredLowThresholds.SequenceEqual(new[]{20})&&defaultsRoundtrip.ConfiguredBankHours.SequenceEqual(new[]{72,24}),"missing optional lists survive old-style roundtrip");
+  var exact=NotificationPolicyPreferences.AllSelected() with { EnabledChannels=Enum.GetValues<NotificationChannel>().ToHashSet() };
+  exact=exact.WithLowThresholds(new[]{30,20,10}).WithBankHours(new[]{72,24,12});
+  var exactSnapshot=new NotificationDeliverySnapshot(NotificationCategory.BankExpiring72h,exact,now,12);
+  exact=exact.WithBankHours(new[]{72,24}); exactSnapshot.Restrict(exact,now); exact=exact.WithBankHours(new[]{72,24,12});
+  Check(!exactSnapshot.Allows(NotificationChannel.Bubble,exact,now),"removed threshold cannot gain eligibility again");
+  exact=exact.WithLowThresholds(Array.Empty<int>()); Check(NotificationPolicy.Decision(NotificationCategory.QuotaLow,NotificationChannel.Bubble,exact,now,20)==NotificationDecision.RuleOff,"removed low threshold blocked");
+  var malformed=NotificationPolicyPreferences.Decode("{\"schema\":1,\"enabledChannels\":[\"mobile\"],\"rules\":{\"bankExpiring72h\":[\"mobile\"]},\"bankExpiryHours\":\"bad\",\"lowRemainingThresholds\":null}");
+  Check(malformed.ConfiguredBankHours.Length==0&&malformed.ConfiguredLowThresholds.Length==0,"malformed explicit lists fail closed");
   foreach(var value in new[]{1,15,99,0,100,-1}) {
    var decoded=NotificationPolicyPreferences.Decode(JsonSerializer.Serialize(new NotificationPolicyPreferences { LowRemainingThreshold=value },NotificationPolicyPreferences.JsonOptions));
    Check(decoded.LowRemainingThreshold==(value is >=1 and <=99?value:20),"custom threshold range and roundtrip");

@@ -472,5 +472,33 @@
         "expected": []
       }
     ]
+  },
+  {
+    "name": "scalar consumed warning survives restart and threshold edit",
+    "steps": [
+      {
+        "remaining": 50,
+        "threshold": 20,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "threshold": 20,
+        "expected": [
+          "quotaLow"
+        ]
+      },
+      {
+        "remaining": 50,
+        "threshold": 30,
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "threshold": 30,
+        "expected": []
+      }
+    ]
   }
 ]

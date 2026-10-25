@@ -9,7 +9,7 @@ import QuotaCore
     private let warningStore: QuotaWarningStore
     private var warningEngine: QuotaWarningEngine
     private var warningCategories: Set<NotificationCategory> = []
-    private var bankCategories: Set<NotificationCategory>?
+    private var bankHours: Set<Int>?
     private var sequence = 0
     private var lastObservation: QuotaObservation?
     private let language: () -> CodexDisplayLanguage
@@ -62,8 +62,8 @@ import QuotaCore
         let o = QuotaObservation(epoch: engine.state.epoch, sequence: sequence, receivedAt: quota.receivedAt, quota: quota, bankFieldState: bank)
         lastObservation = o
         router.observeQuota(o)
-        let result = engine.observe(o, now: Date())
-        let warnings = router.policyActive ? warningEngine.observe(o, threshold: router.policyPreferences.lowRemainingThreshold, now: Date()) : []
+        let result = engine.observe(o, now: Date(), bankThresholds: router.policyActive ? router.policyPreferences.configuredBankHours : [72,24])
+        let warnings = router.policyActive ? warningEngine.observe(o, thresholds: router.policyPreferences.configuredLowThresholds, now: Date()) : []
         warningEngine.confirmRecovery(periodIDs: result.recoveries)
         guard persist() else { return }
         for warning in warnings {
@@ -75,19 +75,20 @@ import QuotaCore
             if router.policyActive ? hasRule(.quotaRecovered) : preferences.recoveryNotificationEnabled { enqueue(.recovery, title: copy.text("Quota restored", "额度已恢复", "額度已恢復"), body: copy.recoveryBody(quota), category: router.policyActive ? .quotaRecovered : nil) }
         }
         if router.policyActive {
-            for stage in [72, 24] {
+            for stage in router.policyPreferences.configuredBankHours {
                 let events = result.bank.filter { $0.stage == stage }
-                if !events.isEmpty { enqueue(.bank, title: copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期"), body: copy.bankBody(events), bank: events, category: stage == 72 ? .bankExpiring72h : .bankExpiring24h) }
+                if !events.isEmpty { enqueue(.bank, title: copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期"), body: copy.bankBody(events), bank: events, category: stage == 24 ? .bankExpiring24h : .bankExpiring72h) }
             }
         } else if !result.bank.isEmpty { enqueue(.bank, title: copy.text("Bank credits expiring", "Bank 权益即将到期", "Bank 權益即將到期"), body: copy.bankBody(result.bank), bank: result.bank) }
     }
     private func enqueue(_ kind: ExperienceNotificationKind, title: String, body: String, bank: [BankExpiryEvent] = [], category: NotificationCategory? = nil, warning: QuotaWarningEvent? = nil) {
         let epoch = engine.state.epoch
         let deadline = kind == .bank ? min(Date().addingTimeInterval(120), bank.map(\.expiresAt).min() ?? Date()) : nil
-        let message = ExperienceNotification(id: warning.map { "quotabar-warning-" + $0.incidentID } ?? "quotabar-\(UUID())", kind: kind, epoch: epoch, title: title, body: body, createdAt: Date(), validUntil: warning == nil ? deadline : Date().addingTimeInterval(120), category: category)
+        let message = ExperienceNotification(id: warning.map { "quotabar-warning-" + $0.incidentID } ?? "quotabar-\(UUID())", kind: kind, epoch: epoch, title: title, body: body, createdAt: Date(), validUntil: warning == nil ? deadline : Date().addingTimeInterval(120), category: category, reminderThreshold: warning?.threshold ?? bank.first?.stage)
         router.enqueue(message, valid: { [weak self] in
             guard let self, storageReady, engine.state.epoch == epoch else { return false }
             if let warning {
+                if warning.category == .quotaLow && !router.policyPreferences.configuredLowThresholds.contains(warning.threshold) { return false }
                 guard let latest = lastObservation, Date().timeIntervalSince(latest.receivedAt) <= 120 else { return false }
                 return warning.periodIDs.contains { id in
                     guard let window = id == "primary" ? latest.quota.primary : latest.quota.secondary else { return false }
@@ -97,23 +98,26 @@ import QuotaCore
             if kind == .recovery { return router.policyActive ? hasRule(.quotaRecovered) : preferences.recoveryNotificationEnabled }
             if kind == .test { return true }
             guard (router.policyActive ? category.map(hasRule) ?? false : preferences.bank), let latest = lastObservation else { return false }
-            return engine.bankEventsAreCurrent(bank, observation: latest, now: Date())
+            return engine.bankEventsAreCurrent(bank, observation: latest, now: Date(), bankThresholds: router.policyActive ? router.policyPreferences.configuredBankHours : [72,24])
         }, failed: { [weak self] in
             guard let self else { return }; setNotificationStatus(("System notifications unavailable; check system settings", "系统提醒不可用，请检查系统设置", "系統提醒不可用，請檢查系統設定"))
         })
     }
-    private func hasRule(_ category: NotificationCategory) -> Bool { !(router.policyPreferences.rules[category] ?? []).isEmpty }
+    private func hasRule(_ category: NotificationCategory) -> Bool {
+        if category == .bankExpiring72h || category == .bankExpiring24h { return router.policyPreferences.configuredBankHours.contains { !router.policyPreferences.bankChannels(for: $0).isEmpty } }
+        return !(router.policyPreferences.rules[category] ?? []).isEmpty
+    }
     private func configureDetection() {
         var p = displayPreferences
         if router.policyActive {
             p.recovery = hasRule(.quotaRecovered) || hasRule(.quotaExhausted)
             p.bank = true // Keep stage receipts current even when every Bank channel is off.
-            let selectedBank = Set([NotificationCategory.bankExpiring72h, .bankExpiring24h].filter(hasRule))
-            if let previous = bankCategories {
+            let selectedBank = Set(router.policyPreferences.configuredBankHours.filter { !router.policyPreferences.bankChannels(for: $0).isEmpty })
+            if let previous = bankHours {
                 let added = selectedBank.subtracting(previous)
-                if !added.isEmpty { engine.suppressBankStages(Set(added.map { $0 == .bankExpiring72h ? 72 : 24 })); _ = persist() }
+                if !added.isEmpty { engine.suppressBankStages(added); persist() }
             }
-            bankCategories = selectedBank
+            bankHours = selectedBank
             let categories = Set([NotificationCategory.quotaLow, .quotaExhausted].filter(hasRule))
             if categories != warningCategories { warningEngine.resetBaseline(); warningCategories = categories }
         }
@@ -150,7 +154,7 @@ import QuotaCore
                 previewRow.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Preview celebration", "预览庆祝", "預覽慶祝"), target: self, action: #selector(preview)))
                 item.addArrangedSubview(previewRow)
             } else {
-                QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("72 hours and 24 hours before expiry; credits are grouped.", "提前 72 小时和 24 小时提醒，同批权益合并。", "提前 72 小時與 24 小時提醒，同批權益合併。"), size: 11, secondary: true), in: item)
+                QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Thresholds are configured above; credits are grouped.", "在上方设置提醒阈值，同批权益合并。", "在上方設定提醒閾值，同批權益合併。"), size: 11, secondary: true), in: item)
             }
             item.edgeInsets.bottom = 12
             QuotaSettingsStyle.fill(item, in: rows)

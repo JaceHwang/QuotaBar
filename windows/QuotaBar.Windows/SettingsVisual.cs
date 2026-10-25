@@ -26,11 +26,12 @@ internal static class SettingsVisual {
             if(button.Tag is string tag && tag.StartsWith("settings-nav-")) {
                 button.BorderBrush=new SolidColorBrush(Color.FromArgb(55,128,128,128));
             } else {
+                var compact=button.Tag is string compactTag&&(compactTag.StartsWith("notification.threshold.")||compactTag.StartsWith("notification.selectAll."));
                 var icon=button.Tag?.ToString()=="bark-reveal";
-                button.Height=30; button.MinHeight=30; button.MinWidth=icon?30:100;
+                button.Height=compact?24:30; button.MinHeight=compact?24:30; button.MinWidth=compact?24:icon?30:100;
                 button.Width=icon?30:double.NaN;
                 button.FontSize=13; button.FontWeight=FontWeights.SemiBold;
-                button.Padding=new Thickness(icon?0:12,0,icon?0:12,0);
+                button.Padding=new Thickness(compact?5:icon?0:12,0,compact?5:icon?0:12,0);
                 button.HorizontalAlignment=HorizontalAlignment.Left;
                 button.HorizontalContentAlignment=HorizontalAlignment.Center;
                 button.VerticalContentAlignment=VerticalAlignment.Center;

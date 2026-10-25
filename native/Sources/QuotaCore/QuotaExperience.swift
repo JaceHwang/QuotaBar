@@ -85,11 +85,12 @@ public struct QuotaExperienceEngine: Sendable {
         preferences = value
     }
     public mutating func suppressBankStages(_ stages: Set<Int>) {
-        state.pendingBankBaselines = (state.pendingBankBaselines ?? []).union(stages.filter { $0 == 24 || $0 == 72 })
+        state.pendingBankBaselines = (state.pendingBankBaselines ?? []).union(stages.filter { (1...8760).contains($0) })
     }
     public mutating func resetBaseline() { baseline = nil; candidates = [:]; sequence = -1 }
     public mutating func rotateEpoch() { state = ExperienceState(); resetBaseline(); suppressFirstBank = false }
-    public mutating func observe(_ o: QuotaObservation, now: Date) -> ExperienceUpdate {
+    public mutating func observe(_ o: QuotaObservation, now: Date, bankThresholds: [Int] = [72, 24]) -> ExperienceUpdate {
+        let thresholds = Self.normalizeBankThresholds(bankThresholds)
         var output = ExperienceUpdate()
         guard o.epoch == state.epoch, o.source == .fullRead, o.sequence > sequence,
               now.timeIntervalSince(o.receivedAt) >= -5, now.timeIntervalSince(o.receivedAt) <= 120 else { return output }
@@ -113,19 +114,25 @@ public struct QuotaExperienceEngine: Sendable {
             baseline = q
         }
         if preferences.bank, o.bankFieldState == .value, let bank = q.bank {
-            output.bank = bankEvents(bank, now: now)
+            output.bank = bankEvents(bank, now: now, thresholds: thresholds)
             if let pending = state.pendingBankBaselines { output.bank.removeAll { pending.contains($0.stage) }; if bankInventoryIsComplete(bank) { state.pendingBankBaselines = nil } }
             if suppressFirstBank {
                 output.bank = []
-                if bank.availableCount == 0 || bank.credits?.contains(where: { $0.status == "available" && $0.expiresAt != nil }) == true { suppressFirstBank = false }
+                if bankInventoryIsComplete(bank) { suppressFirstBank = false }
             }
         }
-        state.receipts = state.receipts.filter { $0.value.expiresAt > now.addingTimeInterval(-86400) && $0.value.expiresAt < now.addingTimeInterval(30*86400) }
+        state.receipts = state.receipts.filter { $0.value.expiresAt > now.addingTimeInterval(-86400) && $0.value.expiresAt < now.addingTimeInterval(8760*3600 + 1) }
         if state.receipts.count > 2048 {
             state.receipts = Dictionary(uniqueKeysWithValues: state.receipts.sorted { $0.key < $1.key }.prefix(2048).map { ($0.key, $0.value) })
             output.bank = [] // fail closed if inventory exceeds bounded receipt capacity
         }
         return output
+    }
+    private static func normalizeBankThresholds(_ values: [Int]) -> [Int] {
+        Array(Set(values.filter { (1...8760).contains($0) }).sorted(by: >).prefix(32))
+    }
+    private static func bankStage(remaining: TimeInterval, thresholds: [Int]) -> Int? {
+        thresholds.last { remaining <= Double($0)*3600 }
     }
     private static func restored(_ old: QuotaWindowSnapshot, _ new: QuotaWindowSnapshot) -> Bool {
         let delta = new.resetsAt.timeIntervalSince(old.resetsAt)
@@ -137,13 +144,14 @@ public struct QuotaExperienceEngine: Sendable {
         let identity = c.id.map { "id:\($0)" } ?? "fallback:\(c.grantedAt?.timeIntervalSince1970 ?? 0):\(c.resetType ?? "")"
         return SHA256.hash(data: Data("\(state.epoch)|\(identity)|\(c.expiresAt?.timeIntervalSince1970 ?? 0)".utf8)).map { String(format: "%02x", $0) }.joined()
     }
-    public func bankEventsAreCurrent(_ events: [BankExpiryEvent], observation: QuotaObservation, now: Date) -> Bool {
-        guard !events.isEmpty, observation.epoch == state.epoch, observation.source == .fullRead, observation.bankFieldState == .value,
+    public func bankEventsAreCurrent(_ events: [BankExpiryEvent], observation: QuotaObservation, now: Date, bankThresholds: [Int] = [72, 24]) -> Bool {
+        let thresholds = Self.normalizeBankThresholds(bankThresholds)
+        guard !thresholds.isEmpty, !events.isEmpty, observation.epoch == state.epoch, observation.source == .fullRead, observation.bankFieldState == .value,
               now.timeIntervalSince(observation.receivedAt) >= -5, now.timeIntervalSince(observation.receivedAt) <= 120,
               let bank = observation.quota.bank, bank.availableCount > 0, let credits = bank.credits else { return false }
         var inventory: [String: Int] = [:]
         for credit in credits where credit.status == "available" {
-            guard let expires = credit.expiresAt, expires > now, expires <= now.addingTimeInterval(72*3600) else { continue }
+            guard let expires = credit.expiresAt, expires > now, expires <= now.addingTimeInterval(Double(thresholds.first ?? 0)*3600) else { continue }
             let key = bankKey(credit)
             inventory[key] = credit.id == nil ? (inventory[key] ?? 0)+1 : 1
         }
@@ -152,7 +160,7 @@ public struct QuotaExperienceEngine: Sendable {
             let matched = credits.filter { $0.status == "available" && bankKey($0) == event.key }
             let count = matched.first?.id == nil ? matched.count : min(1, matched.count)
             let remaining = event.expiresAt.timeIntervalSince(now)
-            return count >= event.count && remaining > 0 && remaining <= 72*3600 && (remaining <= 24*3600 ? 24 : 72) == event.stage
+            return event.count > 0 && count >= event.count && remaining > 0 && Self.bankStage(remaining: remaining, thresholds: thresholds) == event.stage
         }
     }
     private func bankInventoryIsComplete(_ bank: BankResetSummary) -> Bool {
@@ -163,18 +171,19 @@ public struct QuotaExperienceEngine: Sendable {
         let groups = Dictionary(grouping: available, by: bankKey)
         return groups.values.reduce(0) { $0 + ($1.first?.id == nil ? $1.count : 1) } == bank.availableCount
     }
-    private mutating func bankEvents(_ bank: BankResetSummary, now: Date) -> [BankExpiryEvent] {
-        guard bank.availableCount > 0, let credits = bank.credits else { return [] }
+    private mutating func bankEvents(_ bank: BankResetSummary, now: Date, thresholds: [Int]) -> [BankExpiryEvent] {
+        guard !thresholds.isEmpty, bank.availableCount > 0, let credits = bank.credits else { return [] }
         var groups: [String: (count: Int, expires: Date)] = [:]
         for c in credits where c.status == "available" {
-            guard let expires = c.expiresAt, expires > now, expires <= now.addingTimeInterval(72*3600) else { continue }
+            guard let expires = c.expiresAt, expires > now, expires <= now.addingTimeInterval(Double(thresholds.first ?? 0)*3600) else { continue }
             let key = bankKey(c)
             let previous = groups[key]
             groups[key] = (c.id == nil ? (previous?.count ?? 0)+1 : 1, expires)
         }
         guard groups.values.reduce(0, { $0+$1.count }) <= bank.availableCount else { return [] }
         return groups.sorted { $0.key < $1.key }.compactMap { key, group in
-            let stage = group.expires.timeIntervalSince(now) <= 24*3600 ? 24 : 72
+            guard let stage = Self.bankStage(remaining: group.expires.timeIntervalSince(now), thresholds: thresholds) else { return nil }
+            if (suppressFirstBank || state.pendingBankBaselines?.contains(stage) == true) && !bankInventoryIsComplete(bank) { return nil }
             if let receipt = state.receipts[key], receipt.stage <= stage { return nil }
             state.receipts[key] = BankReceipt(stage: stage, expiresAt: group.expires)
             return BankExpiryEvent(key: key, stage: stage, count: group.count, expiresAt: group.expires)

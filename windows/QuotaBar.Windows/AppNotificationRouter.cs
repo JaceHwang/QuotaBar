@@ -58,7 +58,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     bool ChannelAllowed(ExperienceNotification m,NotificationChannel channel) {
         if(m.Category is null && PolicyActive && m.Kind==ExperienceNotificationKind.Test) return PolicyPreferences.EnabledChannels.Contains(channel)&&(channel!=NotificationChannel.Bubble||!(PolicyPreferences.BubblePausedUntil>DateTimeOffset.UtcNow));
         if(m.Category is not {} category) return channel switch { NotificationChannel.Bubble=>preferences.UsesBubble&&!preferences.Paused(DateTimeOffset.UtcNow),NotificationChannel.System=>preferences.UsesSystem,_=>true };
-        return snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)&&snapshot.Eligible(channel)&&NotificationPolicy.Decision(category,channel,PolicyPreferences,DateTimeOffset.UtcNow)==NotificationDecision.Allowed;
+        return snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)&&snapshot.Eligible(channel)&&NotificationPolicy.Decision(category,channel,PolicyPreferences,DateTimeOffset.UtcNow,m.ReminderThreshold??m.Warning?.Threshold??m.BankEvents?.FirstOrDefault()?.Stage)==NotificationDecision.Allowed;
     }
     bool CanStartChannel(ExperienceNotification m,NotificationChannel channel) {
         if(m.Category is null) return ChannelAllowed(m,channel);
@@ -68,7 +68,7 @@ internal sealed class AppNotificationRouter : IDisposable {
         if(m.Category is not {} category) return;
         var identity=new BarkEventIdentity(m.Id,m.ReminderGeneration);
         if(snapshots.ContainsKey(identity)) return;
-        snapshots[identity]=new(category,PolicyPreferences,DateTimeOffset.UtcNow); snapshotOrder.Enqueue(identity);
+        snapshots[identity]=new(category,PolicyPreferences,DateTimeOffset.UtcNow,m.ReminderThreshold??m.Warning?.Threshold??m.BankEvents?.FirstOrDefault()?.Stage); snapshotOrder.Enqueue(identity);
         if(snapshotOrder.Count>256) snapshots.Remove(snapshotOrder.Dequeue());
     }
     void RecordChannel(ExperienceNotification m,NotificationChannel channel) { if(snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)) snapshot.RecordAccepted(channel); }

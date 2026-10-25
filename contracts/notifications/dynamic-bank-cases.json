@@ -1,0 +1,145 @@
+[
+  {
+    "name": "three stages",
+    "thresholds": [
+      72,
+      24,
+      12
+    ],
+    "hours": [
+      72,
+      24,
+      12,
+      11
+    ],
+    "stages": [
+      72,
+      24,
+      12,
+      0
+    ]
+  },
+  {
+    "name": "skip coalesces",
+    "thresholds": [
+      72,
+      24,
+      12
+    ],
+    "hours": [
+      10,
+      9
+    ],
+    "stages": [
+      12,
+      0
+    ]
+  },
+  {
+    "name": "normalize",
+    "thresholds": [
+      0,
+      12,
+      24,
+      24,
+      8761
+    ],
+    "hours": [
+      24,
+      12
+    ],
+    "stages": [
+      24,
+      12
+    ]
+  },
+  {
+    "name": "empty disables",
+    "thresholds": [],
+    "hours": [
+      12
+    ],
+    "stages": [
+      0
+    ]
+  },
+  {
+    "name": "year horizon retained",
+    "thresholds": [
+      8760
+    ],
+    "hours": [
+      8760,
+      8759
+    ],
+    "stages": [
+      8760,
+      0
+    ]
+  },
+  {
+    "name": "invalid list disables",
+    "thresholds": [
+      0,
+      -1,
+      8761
+    ],
+    "hours": [
+      12
+    ],
+    "stages": [
+      0
+    ]
+  },
+  {
+    "name": "normalization capped to highest 32",
+    "thresholds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40
+    ],
+    "hours": [
+      8
+    ],
+    "stages": [
+      9
+    ]
+  }
+]

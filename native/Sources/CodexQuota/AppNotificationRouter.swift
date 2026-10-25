@@ -65,7 +65,7 @@ import QuotaCore
             switch channel { case .bubble: return preferences.mode.usesBubble && !preferences.paused(now: Date()); case .system: return preferences.mode.usesSystem; case .mobile: return true }
         }
         let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
-        return snapshots[identity]?.eligible.contains(channel) == true && NotificationPolicy.decision(category: category, channel: channel, preferences: policyPreferences, now: Date()) == .allowed
+        return snapshots[identity]?.eligible.contains(channel) == true && NotificationPolicy.decision(category: category, channel: channel, preferences: policyPreferences, now: Date(), threshold: m.reminderThreshold) == .allowed
     }
     private func canStartChannel(_ m: ExperienceNotification, _ channel: NotificationChannel) -> Bool {
         guard m.category != nil else { return channelAllowed(m, channel) }
@@ -75,7 +75,7 @@ import QuotaCore
         guard let category = m.category else { return }
         let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
         guard snapshots[identity] == nil else { return }
-        snapshots[identity] = NotificationDeliverySnapshot(category: category, preferences: policyPreferences, now: Date())
+        snapshots[identity] = NotificationDeliverySnapshot(category: category, preferences: policyPreferences, now: Date(), threshold: m.reminderThreshold)
         snapshotOrder.append(identity)
         if snapshotOrder.count > 256 { let old = snapshotOrder.removeFirst(); snapshots.removeValue(forKey: old) }
     }

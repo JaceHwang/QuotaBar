@@ -5,6 +5,35 @@ internal static class ExperienceTests {
         void Check(bool ok,string why) { if(!ok) throw new Exception(why); }
         var now=DateTimeOffset.FromUnixTimeSeconds(1800000000);
         QuotaSnapshot Q(double used,double reset=1000,BankSummary? bank=null)=>new(new(used,(int)Math.Round(100-used),now.AddSeconds(reset),300),null,"plus",null,bank,now);
+        using var dynamicCases=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/notifications/dynamic-bank-cases.json")));
+        foreach(var row in dynamicCases.RootElement.EnumerateArray()) {
+            var dynamicEngine=new QuotaExperienceEngine(new ExperienceState { Epoch="a" });
+            var thresholds=row.GetProperty("thresholds").EnumerateArray().Select(x=>x.GetInt32()).ToArray();
+            var expiry=DateTimeOffset.FromUnixTimeSeconds(1900000000);
+            var hours=row.GetProperty("hours").EnumerateArray().Select(x=>x.GetInt32()).ToArray();
+            var stages=row.GetProperty("stages").EnumerateArray().Select(x=>x.GetInt32()).ToArray();
+            for(var i=0;i<hours.Length;i++) {
+                var at=expiry.AddHours(-hours[i]);
+                var o=new QuotaObservation("a",i,at,Q(0,bank:new(1,[new("available",null,expiry,null,null,"one")])),BankFieldState.Value);
+                var events=dynamicEngine.Observe(o,at,thresholds).Bank;
+                Check((events.FirstOrDefault()?.Stage??0)==stages[i],row.GetProperty("name").GetString()!);
+                if(events.Count>0) { Check(dynamicEngine.BankEventsAreCurrent(events,o,at,thresholds),"dynamic current band"); Check(!dynamicEngine.BankEventsAreCurrent(events,o,at,[]),"removed thresholds reject queued event"); }
+                dynamicEngine=new QuotaExperienceEngine(JsonSerializer.Deserialize<ExperienceState>(JsonSerializer.Serialize(dynamicEngine.State))!);
+            }
+        }
+        var customBaseline=new QuotaExperienceEngine(new ExperienceState { Epoch="a" }); customBaseline.SuppressBankStages([12]);
+        var customCredit=new BankCredit("available",null,now.AddHours(10),null,null,"custom");
+        var partialCustom=new QuotaObservation("a",0,now,Q(0,bank:new(2,[customCredit])),BankFieldState.Value);
+        Check(customBaseline.Observe(partialCustom,now,[72,24,12]).Bank.Count==0 && customBaseline.State.Receipts.Count==0 && customBaseline.State.PendingBankBaselines!.Contains(12),"custom partial inventory does not consume baseline receipts");
+        customBaseline=new QuotaExperienceEngine(JsonSerializer.Deserialize<ExperienceState>(JsonSerializer.Serialize(customBaseline.State))!);
+        var completeCustom=partialCustom with { Sequence=1,Quota=Q(0,bank:new(1,[customCredit])) };
+        Check(customBaseline.Observe(completeCustom,now,[72,24,12]).Bank.Count==0 && customBaseline.State.PendingBankBaselines is null && customBaseline.State.Receipts.Values.Single().Stage==12,"complete custom baseline survives restart");
+        Check(customBaseline.Observe(completeCustom with { Sequence=2 },now,[72,24]).Bank.Count==0,"removal preserves consumed higher stages");
+        var longReceipt=new QuotaExperienceEngine(new ExperienceState { Epoch="a" });
+        var longObservation=new QuotaObservation("a",0,now,Q(0,bank:new(1,[new("available",null,now.AddHours(8760),null,null,"long")])),BankFieldState.Value);
+        Check(longReceipt.Observe(longObservation,now,[8760]).Bank.Single().Stage==8760,"maximum hour emits");
+        longReceipt.Observe(longObservation with { Sequence=1 },now,[]);
+        Check(longReceipt.State.Receipts.Count==1 && longReceipt.Observe(longObservation with { Sequence=2 },now,[8760]).Bank.Count==0,"long consumed receipt survives threshold removal");
         Check(new QuotaExperiencePreferences()==new QuotaExperiencePreferences(true,true,true,true),"experience defaults on");
         foreach(var (recovery,celebration,want) in new[]{(false,false,false),(true,false,true),(false,true,true),(true,true,true)}) {
             var preferences=new QuotaExperiencePreferences(Recovery:recovery,Celebration:celebration);

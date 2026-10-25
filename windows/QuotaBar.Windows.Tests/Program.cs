@@ -25,6 +25,7 @@ internal static class Program {
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
+        NotificationMatrixTests.TestDynamicBankProducer(app);
         NotificationMatrixTests.TestUpdateProducer(app);
         var quota=QuotaDecoder.Decode(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/rate-limits/read-response.json")));
         quota=quota with { Primary=quota.Primary with { ResetsAt=DateTimeOffset.Now.AddHours(5) },Secondary=quota.Secondary is { } second ? second with { ResetsAt=DateTimeOffset.Now.AddDays(4) } : null };
@@ -216,7 +217,7 @@ internal static class Program {
                     Check(controls.Any(c=>c.Content?.ToString()=="自动检查更新" && c.IsChecked==false),"update opt-out visible");
                     Check(!controls.Any(c=>c.Content?.ToString()=="更新提醒")&&owner.Notifications.PolicyPreferences.Rules[NotificationCategory.UpdateAvailable].SetEquals(Enum.GetValues<NotificationChannel>()),"update reminder rules default selected in matrix");
                     var matrixCells=controls.Where(c=>c.Tag is string tag&&tag.StartsWith("notification.rule.")).ToArray();
-                    Check(matrixCells.Length==18&&matrixCells.All(c=>c.IsChecked==true),"18 matrix cells all selected by fresh default");
+                    Check(matrixCells.Length==15&&matrixCells.All(c=>c.IsChecked==true),"15 matrix cells all selected by fresh default");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
                     var experienceToggles=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().Where(b=>new[]{"额度表情模式","额度恢复时提醒","额度恢复时播放小庆祝","Bank 到期提醒"}.Contains(b.Content?.ToString())).ToArray();
                     Check(experienceToggles.Length==2 && experienceToggles.All(b=>b.IsChecked==true),"appearance switches independent; recovery and Bank channels owned by matrix");

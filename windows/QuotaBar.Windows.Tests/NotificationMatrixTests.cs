@@ -51,33 +51,42 @@ internal static class NotificationMatrixTests {
   var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
   try {
    using var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets());
-   Check(owner.Notifications.PolicyPreferences.Rules.Count==6&&owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>()))&&owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(new[]{NotificationChannel.Bubble}),"actual fresh Coordinator initializes18 rules with independent masters");
+   Check(owner.Notifications.PolicyPreferences.Rules.Count==6&&owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>()))&&owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(new[]{NotificationChannel.Bubble}),"actual fresh Coordinator initializes legacy rules for15 visible cells with independent masters");
    owner.Save(owner.Preferences with { Experience=new(true,false,false,false) },false);
    owner.Notifications.ConfigurePolicy(new() { EnabledChannels=[NotificationChannel.System],Rules=new() { [NotificationCategory.QuotaLow]=[NotificationChannel.System],[NotificationCategory.QuotaExhausted]=[NotificationChannel.System] } });
-   int? customValue=15;
-   var matrix=new NotificationMatrixSettingsView(owner,_=>customValue);
+   var matrix=new NotificationMatrixSettingsView(owner);
    var pause=Tree(matrix).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.pause"));
    Check(System.Windows.Automation.AutomationProperties.GetName(pause)==pause.Content.ToString(),"pause accessible name initially follows label");
    pause.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
    Check(System.Windows.Automation.AutomationProperties.GetName(pause)==pause.Content.ToString(),"pause accessible name follows resume label");
-   var threshold=Tree(matrix).OfType<System.Windows.Controls.ComboBox>().Single(b=>Equals(b.Tag,"notification.threshold"));
-   Check(threshold.Items.Count==4,"custom option available"); threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==15,"custom saves percent");
-   Check(threshold.Text.Contains("15%"),"custom displays percent after native selection settles");
-   customValue=17; threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==17&&threshold.Text.Contains("17%"),"saved custom can reopen without choosing preset");
-   customValue=null; threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==17,"reediting custom cancel preserves value");
-   threshold.SelectedIndex=1; customValue=null; threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==20&&threshold.SelectedIndex==1,"custom cancel preserves preset");
-   customValue=19; threshold.SelectedIndex=3; threshold.SelectedIndex=1;
-   app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==20&&threshold.SelectedIndex==1&&!threshold.Text.Contains("19%"),"deferred custom label cannot overwrite newer preset");
-   customValue=100; threshold.SelectedIndex=3; Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==20,"invalid custom rejected");
-   Check(threshold.Parent is System.Windows.Controls.StackPanel { Orientation:System.Windows.Controls.Orientation.Horizontal },"threshold inline with low title");
+   TestChipFocus(app,owner);
+   var lowChips=Tree(matrix).OfType<DynamicThresholdChipsView>().Single(v=>Equals(v.Tag,"notification.threshold.low"));
+   void Click(string tag) => Tree(matrix).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,tag)).RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   void Edit(string tag,string text,bool cancel=false) {
+    var field=Tree(matrix).OfType<System.Windows.Controls.TextBox>().Single(b=>Equals(b.Tag,tag)); field.Text=text;
+    if(cancel) { using var source=new System.Windows.Interop.HwndSource(new System.Windows.Interop.HwndSourceParameters("threshold test") { Width=1,Height=1 }); field.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,source,0,System.Windows.Input.Key.Escape) { RoutedEvent=System.Windows.Input.Keyboard.KeyDownEvent }); }
+    else field.RaiseEvent(new System.Windows.Input.KeyboardFocusChangedEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,0,field,null) { RoutedEvent=System.Windows.Input.Keyboard.LostKeyboardFocusEvent });
+   }
+   Click("notification.threshold.low.add");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(new[]{20}),"blank addition remains unsaved");
+   Edit("notification.threshold.low.new","10");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(new[]{20,10}),"valid addition saves sorted thresholds");
+   Edit("notification.threshold.low.20","15");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(new[]{15,10}),"editing saves new threshold");
+   Edit("notification.threshold.low.15","10");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(new[]{15,10}),"duplicate edit preserves thresholds");
+   Edit("notification.threshold.low.15","100");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(new[]{15,10}),"invalid edit preserves thresholds");
+   Click("notification.threshold.low.add"); Edit("notification.threshold.low.new","9",true);
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(new[]{15,10}),"cancel blank preserves thresholds");
+   Click("notification.threshold.low.remove.15"); Click("notification.threshold.low.remove.10");
+   Check(owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.Length==0&&Tree(lowChips).OfType<System.Windows.Controls.Button>().Any(b=>Equals(b.Tag,"notification.threshold.low.add")),"remove last leaves add and no hidden default");
+   Click("notification.threshold.low.add"); Edit("notification.threshold.low.new","20");
+   Check(lowChips.Children[0] is System.Windows.Controls.TextBlock,"name is first wrapping inline item");
+   Check(Tree(matrix).OfType<System.Windows.Controls.TextBox>().All(b=>!string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(b))),"chip fields have accessible names");
    var controls=Tree(matrix).OfType<System.Windows.Controls.CheckBox>().ToArray();
    Check(controls.Where(c=>c.Tag is string tag&&tag.StartsWith("notification.master.")).All(c=>c.HorizontalAlignment==System.Windows.HorizontalAlignment.Left),"master label and switch compact");
-   Check(controls.Count(c=>c.Tag is string tag&&tag.StartsWith("notification.rule."))==18,"18 independent UI cells");
+   Check(controls.Count(c=>c.Tag is string tag&&tag.StartsWith("notification.rule."))==15,"15 independent UI cells");
    var low=controls.Single(c=>Equals(c.Tag,"notification.rule.quotaLow.bubble"));
    Check(!low.IsEnabled,"closed bubble column disabled");
    low.IsChecked=true; low.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -94,20 +103,106 @@ internal static class NotificationMatrixTests {
    testButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
    Check(testSystems==1,"matrix test button wired to enabled system master");
    var beforeSelect=owner.Notifications.PolicyPreferences;
-   var selectAll=Tree(matrix).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.selectAll"));
-   selectAll.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-   Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>()))&&owner.Notifications.PolicyPreferences.Rules.Count==6,"select all fills18 cells including disabled");
-   Check(owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(beforeSelect.EnabledChannels)&&owner.Notifications.PolicyPreferences.LowRemainingThreshold==beforeSelect.LowRemainingThreshold&&owner.Notifications.PolicyPreferences.BubblePausedUntil==beforeSelect.BubblePausedUntil,"select all retains masters threshold pause");
-   Check(owner.Notifications.PolicyPreferences.Rules[NotificationCategory.QuotaLow].Contains(NotificationChannel.Mobile)&&!controls.Single(c=>Equals(c.Tag,"notification.rule.quotaLow.mobile")).IsEnabled,"disabled selected mobile remains disabled");
-   owner.Notifications.ConfigurePolicy(beforeSelect);
-   var categories=new List<NotificationCategory>();
-   owner.Notifications.SystemDelivery=(m,done)=> { if(m.Category is {} c) categories.Add(c); done(true); };
-   var now=DateTimeOffset.UtcNow; var values=new[]{30,20,0,100,100,0};
+   var shortcuts=Tree(matrix).OfType<System.Windows.Controls.Button>().Where(b=>b.Tag is string t&&t.StartsWith("notification.selectAll.")).ToArray();
+   Check(shortcuts.Length==3,"three column shortcuts");
+   Check(!shortcuts.Single(b=>Equals(b.Tag,"notification.selectAll.bubble")).IsEnabled&&!shortcuts.Single(b=>Equals(b.Tag,"notification.selectAll.mobile")).IsEnabled,"closed masters disable shortcuts");
+   Click("notification.selectAll.system");
+   Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.Contains(NotificationChannel.System)),"system shortcut selects system");
+   Check(owner.Notifications.PolicyPreferences.Rules.All(r=>r.Value.Contains(NotificationChannel.Mobile)==(beforeSelect.Rules.GetValueOrDefault(r.Key)?.Contains(NotificationChannel.Mobile)==true)),"system shortcut preserves mobile");
+   Check(owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(beforeSelect.EnabledChannels)&&owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.SequenceEqual(beforeSelect.ConfiguredLowThresholds)&&owner.Notifications.PolicyPreferences.BubblePausedUntil==beforeSelect.BubblePausedUntil,"column selection retains masters thresholds pause");
+   var mixed=beforeSelect with { BankExpiryHours=new[]{72,24},BankThresholdChannels=new() { [72]=[NotificationChannel.System],[24]=[] } };
+   owner.Notifications.ConfigurePolicy(mixed);
+   var mixedMatrix=new NotificationMatrixSettingsView(owner);
+   var bank=Tree(mixedMatrix).OfType<System.Windows.Controls.CheckBox>().Single(c=>Equals(c.Tag,"notification.rule.bankExpiring72h.system"));
+   Check(bank.IsThreeState&&bank.IsChecked==null,"merged Bank shows mixed channel");
+   bank.IsChecked=true; bank.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(owner.Notifications.PolicyPreferences.ConfiguredBankHours.All(h=>owner.Notifications.PolicyPreferences.BankChannels(h).Contains(NotificationChannel.System)),"mixed Bank click unifies channel");
+   bank.IsChecked=null; bank.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(owner.Notifications.PolicyPreferences.ConfiguredBankHours.All(h=>!owner.Notifications.PolicyPreferences.BankChannels(h).Contains(NotificationChannel.System)),"selected Bank checkbox unchecks all despite native three-state cycle");
+   // Use the first view again to verify an edit keeps the old per-hour selection.
+   owner.Notifications.ConfigurePolicy(mixed);
+   Edit("notification.threshold.bank.72","48");
+   Check(owner.Notifications.PolicyPreferences.BankChannels(48).SetEquals(new[]{NotificationChannel.System})&&!owner.Notifications.PolicyPreferences.BankChannels(24).Contains(NotificationChannel.System),"Bank edit preserves individual channel mapping");
+   Click("notification.threshold.bank.add"); Edit("notification.threshold.bank.new","12");
+   Check(owner.Notifications.PolicyPreferences.BankChannels(12).Count==0,"Bank addition inherits intersection");
+   owner.Notifications.ConfigurePolicy(beforeSelect.WithLowThresholds(new[]{20,10}));
+   var categories=new List<NotificationCategory>(); var levels=new List<int>();
+   owner.Notifications.SystemDelivery=(m,done)=> { if(m.Category is {} c) categories.Add(c); if(m.Category==NotificationCategory.QuotaLow&&m.ReminderThreshold is {} level) levels.Add(level); done(true); };
+   var now=DateTimeOffset.UtcNow; var values=new[]{30,20,10,0,100,100,0};
    for(var i=0;i<values.Length;i++) {
-    var at=now.AddSeconds((i-5)*20); var q=new QuotaSnapshot(new(100-values[i],values[i],now.AddHours(1),300),null,"plus",null,null,at);
+    var at=now.AddSeconds((i-(values.Length-1))*18); var q=new QuotaSnapshot(new(100-values[i],values[i],now.AddHours(1),300),null,"plus",null,null,at);
     owner.Experience.Receive(new("a",i,at,q));
    }
-   Check(System.Linq.Enumerable.SequenceEqual(categories,new[]{NotificationCategory.QuotaLow,NotificationCategory.QuotaExhausted,NotificationCategory.QuotaExhausted}),"producer ignores old switches and internally rearms");
+   Check(System.Linq.Enumerable.SequenceEqual(categories,new[]{NotificationCategory.QuotaLow,NotificationCategory.QuotaLow,NotificationCategory.QuotaExhausted,NotificationCategory.QuotaExhausted}),"producer uses every configured low level and internally rearms");
+   Check(levels.SequenceEqual(new[]{20,10}),"actual producer attaches exact low threshold metadata");
+  } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
+ }
+ static void TestChipFocus(System.Windows.Application app,Coordinator owner) {
+  // A shown native window is essential: a synthetic LostKeyboardFocus event cannot
+  // detect detaching the destination during the focus transition.
+  foreach(var edit in new[]{"20","18","bad"}) foreach(var destination in new[]{"input","add","tab"}) {
+   var values=new[]{20,10};
+   var chips=new DynamicThresholdChipsView(new System.Windows.Controls.TextBlock { Text="Low" },"low",99,"%",owner.Copy,false,()=>values,(next,_)=>values=next);
+   var window=new System.Windows.Window { Content=chips,Width=400,Height=140,ShowInTaskbar=false,WindowStartupLocation=System.Windows.WindowStartupLocation.CenterScreen };
+   try {
+    window.Show(); window.Activate(); window.UpdateLayout();
+    void Settle()=>app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    Settle();
+    var first=Tree(chips).OfType<System.Windows.Controls.TextBox>().Single(b=>Equals(b.Tag,"notification.threshold.low.20"));
+    var second=Tree(chips).OfType<System.Windows.Controls.TextBox>().Single(b=>Equals(b.Tag,"notification.threshold.low.10"));
+    var add=Tree(chips).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.threshold.low.add"));
+    Check(first.Focus(),"real chip focus established"); first.Text=edit;
+    var remove=Tree(chips).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.threshold.low.remove.20"));
+    var target=destination=="add"?(System.Windows.IInputElement)add:destination=="tab"?remove:second;
+    if(destination=="tab") Check(first.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next)),"Tab traversal moves to next chip");
+    else System.Windows.Input.Keyboard.Focus(target);
+    Settle();
+    Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,target),$"{edit} edit retains {destination} destination focus");
+    if(destination=="tab") {
+     Check(remove.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.Previous)),"Shift Tab returns from delete to its editor"); Settle();
+     Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,first)&&first.Text==edit,"reverse Tab preserves pending editor and text");
+     System.Windows.Input.Keyboard.Focus(remove); System.Windows.Input.Keyboard.Focus(first); Settle();
+     Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,first)&&first.Text==edit,"direct focus return from delete preserves editor");
+     // Continue typing after both return paths, then leave the editing region.
+     first.Text=edit; System.Windows.Input.Keyboard.Focus(remove);
+     Check(remove.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next)),"Tab leaves delete action for next editor"); Settle();
+     Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,second),"field to delete to next field retains focus"); target=second;
+    }
+    Check(values.SequenceEqual(edit=="18"?new[]{18,10}:new[]{20,10}),"focus commit validates saved values");
+    if(target==second) {
+     second.Text="9"; System.Windows.Input.Keyboard.Focus(add); Settle();
+     Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,add)&&values.Contains(9),"destination remains editable and can Tab onward to add");
+     var edited=Tree(chips).OfType<System.Windows.Controls.TextBox>().First(); var saved=int.Parse(edited.Text);
+     System.Windows.Input.Keyboard.Focus(edited); edited.Text="7";
+     Check(edited.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next)),"delete action is keyboard reachable"); Settle();
+     var delete=Tree(chips).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.threshold.low.remove."+saved));
+     Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,delete),"changed field retains its keyboard delete target");
+     delete.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); Settle();
+     Check(!values.Contains(saved)&&!values.Contains(7),"keyboard delete removes original without saving pending edit");
+    } else {
+     add.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); Settle();
+     var blank=Tree(chips).OfType<System.Windows.Controls.TextBox>().Single(b=>Equals(b.Tag,"notification.threshold.low.new"));
+     Check(ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,blank),"focused add opens a usable focused blank");
+    }
+   } finally { window.Close(); }
+  }
+ }
+ public static void TestDynamicBankProducer(System.Windows.Application app) {
+  var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
+  try {
+   var transport=new BarkTests.Transport(); using var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets(),barkTransport:transport);
+   Check(owner.Mobile.SaveKey("fake-key")&&owner.Mobile.SetEnabled(true),"fake mobile configured for exact Bank route");
+   owner.Notifications.ConfigurePolicy(new() { EnabledChannels=[NotificationChannel.System,NotificationChannel.Mobile],BankExpiryHours=[72,24,12],BankThresholdChannels=new() { [72]=[NotificationChannel.System],[24]=[NotificationChannel.Mobile],[12]=[NotificationChannel.System] } });
+   var systemLevels=new List<int>(); owner.Notifications.SystemDelivery=(m,done)=> { if(m.ReminderThreshold is {} h) systemLevels.Add(h); done(true); };
+   var now=DateTimeOffset.UtcNow; var first=new BankCredit("available",null,now.AddHours(11),null,null,"twelve"); var second=new BankCredit("available",null,now.AddHours(23),null,null,"twentyfour");
+   void Receive(params BankCredit[] credits) {
+    var at=DateTimeOffset.UtcNow; var quota=new QuotaSnapshot(new(50,50,now.AddHours(1),300),null,"plus",null,new BankSummary(credits.Length,credits),at);
+    owner.Experience.Receive(new("a",0,at,quota,BankFieldState.Value));
+    var deadline=DateTime.UtcNow.AddSeconds(5); while(!owner.Mobile.WhenIdle.IsCompleted&&DateTime.UtcNow<deadline) { app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle); System.Threading.Thread.Sleep(5); }
+    Check(owner.Mobile.WhenIdle.IsCompleted,"fake mobile drain bounded"); owner.Mobile.WhenIdle.GetAwaiter().GetResult();
+   }
+   Receive(first); Check(systemLevels.SequenceEqual(new[]{12})&&transport.Sends==0,"hour12 uses exact system mapping rather than legacy24");
+   Receive(first,second); Check(systemLevels.Count==1&&transport.Sends==1,"hour24 retains mobile-only mapping");
   } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
  }
  public static void TestUpdateProducer(System.Windows.Application app) {

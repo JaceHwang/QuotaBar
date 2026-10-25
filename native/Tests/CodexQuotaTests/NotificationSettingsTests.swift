@@ -23,7 +23,7 @@ import QuotaCore
         XCTAssertNil(defaults.object(forKey: "experience.preferences")); XCTAssertNil(defaults.object(forKey: "updates.policy"))
         router.stop()
     }
-    func testMatrixHasEighteenIndependentCellsAndThreshold() throws {
+    func testMatrixHasFifteenCellsAndPreservesIndependentChannelBehavior() throws {
         let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixUI.\(UUID())")!); defer { router.stop() }
         XCTAssertTrue(router.configurePolicy(NotificationPolicyPreferences()))
         var tests = 0
@@ -34,24 +34,18 @@ import QuotaCore
         let matrix = try XCTUnwrap(tree(view).compactMap { $0 as? NotificationMatrixSettingsView }.first)
         let gridCard = try XCTUnwrap(matrix.arrangedSubviews.first { tree($0).contains { $0 is NSGridView } })
         XCTAssertEqual(matrix.arrangedSubviews.firstIndex(of: testButton), matrix.arrangedSubviews.firstIndex(of: gridCard).map { $0 + 1 })
-        XCTAssertEqual(buttons.filter { $0.identifier?.rawValue.hasPrefix("notification.rule.") == true }.count, 18)
-        let low = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.rule.quotaLow.bubble" })
-        low.performClick(nil)
+        XCTAssertEqual(buttons.filter { $0.identifier?.rawValue.hasPrefix("notification.rule.") == true }.count, 15)
+        XCTAssertEqual(buttons.filter { $0.identifier?.rawValue.hasPrefix("notification.selectAll.") == true }.count, 3)
+        let low = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.rule.quotaLow.bubble" }); low.performClick(nil)
         XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
         XCTAssertFalse(router.policyPreferences.rules[.quotaLow]?.contains(.mobile) == true)
         let master = try XCTUnwrap(tree(view).compactMap { $0 as? NSSwitch }.first { $0.identifier?.rawValue == "notification.master.bubble" })
+        XCTAssertEqual(master.accessibilityLabel(), "气泡通知")
         master.state = .off; NSApp.sendAction(master.action!, to: master.target, from: master)
-        XCTAssertFalse(router.policyPreferences.enabledChannels.contains(.bubble))
-        XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
-        XCTAssertFalse(low.isEnabled)
-        low.performClick(nil)
-        XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
+        XCTAssertFalse(low.isEnabled); low.performClick(nil); XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
+        let select = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.selectAll.bubble" }); XCTAssertFalse(select.isEnabled)
         master.state = .on; NSApp.sendAction(master.action!, to: master.target, from: master)
-        XCTAssertTrue(low.isEnabled); XCTAssertEqual(low.state, .on)
-        let threshold = try XCTUnwrap(tree(view).compactMap { $0 as? NSPopUpButton }.first { $0.identifier?.rawValue == "notification.threshold" })
-        threshold.selectItem(at: 2); NSApp.sendAction(threshold.action!, to: threshold.target, from: threshold)
-        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 30)
-        XCTAssertFalse(low.accessibilityLabel()?.isEmpty ?? true)
+        XCTAssertTrue(low.isEnabled); XCTAssertEqual(low.state, .on); XCTAssertTrue(select.isEnabled)
     }
     func testExampleUsesChannelMastersInsteadOfLegacyModeOrCategoryRules() {
         let defaults = UserDefaults(suiteName: "MatrixTestRoute.\(UUID())")!
@@ -105,41 +99,86 @@ import QuotaCore
         try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.test" }).performClick(nil)
         await mobile.waitUntilIdle(); XCTAssertEqual(transport.sends, 1); XCTAssertEqual(permissions, 1); XCTAssertGreaterThan(bubbles, 0)
     }
-    func testCustomThresholdOptionSavesAndCancelPreservesValue() throws {
-        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "CustomThreshold.\(UUID())")!); defer { router.stop() }
-        XCTAssertTrue(router.configurePolicy(NotificationPolicyPreferences()))
-        var selected: Int? = 15
-        let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {}, customThreshold: { _ in selected })
-        let popup = try XCTUnwrap(tree(view).compactMap { $0 as? NSPopUpButton }.first)
-        XCTAssertEqual(popup.numberOfItems, 4)
-        popup.selectItem(at: 3); NSApp.sendAction(popup.action!, to: popup.target, from: popup)
-        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
-        XCTAssertTrue(popup.titleOfSelectedItem?.contains("15%") == true)
-        selected = nil
-        NSApp.sendAction(popup.action!, to: popup.target, from: popup)
-        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
-        selected = 100
-        NSApp.sendAction(popup.action!, to: popup.target, from: popup)
-        XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
-    }
-    func testSelectAllFillsDisabledColumnsWithoutEnablingChannels() throws {
-        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "SelectAll.\(UUID())")!); defer { router.stop() }
-        var p = NotificationPolicyPreferences(); p.enabledChannels = [.bubble]; p.lowRemainingThreshold = 15
-        p.bubblePausedUntil = Date().addingTimeInterval(3600); XCTAssertTrue(router.configurePolicy(p))
+    func testThresholdChipsEditAddDeleteAndInvalidPreserveSettings() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "ChipUI.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.setLowThresholds([20]); p.setBankHours([72,24]); XCTAssertTrue(router.configurePolicy(p))
         let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {})
-        let all = try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "notification.selectAll" })
-        all.performClick(nil)
-        let result = router.policyPreferences
-        for category in NotificationCategory.allCases { XCTAssertEqual(result.rules[category], Set(NotificationChannel.allCases)) }
-        XCTAssertEqual(result.enabledChannels, p.enabledChannels); XCTAssertEqual(result.lowRemainingThreshold, 15); XCTAssertEqual(result.bubblePausedUntil, p.bubblePausedUntil)
-        let mobile = try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "notification.rule.quotaLow.mobile" })
-        XCTAssertEqual(mobile.state, .on); XCTAssertFalse(mobile.isEnabled)
+        func field(_ id: String) throws -> NSTextField { try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == id }) }
+        func button(_ id: String) throws -> NSButton { try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == id }) }
+        func commit(_ field: NSTextField, _ value: String) { field.stringValue = value; NSApp.sendAction(field.action!, to: field.target, from: field) }
+        commit(try field("notification.threshold.low.20"), "15"); XCTAssertEqual(router.policyPreferences.configuredLowThresholds, [15])
+        try button("notification.threshold.low.add").performClick(nil)
+        commit(try field("notification.threshold.low.draft"), "10"); XCTAssertEqual(router.policyPreferences.configuredLowThresholds, [15,10])
+        commit(try field("notification.threshold.low.15"), "10"); XCTAssertEqual(router.policyPreferences.configuredLowThresholds, [15,10])
+        commit(try field("notification.threshold.low.15"), "100"); XCTAssertEqual(router.policyPreferences.configuredLowThresholds, [15,10])
+        try button("notification.threshold.low.remove.15").performClick(nil); try button("notification.threshold.low.remove.10").performClick(nil)
+        XCTAssertEqual(router.policyPreferences.configuredLowThresholds, []); XCTAssertNotNil(try button("notification.threshold.low.add"))
+        commit(try field("notification.threshold.bank.72"), "48"); XCTAssertEqual(router.policyPreferences.configuredBankHours, [48,24])
+        XCTAssertEqual(router.policyPreferences.bankChannels(for: 48), [.bubble])
+    }
+    func testColumnSelectAllAndMixedBankPreserveOtherChannels() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "Columns.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.bubble,.system]; p.lowRemainingThreshold = 15
+        p.rules[.bankExpiring72h] = [.bubble]; p.rules[.bankExpiring24h] = [.mobile]; XCTAssertTrue(router.configurePolicy(p))
+        let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {})
+        let buttons = tree(view).compactMap { $0 as? NSButton }
+        let bank = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.rule.bankExpiring72h.bubble" }); XCTAssertEqual(bank.state, .mixed)
+        bank.performClick(nil); XCTAssertTrue(router.policyPreferences.bankChannelSelected(.bubble) == true)
+        let before = router.policyPreferences
+        try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.selectAll.system" }).performClick(nil)
+        let after = router.policyPreferences
+        XCTAssertEqual(after.enabledChannels, before.enabledChannels); XCTAssertEqual(after.configuredLowThresholds, [15])
+        for category in NotificationCategory.allCases { XCTAssertTrue(after.rules[category]?.contains(.system) == true); XCTAssertEqual(after.rules[category]?.contains(.mobile), before.rules[category]?.contains(.mobile)) }
+        XCTAssertEqual(after.bankChannels(for: 24), [.bubble,.mobile,.system])
+    }
+    func testChipFocusMovesBetweenExistingInputsAfterEdits() throws {
+        for input in ["20", "18", "bad"] {
+            let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "ChipFocus.\(UUID())")!); defer { router.stop() }
+            var p = NotificationPolicyPreferences(); p.setLowThresholds([20,10]); XCTAssertTrue(router.configurePolicy(p))
+            let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {})
+            let window = NSWindow(contentRect: NSRect(x:0,y:0,width:640,height:900),styleMask:[.titled],backing:.buffered,defer:false); window.isReleasedWhenClosed = false; defer { window.close() }
+            window.contentView = view; window.makeKeyAndOrderFront(nil); view.layoutSubtreeIfNeeded()
+            let first = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == "notification.threshold.low.20" })
+            let second = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == "notification.threshold.low.10" })
+            window.makeFirstResponder(first); first.stringValue = input; first.currentEditor()?.string = input
+            NSApp.sendAction(first.action!, to:first.target, from:first)
+            window.makeFirstResponder(second)
+            XCTAssertTrue(second.superview != nil)
+            let editor = second.currentEditor(); XCTAssertTrue(window.firstResponder === editor)
+            second.stringValue = "9"; NSApp.sendAction(second.action!, to:second.target, from:second)
+            XCTAssertTrue(router.policyPreferences.configuredLowThresholds.contains(9))
+        }
+    }
+    func testChipEscapeAndFailedSaveRetainOriginalActiveValue() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName:"ChipFailure.\(UUID())")!); defer { router.stop() }
+        XCTAssertTrue(router.loadPolicy(store:NotificationPolicyStore(url:root.appendingPathComponent("policy.json")),legacy:nil))
+        let view = NotificationMatrixSettingsView(router:router,language:.english,preview:{},unread:{})
+        let window = NSWindow(contentRect:NSRect(x:0,y:0,width:640,height:900),styleMask:[.titled],backing:.buffered,defer:false); window.isReleasedWhenClosed = false; defer { window.close() }; window.contentView = view; window.makeKeyAndOrderFront(nil); view.layoutSubtreeIfNeeded()
+        let first = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == "notification.threshold.low.20" })
+        window.makeFirstResponder(first); first.stringValue="19"; first.currentEditor()?.string="19"
+        _ = first.delegate?.control?(first,textView:first.currentEditor() as? NSTextView ?? NSTextView(),doCommandBy:#selector(NSResponder.cancelOperation(_:)))
+        XCTAssertEqual(router.policyPreferences.configuredLowThresholds,[20]); XCTAssertEqual(first.stringValue,"20")
+        try FileManager.default.removeItem(at:root); try Data().write(to:root)
+        first.stringValue="15"; first.currentEditor()?.string="15"; NSApp.sendAction(first.action!,to:first.target,from:first)
+        XCTAssertEqual(router.policyPreferences.configuredLowThresholds,[20]); XCTAssertEqual(first.stringValue,"20"); XCTAssertEqual(first.currentEditor()?.string,"20")
+    }
+    func testMaximumThresholdsWrapInsideLabelColumnAndDisableAdd() throws {
+        let router = AppNotificationRouter(defaults:UserDefaults(suiteName:"MaxChips.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.setLowThresholds(Array(1...32)); p.setBankHours(Array(1...32)); XCTAssertTrue(router.configurePolicy(p))
+        let view = NotificationMatrixSettingsView(router:router,language:.english,preview:{},unread:{})
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:640,height:1800),styleMask:[.titled],backing:.buffered,defer:false); window.isReleasedWhenClosed=false; defer{window.close()}; window.contentView=view; window.orderFront(nil); view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(tree(view).compactMap { $0 as? NSTextField }.filter { $0.identifier?.rawValue.hasPrefix("notification.threshold.") == true }.count,64)
+        for button in tree(view).compactMap({$0 as?NSButton}).filter({$0.identifier?.rawValue.hasSuffix(".add")==true}) { XCTAssertFalse(button.isEnabled) }
+        for chips in tree(view).compactMap({$0 as?DynamicThresholdChipsView}) {
+            for child in chips.subviews { XCTAssertTrue(chips.bounds.insetBy(dx:-1,dy:-1).contains(child.frame),"\(child.frame) outside \(chips.bounds)") }
+        }
     }
     func testMatrixRendersAllLanguagesAndThemesWithoutClippingControls() throws {
         for language in [CodexDisplayLanguage.simplifiedChinese, .traditionalChinese, .english] {
             for theme in [NSAppearance.Name.aqua, .darkAqua] {
                 let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixRender.\(UUID())")!); defer { router.stop() }
-                XCTAssertTrue(router.configurePolicy(NotificationPolicyPreferences()))
+                var p = NotificationPolicyPreferences.allSelected(); p.setLowThresholds([30,20,10]); p.setBankHours([72,24,12]); XCTAssertTrue(router.configurePolicy(p))
                 let view = NotificationMatrixSettingsView(router: router, language: language, preview: {}, unread: {})
                 let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 850), styleMask: [.titled], backing: .buffered, defer: false)
                 window.isReleasedWhenClosed = false; window.appearance = NSAppearance(named: theme); defer { window.close() }
@@ -151,9 +190,15 @@ import QuotaCore
                     let gap = master.convert(master.bounds, to: view).minX - label.convert(label.bounds, to: view).maxX
                     XCTAssertGreaterThanOrEqual(gap, 4); XCTAssertLessThanOrEqual(gap, 12)
                 }
+                for label in tree(view).compactMap({ $0 as? NSTextField }).filter({ $0.identifier?.rawValue.hasPrefix("notification.title.") == true }) {
+                    XCTAssertGreaterThanOrEqual(label.bounds.width + 1, label.cell?.cellSize.width ?? 0, label.stringValue)
+                }
                 let lowName = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { ["Quota low", "额度偏低", "額度偏低"].contains($0.stringValue) })
-                let popup = try XCTUnwrap(tree(view).compactMap { $0 as? NSPopUpButton }.first)
-                XCTAssertLessThan(abs(lowName.convert(lowName.bounds, to: view).midY - popup.convert(popup.bounds, to: view).midY), 2)
+                let numeric = try XCTUnwrap(tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue == "notification.threshold.low.30" })
+                XCTAssertLessThan(abs(lowName.convert(lowName.bounds, to: view).midY - numeric.convert(numeric.bounds, to: view).midY), 2)
+                for field in tree(view).compactMap({ $0 as? NSTextField }).filter({ $0.identifier?.rawValue.hasPrefix("notification.threshold.") == true }) {
+                    XCTAssertTrue(view.bounds.insetBy(dx: -1, dy: -1).contains(field.convert(field.bounds, to: view)))
+                }
                 for box in tree(view).compactMap({ $0 as? NSButton }).filter({ $0.identifier?.rawValue.hasPrefix("notification.rule.") == true }) {
                     XCTAssertGreaterThan(box.bounds.width, 8)
                     XCTAssertTrue(view.bounds.insetBy(dx: -1, dy: -1).contains(box.convert(box.bounds, to: view)))

@@ -6,7 +6,7 @@ internal sealed class QuotaExperienceController {
     readonly QuotaWarningStore warningStore;
     QuotaWarningEngine warningEngine;
     HashSet<NotificationCategory> warningCategories=[];
-    HashSet<NotificationCategory>? bankCategories;
+    HashSet<int>? bankHours;
     QuotaObservation? lastObservation;
     long sequence;
     TextBlock? statusLabel;
@@ -28,14 +28,14 @@ internal sealed class QuotaExperienceController {
     }
     void Status(SettingsStatus status) { settingsStatus=status; if(statusLabel is not null) statusLabel.Text=CurrentStatus; }
     public void NotificationFailed()=>Status(SettingsStatus.NotificationsUnavailable);
-    bool HasRule(NotificationCategory category)=>owner.Notifications.PolicyPreferences.Rules.TryGetValue(category,out var channels)&&channels.Count>0;
+    bool HasRule(NotificationCategory category)=>category is NotificationCategory.BankExpiring72h or NotificationCategory.BankExpiring24h?owner.Notifications.PolicyPreferences.ConfiguredBankHours.Any(h=>owner.Notifications.PolicyPreferences.BankChannels(h).Count>0):owner.Notifications.PolicyPreferences.Rules.TryGetValue(category,out var channels)&&channels.Count>0;
     public void Configure() {
         var p=owner.Preferences.Experience;
         if(owner.Notifications.PolicyActive) {
             p=p with { Recovery=HasRule(NotificationCategory.QuotaRecovered)||HasRule(NotificationCategory.QuotaExhausted),Bank=true };
-            var selectedBank=new[]{NotificationCategory.BankExpiring72h,NotificationCategory.BankExpiring24h}.Where(HasRule).ToHashSet();
-            if(bankCategories is {} previousBank) { var added=selectedBank.Except(previousBank).ToArray(); if(added.Length>0) { engine.SuppressBankStages(added.Select(c=>c==NotificationCategory.BankExpiring72h?72:24)); Persist(); } }
-            bankCategories=selectedBank;
+            var selectedBank=owner.Notifications.PolicyPreferences.ConfiguredBankHours.Where(h=>owner.Notifications.PolicyPreferences.BankChannels(h).Count>0).ToHashSet();
+            if(bankHours is {} previousBank) { var added=selectedBank.Except(previousBank).ToArray(); if(added.Length>0) { engine.SuppressBankStages(added); Persist(); } }
+            bankHours=selectedBank;
             var categories=new[]{NotificationCategory.QuotaLow,NotificationCategory.QuotaExhausted}.Where(HasRule).ToHashSet();
             if(!categories.SetEquals(warningCategories)) { warningEngine.ResetBaseline(); warningCategories=categories; }
         }
@@ -47,8 +47,8 @@ internal sealed class QuotaExperienceController {
     public void Receive(QuotaObservation observation) {
         Configure();
         var o=observation with { Epoch=engine.State.Epoch,Sequence=++sequence }; lastObservation=o; owner.Notifications.ObserveQuota(o);
-        var result=engine.Observe(o,DateTimeOffset.UtcNow);
-        var warnings=owner.Notifications.PolicyActive?warningEngine.Observe(o,owner.Notifications.PolicyPreferences.LowRemainingThreshold,DateTimeOffset.UtcNow):Array.Empty<QuotaWarningEvent>();
+        var result=engine.Observe(o,DateTimeOffset.UtcNow,owner.Notifications.PolicyActive?owner.Notifications.PolicyPreferences.ConfiguredBankHours:null);
+        var warnings=owner.Notifications.PolicyActive?warningEngine.Observe(o,owner.Notifications.PolicyPreferences.ConfiguredLowThresholds,DateTimeOffset.UtcNow):Array.Empty<QuotaWarningEvent>();
         warningEngine.ConfirmRecovery(result.Recoveries);
         if(!Persist()) return;
         foreach(var warning in warnings) Enqueue(ExperienceNotificationKind.Recovery,warning.Category==NotificationCategory.QuotaLow?Copy.Text("Quota low","额度偏低","額度偏低"):Copy.Text("Quota depleted","额度已耗尽","額度已耗盡"),Copy.RecoveryBody(o.Quota),category:warning.Category,warning:warning);
@@ -57,25 +57,26 @@ internal sealed class QuotaExperienceController {
             if(owner.Notifications.PolicyActive?HasRule(NotificationCategory.QuotaRecovered):engine.Preferences.RecoveryNotificationsEnabled) Enqueue(ExperienceNotificationKind.Recovery,Copy.Text("Quota restored","额度已恢复","額度已恢復"),Copy.RecoveryBody(o.Quota),category:owner.Notifications.PolicyActive?NotificationCategory.QuotaRecovered:null);
         }
         if(owner.Notifications.PolicyActive) {
-            foreach(var stage in new[]{72,24}) {
+            foreach(var stage in owner.Notifications.PolicyPreferences.ConfiguredBankHours) {
                 var events=result.Bank.Where(e=>e.Stage==stage).ToArray();
-                if(events.Length>0) Enqueue(ExperienceNotificationKind.Bank,Copy.Text("Bank credits expiring","Bank 权益即将到期","Bank 權益即將到期"),Copy.BankBody(events),events.Min(e=>e.ExpiresAt),events,stage==72?NotificationCategory.BankExpiring72h:NotificationCategory.BankExpiring24h);
+                if(events.Length>0) Enqueue(ExperienceNotificationKind.Bank,Copy.Text("Bank credits expiring","Bank 权益即将到期","Bank 權益即將到期"),Copy.BankBody(events),events.Min(e=>e.ExpiresAt),events,stage==24?NotificationCategory.BankExpiring24h:NotificationCategory.BankExpiring72h);
             }
         } else if(result.Bank.Count>0) Enqueue(ExperienceNotificationKind.Bank,Copy.Text("Bank credits expiring","Bank 权益即将到期","Bank 權益即將到期"),Copy.BankBody(result.Bank),result.Bank.Min(e=>e.ExpiresAt),result.Bank);
     }
     void Enqueue(ExperienceNotificationKind kind,string title,string body,DateTimeOffset? expires=null,IReadOnlyList<BankExpiryEvent>? bank=null,NotificationCategory? category=null,QuotaWarningEvent? warning=null) {
         var deadline=kind==ExperienceNotificationKind.Bank?(expires<DateTimeOffset.UtcNow.AddSeconds(120)?expires:DateTimeOffset.UtcNow.AddSeconds(120)):null;
-        owner.Notifications.Enqueue(new(warning is null?"quotabar-"+Guid.NewGuid():"quotabar-warning-"+warning.IncidentID,kind,engine.State.Epoch,title,body,DateTimeOffset.UtcNow,warning is null?deadline:DateTimeOffset.UtcNow.AddSeconds(120),bank,Category:category,Warning:warning));
+        owner.Notifications.Enqueue(new(warning is null?"quotabar-"+Guid.NewGuid():"quotabar-warning-"+warning.IncidentID,kind,engine.State.Epoch,title,body,DateTimeOffset.UtcNow,warning is null?deadline:DateTimeOffset.UtcNow.AddSeconds(120),bank,Category:category,Warning:warning,ReminderThreshold:warning?.Threshold??bank?.FirstOrDefault()?.Stage));
     }
     public bool Valid(ExperienceNotification message) {
         if(message.Kind==ExperienceNotificationKind.Test) return true;
         if(!storageReady || message.Epoch!=engine.State.Epoch) return false;
         if(message.Warning is {} warning) {
+            if(warning.Category==NotificationCategory.QuotaLow&&!owner.Notifications.PolicyPreferences.ConfiguredLowThresholds.Contains(warning.Threshold)) return false;
             if(lastObservation is not {} latest||(DateTimeOffset.UtcNow-latest.ReceivedAt).TotalSeconds>120) return false;
             return warning.PeriodIDs.Any(id=> { var w=id=="primary"?latest.Quota.Primary:latest.Quota.Secondary; return w is not null&&(warning.Category==NotificationCategory.QuotaExhausted?w.UsedPercent>=100:w.UsedPercent>=100-warning.Threshold&&w.UsedPercent<100); });
         }
         if(message.Kind==ExperienceNotificationKind.Recovery) return owner.Notifications.PolicyActive?HasRule(NotificationCategory.QuotaRecovered):engine.Preferences.RecoveryNotificationsEnabled;
-        return (owner.Notifications.PolicyActive?message.Category is {} c&&HasRule(c):engine.Preferences.Bank) && lastObservation is { } o && message.BankEvents is { } events && engine.BankEventsAreCurrent(events,o,DateTimeOffset.UtcNow);
+        return (owner.Notifications.PolicyActive?message.Category is {} c&&HasRule(c):engine.Preferences.Bank) && lastObservation is { } o && message.BankEvents is { } events && engine.BankEventsAreCurrent(events,o,DateTimeOffset.UtcNow,owner.Notifications.PolicyActive?owner.Notifications.PolicyPreferences.ConfiguredBankHours:null);
     }
     public void Stop() { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); owner.CancelCelebration(); }
     public void PreviewCelebration() {
@@ -118,7 +119,7 @@ internal sealed class QuotaExperienceController {
                 var preview=new StackPanel { Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center };
                 preview.Children.Add(new QuotaMoodView { Width=36,Height=36,Mood=QuotaMood.Recovered,Dark=dark,Stars=true,Margin=new Thickness(0,0,12,0) }); preview.Children.Add(Ui.Button(copy.Text("Preview celebration","预览庆祝","預覽慶祝"),PreviewCelebration)); right=preview;
             } else {
-                right=Ui.Text(copy.Text("72 hours and 24 hours before expiry; credits are grouped.","提前 72 小时和 24 小时提醒，同批权益合并。","提前 72 小時與 24 小時提醒，同批權益合併。"),11,muted);
+                right=Ui.Text(copy.Text("Thresholds are configured above; credits are grouped.","在上方设置提醒阈值，同批权益合并。","在上方設定提醒閾值，同批權益合併。"),11,muted);
             }
             row.Children.Add(right); rows.Children.Add(row); if(i!=3) { var divider=Ui.Divider(); divider.Margin=new Thickness(0,5,0,5); rows.Children.Add(divider); }
         }
