@@ -29,6 +29,7 @@ public sealed class QuotaWarningEngine {
  public void ConfigureLowThresholds(IEnumerable<int> thresholds) {
   var levels=thresholds.Where(x=>x is >=1 and <=99).Distinct().OrderDescending().Take(32).ToHashSet();
   if(configuredLowThresholds is {} previous) pendingLowBaselines.UnionWith(levels.Except(previous));
+  pendingLowBaselines.IntersectWith(levels);
   configuredLowThresholds=levels;
  }
  public void ResetBaseline() { previous.Clear(); availableSince.Clear(); sequence=-1; receivedAt=null; }
@@ -46,7 +47,7 @@ public sealed class QuotaWarningEngine {
   if(State.Plan!=plan) { State.Periods.Clear(); previous.Clear(); availableSince.Clear(); State.Plan=plan; }
   var thresholds=levels.Where(x=>x is >=1 and <=99).Distinct().OrderDescending().Take(32).ToArray();
   var oldThresholds=State.Thresholds??[State.Threshold];
-  var added=thresholds.Except(oldThresholds).Concat(pendingLowBaselines).ToHashSet();
+  var added=thresholds.Except(oldThresholds).Concat(pendingLowBaselines.Intersect(thresholds)).ToHashSet();
   pendingLowBaselines.Clear();
   var threshold=thresholds.FirstOrDefault(20);
   var scalarChanged=scalar&&State.Threshold!=threshold;

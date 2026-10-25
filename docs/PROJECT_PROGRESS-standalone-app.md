@@ -840,3 +840,6 @@ b008e2f已推送草稿PR60，候选candidate-20261025-085445的干净来源、�
 用户继续后，最终整支review确认两项P2：读取间隔移除再加回low阈值会补发，以及WPF删除保存失败后finished未复位导致编辑锁住。单一修复wave已补立即记录每次低额度配置变化的低级别待基线，保留耗尽/恢复比较和已消费记录；双端实际controller覆盖移除/再加、规则关闭/再启用与同次耗尽。WPF失败删除恢复原文和可编辑状态，补失败→取消→恢复保存窗口回归。Swift真实controller及.NET共享fixture均有修正前red，修正后完整治理通过192Core+138AppKit、安装清理签名夹具、.NET Core行为/生命周期及Windows三工程Release交叉编译；原生WPF仍待新CI。
 
 a252c9b的PR原生CI40171868585 Mac完整通过，Windows UI在自定义Bank12测试期望失败：测试新增12阶段未先消费完整库存基线。已在本wave让测试先输入完整空库存，断言无发送后再验证新credit的12System与24Mobile路由，不放宽生产baseline。新修正尚待scoped复核、CI和干净候选安装；当前本机仍b008e2f，未宣称已更新。未发送真实手机测试或公开发布。
+
+
+最终修正a5a98a4已提交并推送，原两项review P2复核ADDR。Scoped复核额外发现pending低级别只累加会消费已删除的未读取阈值；同一修复wave已补配置及observe双重当前集合裁剪，保证之后重加仍可正常触发，并统一先去重后32项限制。Swift/.NET共享case均先red再green；覆盖Swift6 warning+21 controller/router、.NET Core行为/生命周期全套通过，最后scoped确认和新HEAD原生CI待完成。本机仍未替换为新动态候选。

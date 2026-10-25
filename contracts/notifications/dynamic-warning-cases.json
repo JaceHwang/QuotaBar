@@ -823,5 +823,141 @@
         "expected": []
       }
     ]
+  },
+  {
+    "name": "removed pending level cannot consume a threshold before later readdition",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ],
+          [
+            20
+          ]
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "configuration deduplicates before applying threshold count limit",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20
+          ],
+          [
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            10
+          ]
+        ],
+        "expected": [
+          20
+        ]
+      }
+    ]
   }
 ]

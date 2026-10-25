@@ -38,8 +38,9 @@ public struct QuotaWarningEngine: Sendable {
     /// Record every policy transition, including remove/re-add between observations.
     /// This deliberately leaves depletion comparison and recovery timing intact.
     public mutating func configureLowThresholds(_ thresholds: [Int]) {
-        let levels = Set(thresholds.filter { (1...99).contains($0) }.sorted(by: >).prefix(32))
+        let levels = Set(Set(thresholds.filter { (1...99).contains($0) }).sorted(by: >).prefix(32))
         if let previous = configuredLowThresholds { pendingLowBaselines.formUnion(levels.subtracting(previous)) }
+        pendingLowBaselines.formIntersection(levels)
         configuredLowThresholds = levels
     }
     public mutating func resetBaseline() { previous = [:]; availableSince = [:]; sequence = -1; receivedAt = nil }
@@ -67,7 +68,7 @@ public struct QuotaWarningEngine: Sendable {
         if state.plan != plan { state.periods = [:]; previous = [:]; availableSince = [:]; state.plan = plan }
         let thresholds = Array(Set(thresholds.filter { (1...99).contains($0) }).sorted(by: >).prefix(32))
         let oldThresholds = state.thresholds ?? [state.threshold]
-        let added = Set(thresholds).subtracting(oldThresholds).union(pendingLowBaselines)
+        let added = Set(thresholds).subtracting(oldThresholds).union(pendingLowBaselines.intersection(thresholds))
         pendingLowBaselines = []
         let scalarChanged = scalar && state.threshold != (thresholds.first ?? 20)
         let threshold = thresholds.first ?? 20
