@@ -214,9 +214,9 @@ internal static class Program {
                     var settings=new SettingsWindow(owner); settings.Show(); Pump();
                     var controls=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().ToArray();
                     Check(controls.Any(c=>c.Content?.ToString()=="自动检查更新" && c.IsChecked==false),"update opt-out visible");
-                    Check(!controls.Any(c=>c.Content?.ToString()=="更新提醒")&&owner.Notifications.PolicyPreferences.Rules[NotificationCategory.UpdateAvailable].Count==0,"update reminders owned by matrix and default off");
+                    Check(!controls.Any(c=>c.Content?.ToString()=="更新提醒")&&owner.Notifications.PolicyPreferences.Rules[NotificationCategory.UpdateAvailable].SetEquals(Enum.GetValues<NotificationChannel>()),"update reminder rules default selected in matrix");
                     var matrixCells=controls.Where(c=>c.Tag is string tag&&tag.StartsWith("notification.rule.")).ToArray();
-                    Check(matrixCells.Length==18&&matrixCells.Count(c=>c.IsChecked==true)==3,"18 matrix cells with only recovery and Bank bubble defaults");
+                    Check(matrixCells.Length==18&&matrixCells.All(c=>c.IsChecked==true),"18 matrix cells all selected by fresh default");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
                     var experienceToggles=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().Where(b=>new[]{"额度表情模式","额度恢复时提醒","额度恢复时播放小庆祝","Bank 到期提醒"}.Contains(b.Content?.ToString())).ToArray();
                     Check(experienceToggles.Length==2 && experienceToggles.All(b=>b.IsChecked==true),"appearance switches independent; recovery and Bank channels owned by matrix");

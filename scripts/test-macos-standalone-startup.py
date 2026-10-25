@@ -91,6 +91,15 @@ def main():
             home = root / 'home'
             home.mkdir()
             subprocess.run(['ditto', str(source), str(app)], check=True)
+            # CFFIXED_USER_HOME isolates files, but cfprefsd can still resolve the
+            # real user's application preference domain by bundle identifier.
+            # Give only this disposable copy a unique preferences identity.
+            with (app / 'Contents/Info.plist').open('rb') as stream:
+                isolated_info = plistlib.load(stream)
+            isolated_info['CFBundleIdentifier'] += '.smoke.' + uuid.uuid4().hex
+            with (app / 'Contents/Info.plist').open('wb') as stream:
+                plistlib.dump(isolated_info, stream)
+            subprocess.run(['codesign', '--force', '--sign', '-', str(app)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             stderr = root / 'stderr.txt'
             launcher = subprocess.Popen(['open', '-n', '-g', '-W', '--env', 'CFFIXED_USER_HOME=' + str(home),
                                          '--stdout', str(root / 'stdout.txt'), '--stderr', str(stderr), str(app)])
@@ -114,7 +123,7 @@ def main():
                 assert fields.get('phase') == 'needsLogin' and pid and alive(pid), 'No ready isolated runtime: ' + str(fields)
                 policy = json.loads((diagnostic.parent / 'notification-policy.json').read_text())
                 expected = {'quotaLow', 'quotaExhausted', 'quotaRecovered', 'bankExpiring72h', 'bankExpiring24h', 'updateAvailable'}
-                assert set(policy['rules']) == expected and all(set(channels) == {'bubble', 'system', 'mobile'} for channels in policy['rules'].values()), 'Fresh install did not select all 18 matrix rules'
+                assert set(policy['rules']) == expected and all(set(channels) == {'bubble', 'system', 'mobile'} for channels in policy['rules'].values()), 'Fresh install did not select all 18 matrix rules: ' + str(policy['rules'])
                 assert set(policy['enabledChannels']) == {'bubble'}, 'Fresh default changed channel master behavior'
                 processes = process_snapshot()
                 children = [child for child, (parent, path) in processes.items()
