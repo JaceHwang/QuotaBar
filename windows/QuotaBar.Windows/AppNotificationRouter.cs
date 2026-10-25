@@ -25,7 +25,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     readonly Queue<BarkEventIdentity> snapshotOrder=[];
     public bool PolicyError { get; private set; }
     public Action? PolicyChanged;
-    public bool LoadPolicy(NotificationPolicyStore store,LegacyNotificationPreferences legacy) {
+    public bool LoadPolicy(NotificationPolicyStore store,LegacyNotificationPreferences? legacy) {
         try { var p=store.LoadOrMigrate(legacy); policyStore=store; ApplyPolicy(p); PolicyError=store.Corrupted; return true; }
         catch(Exception e) when(e is System.IO.IOException or UnauthorizedAccessException) { PolicyError=true; return false; }
     }

@@ -5,7 +5,7 @@ public final class NotificationPolicyStore {
     private let url: URL
     public private(set) var corrupted = false
     public init(url: URL) { self.url = url }
-    public func loadOrMigrate(legacy: LegacyNotificationPreferences) throws -> NotificationPolicyPreferences {
+    public func loadOrMigrate(legacy: LegacyNotificationPreferences?) throws -> NotificationPolicyPreferences {
         if FileManager.default.fileExists(atPath: url.path) {
             let data = try Data(contentsOf: url)
             do {
@@ -19,7 +19,7 @@ public final class NotificationPolicyStore {
                 return safe
             }
         }
-        let migrated = NotificationPolicyMigration.migrate(legacy: legacy)
+        let migrated = legacy.map { NotificationPolicyMigration.migrate(legacy: $0) } ?? NotificationPolicyPreferences.allSelected()
         try save(migrated)
         return migrated
     }

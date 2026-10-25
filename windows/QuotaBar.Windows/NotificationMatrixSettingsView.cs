@@ -45,7 +45,9 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
     Add(grid,i+1,(int)channel+1,box);
    }
   }
-  Children.Add(SettingsVisual.Card(grid,dark));
+  var matrix=new StackPanel(); var toolbar=new DockPanel { LastChildFill=false,Margin=new Thickness(0,0,0,8) };
+  var selectAll=Ui.Button(copy.Text("Select all","全选","全選"),()=> { owner.Notifications.ConfigurePolicy(owner.Notifications.PolicyPreferences with { Rules=NotificationPolicyPreferences.AllSelected().Rules }); Refresh(); }); selectAll.Tag="notification.selectAll"; DockPanel.SetDock(selectAll,Dock.Right); toolbar.Children.Add(selectAll);
+  matrix.Children.Add(toolbar); matrix.Children.Add(grid); Children.Add(SettingsVisual.Card(matrix,dark));
   test=Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),owner.Experience.TestNotification); test.Tag="notification.test"; Children.Add(test);
   var testHint=Ui.Text(copy.Text("Tests use the enabled channel switches above, independently of category selections.","按上方已开启的渠道测试，不受分类勾选影响。","依上方已開啟的管道測試，不受分類勾選影響。"),11,muted); testHint.TextWrapping=TextWrapping.Wrap; Children.Add(testHint);
   var actions=new WrapPanel();
@@ -71,7 +73,15 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   foreach(var (channel,box) in masters) box.IsChecked=p.EnabledChannels.Contains(channel);
   var preset=Array.IndexOf(new[]{10,20,30},p.LowRemainingThreshold);
   threshold.SelectedIndex=preset;
-  if(preset<0) threshold.Text=copy.Text($"Custom: {p.LowRemainingThreshold}%",$"自定义：{p.LowRemainingThreshold}%",$"自訂：{p.LowRemainingThreshold}%");
+  if(preset<0) {
+   var value=p.LowRemainingThreshold; var display=copy.Text($"Custom: {value}%",$"自定义：{value}%",$"自訂：{value}%");
+   threshold.Text=display;
+   // ComboBox synchronizes Text after SelectionChanged returns. Publish the custom
+   // display after that synchronization, without overwriting a newer selection.
+   threshold.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,new Action(()=> {
+    if(threshold.SelectedIndex<0&&owner.Notifications.PolicyPreferences.LowRemainingThreshold==value) threshold.Text=display;
+   }));
+  }
   pause.Content=p.BubblePausedUntil>DateTimeOffset.UtcNow?copy.Text("Resume bubbles","恢复气泡","恢復氣泡"):copy.Text("Pause bubbles 1 hour","暂停气泡1小时","暫停氣泡1小時");
   System.Windows.Automation.AutomationProperties.SetName(pause,pause.Content.ToString());
   refreshing=false;

@@ -31,6 +31,14 @@ static class NotificationPolicyTests {
    Check(p.Rules[NotificationCategory.UpdateAvailable].SetEquals(legacy.UpdatesReminders?channels:[]),"migrated updates");
    Check(p.Rules[NotificationCategory.QuotaLow].Count==0&&p.Rules[NotificationCategory.QuotaExhausted].Count==0,"new alerts off");
   }
+  var freshRoot=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString());
+  try {
+   var freshStore=new NotificationPolicyStore(Path.Combine(freshRoot,"policy.json")); var fresh=freshStore.LoadOrMigrate(null);
+   Check(fresh.Rules.Count==6&&fresh.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>())),"fresh install selects all18 rules");
+   Check(fresh.EnabledChannels.SetEquals(new[]{NotificationChannel.Bubble}),"fresh masters remain independent");
+   var edited=fresh with { Rules=new() { [NotificationCategory.QuotaLow]=[] },LowRemainingThreshold=15 }; freshStore.Save(edited);
+   var restored=freshStore.LoadOrMigrate(null); Check(restored.Rules[NotificationCategory.QuotaLow].Count==0&&restored.LowRemainingThreshold==15,"fresh defaults do not override existing policy");
+  } finally { if(Directory.Exists(freshRoot)) Directory.Delete(freshRoot,true); }
   var root=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString()); Directory.CreateDirectory(root);
   try {
    var path=Path.Combine(root,"policy.json"); var store=new NotificationPolicyStore(path);

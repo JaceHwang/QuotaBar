@@ -122,6 +122,19 @@ import QuotaCore
         NSApp.sendAction(popup.action!, to: popup.target, from: popup)
         XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 15)
     }
+    func testSelectAllFillsDisabledColumnsWithoutEnablingChannels() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "SelectAll.\(UUID())")!); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.bubble]; p.lowRemainingThreshold = 15
+        p.bubblePausedUntil = Date().addingTimeInterval(3600); XCTAssertTrue(router.configurePolicy(p))
+        let view = NotificationMatrixSettingsView(router: router, language: .english, preview: {}, unread: {})
+        let all = try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "notification.selectAll" })
+        all.performClick(nil)
+        let result = router.policyPreferences
+        for category in NotificationCategory.allCases { XCTAssertEqual(result.rules[category], Set(NotificationChannel.allCases)) }
+        XCTAssertEqual(result.enabledChannels, p.enabledChannels); XCTAssertEqual(result.lowRemainingThreshold, 15); XCTAssertEqual(result.bubblePausedUntil, p.bubblePausedUntil)
+        let mobile = try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == "notification.rule.quotaLow.mobile" })
+        XCTAssertEqual(mobile.state, .on); XCTAssertFalse(mobile.isEnabled)
+    }
     func testMatrixRendersAllLanguagesAndThemesWithoutClippingControls() throws {
         for language in [CodexDisplayLanguage.simplifiedChinese, .traditionalChinese, .english] {
             for theme in [NSAppearance.Name.aqua, .darkAqua] {

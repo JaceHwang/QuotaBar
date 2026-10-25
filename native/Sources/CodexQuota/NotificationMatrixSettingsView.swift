@@ -68,7 +68,14 @@ import QuotaCore
         }
         for i in 1...3 { grid.column(at: i).width = 64; grid.column(at: i).xPlacement = .center }
         grid.column(at: 0).width = 240; grid.column(at: 0).xPlacement = .fill
-        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(grid), in: self)
+        let matrix = QuotaSettingsStyle.column(8)
+        let toolbar = NSStackView(); toolbar.orientation = .horizontal
+        toolbar.addArrangedSubview(NSView())
+        let selectAll = QuotaSettingsStyle.button(copy.text("Select all", "全选", "全選"), target: self, action: #selector(selectAllTapped))
+        selectAll.identifier = .init("notification.selectAll"); selectAll.setContentHuggingPriority(.required, for: .horizontal)
+        toolbar.addArrangedSubview(selectAll)
+        QuotaSettingsStyle.fill(toolbar, in: matrix); QuotaSettingsStyle.fill(grid, in: matrix)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(matrix), in: self)
         testButton.title = copy.text("Send test notification", "发送测试通知", "傳送測試通知")
         testButton.target = self; testButton.action = #selector(testTapped); testButton.identifier = .init("notification.test")
         addArrangedSubview(testButton)
@@ -176,6 +183,10 @@ import QuotaCore
         return nil
     }
     @objc private func pauseTapped() { var p = router.policyPreferences; p.bubblePausedUntil = (p.bubblePausedUntil.map { $0 > Date() } ?? false) ? nil : Date().addingTimeInterval(3600); _ = router.configurePolicy(p); refresh() }
+    @objc private func selectAllTapped() {
+        var p = router.policyPreferences; p.rules = NotificationPolicyPreferences.allSelected().rules
+        _ = router.configurePolicy(p); refresh()
+    }
     @objc private func testTapped() { guard !router.policyPreferences.enabledChannels.isEmpty else { return }; test() }
     @objc private func previewTapped() { preview() }
     @objc private func unreadTapped() { unread() }

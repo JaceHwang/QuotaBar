@@ -2,6 +2,7 @@
 """Launch the packaged App with an isolated home and no build-tree resource fallback."""
 import argparse
 import ctypes
+import json
 import os
 import pathlib
 import plistlib
@@ -111,6 +112,10 @@ def main():
                         pass
                     time.sleep(.2)
                 assert fields.get('phase') == 'needsLogin' and pid and alive(pid), 'No ready isolated runtime: ' + str(fields)
+                policy = json.loads((diagnostic.parent / 'notification-policy.json').read_text())
+                expected = {'quotaLow', 'quotaExhausted', 'quotaRecovered', 'bankExpiring72h', 'bankExpiring24h', 'updateAvailable'}
+                assert set(policy['rules']) == expected and all(set(channels) == {'bubble', 'system', 'mobile'} for channels in policy['rules'].values()), 'Fresh install did not select all 18 matrix rules'
+                assert set(policy['enabledChannels']) == {'bubble'}, 'Fresh default changed channel master behavior'
                 processes = process_snapshot()
                 children = [child for child, (parent, path) in processes.items()
                             if parent == pid and path.is_relative_to(app / 'Contents/Helpers')]

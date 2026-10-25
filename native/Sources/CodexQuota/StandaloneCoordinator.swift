@@ -144,10 +144,11 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.dismissOutsideClick() }
         }
         let notificationRouter = AppNotificationRouter.shared
+        let hasLegacySettings = ["notifications.presentation", "experience.preferences", "bark.preferences", "updates.reminders"].contains { defaults.object(forKey: $0) != nil } || FileManager.default.fileExists(atPath: root.appendingPathComponent("experience-state.json").path)
         let legacyExperience = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
         let legacyPresentation = notificationRouter.preferences
         let legacyBark = defaults.data(forKey: "bark.preferences").flatMap { try? JSONDecoder().decode(BarkPreferences.self, from: $0) } ?? BarkPreferences()
-        notificationRouter.loadPolicy(store: NotificationPolicyStore(url: root.appendingPathComponent("notification-policy.json")), legacy: LegacyNotificationPreferences(mode: legacyPresentation.mode, recovery: legacyExperience.recovery, celebration: legacyExperience.celebration, bank: legacyExperience.bank, updatesReminders: defaults.bool(forKey: "updates.reminders"), barkEnabled: legacyBark.enabled, pausedUntil: legacyPresentation.pausedUntil))
+        notificationRouter.loadPolicy(store: NotificationPolicyStore(url: root.appendingPathComponent("notification-policy.json")), legacy: hasLegacySettings ? LegacyNotificationPreferences(mode: legacyPresentation.mode, recovery: legacyExperience.recovery, celebration: legacyExperience.celebration, bank: legacyExperience.bank, updatesReminders: defaults.bool(forKey: "updates.reminders"), barkEnabled: legacyBark.enabled, pausedUntil: legacyPresentation.pausedUntil) : nil)
         if updates == nil {
             updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
         }

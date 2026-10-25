@@ -51,6 +51,7 @@ internal static class NotificationMatrixTests {
   var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
   try {
    using var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets());
+   Check(owner.Notifications.PolicyPreferences.Rules.Count==6&&owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>()))&&owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(new[]{NotificationChannel.Bubble}),"actual fresh Coordinator initializes18 rules with independent masters");
    owner.Save(owner.Preferences with { Experience=new(true,false,false,false) },false);
    owner.Notifications.ConfigurePolicy(new() { EnabledChannels=[NotificationChannel.System],Rules=new() { [NotificationCategory.QuotaLow]=[NotificationChannel.System],[NotificationCategory.QuotaExhausted]=[NotificationChannel.System] } });
    int? customValue=15;
@@ -60,14 +61,18 @@ internal static class NotificationMatrixTests {
    pause.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
    Check(System.Windows.Automation.AutomationProperties.GetName(pause)==pause.Content.ToString(),"pause accessible name follows resume label");
    var threshold=Tree(matrix).OfType<System.Windows.Controls.ComboBox>().Single(b=>Equals(b.Tag,"notification.threshold"));
-   Check(threshold.Items.Count==4,"custom option available"); threshold.SelectedIndex=3;
-   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==15&&threshold.Text.Contains("15%")==true,"custom saves and displays percent");
-   customValue=17; threshold.SelectedIndex=3;
+   Check(threshold.Items.Count==4,"custom option available"); threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==15,"custom saves percent");
+   Check(threshold.Text.Contains("15%"),"custom displays percent after native selection settles");
+   customValue=17; threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
    Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==17&&threshold.Text.Contains("17%"),"saved custom can reopen without choosing preset");
-   customValue=null; threshold.SelectedIndex=3;
+   customValue=null; threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
    Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==17,"reediting custom cancel preserves value");
-   threshold.SelectedIndex=1; customValue=null; threshold.SelectedIndex=3;
+   threshold.SelectedIndex=1; customValue=null; threshold.SelectedIndex=3; app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
    Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==20&&threshold.SelectedIndex==1,"custom cancel preserves preset");
+   customValue=19; threshold.SelectedIndex=3; threshold.SelectedIndex=1;
+   app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+   Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==20&&threshold.SelectedIndex==1&&!threshold.Text.Contains("19%"),"deferred custom label cannot overwrite newer preset");
    customValue=100; threshold.SelectedIndex=3; Check(owner.Notifications.PolicyPreferences.LowRemainingThreshold==20,"invalid custom rejected");
    Check(threshold.Parent is System.Windows.Controls.StackPanel { Orientation:System.Windows.Controls.Orientation.Horizontal },"threshold inline with low title");
    var controls=Tree(matrix).OfType<System.Windows.Controls.CheckBox>().ToArray();
@@ -88,6 +93,13 @@ internal static class NotificationMatrixTests {
    owner.Experience.PreviewCelebration(); Check(testSystems==0,"celebration preview stays local");
    testButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
    Check(testSystems==1,"matrix test button wired to enabled system master");
+   var beforeSelect=owner.Notifications.PolicyPreferences;
+   var selectAll=Tree(matrix).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.selectAll"));
+   selectAll.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(owner.Notifications.PolicyPreferences.Rules.Values.All(c=>c.SetEquals(Enum.GetValues<NotificationChannel>()))&&owner.Notifications.PolicyPreferences.Rules.Count==6,"select all fills18 cells including disabled");
+   Check(owner.Notifications.PolicyPreferences.EnabledChannels.SetEquals(beforeSelect.EnabledChannels)&&owner.Notifications.PolicyPreferences.LowRemainingThreshold==beforeSelect.LowRemainingThreshold&&owner.Notifications.PolicyPreferences.BubblePausedUntil==beforeSelect.BubblePausedUntil,"select all retains masters threshold pause");
+   Check(owner.Notifications.PolicyPreferences.Rules[NotificationCategory.QuotaLow].Contains(NotificationChannel.Mobile)&&!controls.Single(c=>Equals(c.Tag,"notification.rule.quotaLow.mobile")).IsEnabled,"disabled selected mobile remains disabled");
+   owner.Notifications.ConfigurePolicy(beforeSelect);
    var categories=new List<NotificationCategory>();
    owner.Notifications.SystemDelivery=(m,done)=> { if(m.Category is {} c) categories.Add(c); done(true); };
    var now=DateTimeOffset.UtcNow; var values=new[]{30,20,0,100,100,0};

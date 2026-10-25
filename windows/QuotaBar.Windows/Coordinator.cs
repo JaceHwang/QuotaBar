@@ -36,7 +36,7 @@ internal sealed class Coordinator : IDisposable {
     public AccountIdentity? Identity { get; private set; }
     public Copy Copy=>new(Preferences.Language);
     public Coordinator(Application app,string? dataRoot=null,System.Net.Http.HttpClient? updatesTransport=null,IBarkSecretStore? barkSecrets=null,IBarkPushClient? barkTransport=null,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? updateExecute=null) {
-        this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
+        this.app=app; if(dataRoot is not null) root=dataRoot; Directory.CreateDirectory(root); var hasLegacySettings=File.Exists(Path.Combine(root,"preferences.json"))||File.Exists(Path.Combine(root,"experience-state.json")); store=new(Path.Combine(root,"preferences.json")); Preferences=store.Load();
         Updates=new(this,root,updatesTransport,updateExecute:updateExecute); Updates.Changed+=()=> { if(!stopping) { settings?.UpdateUpdateStatus(); menuKey=null; UpdateTray(); } };
         Notifications=new(tray,
             m=>m.Kind==ExperienceNotificationKind.Update ? Updates.ReminderValid(m.Id[7..]) : Experience?.Valid(m)==true,
@@ -48,7 +48,7 @@ internal sealed class Coordinator : IDisposable {
         Mobile.Changed+=()=> { if(!stopping) settings?.UpdateMobileStatus(); };
         Experience=new(this,root); Notifications.Failed=Experience.NotificationFailed;
         Notifications.Configure(Preferences.Notifications);
-        Notifications.LoadPolicy(new NotificationPolicyStore(Path.Combine(root,"notification-policy.json")),new(Preferences.Notifications.Mode,Preferences.Experience.Recovery,Preferences.Experience.Celebration,Preferences.Experience.Bank,Preferences.UpdateReminders,Preferences.Bark.Enabled,Preferences.Notifications.PausedUntil));
+        Notifications.LoadPolicy(new NotificationPolicyStore(Path.Combine(root,"notification-policy.json")),hasLegacySettings?new LegacyNotificationPreferences(Preferences.Notifications.Mode,Preferences.Experience.Recovery,Preferences.Experience.Celebration,Preferences.Experience.Bank,Preferences.UpdateReminders,Preferences.Bark.Enabled,Preferences.Notifications.PausedUntil):null);
         Notifications.PolicyChanged=()=> { Experience.Configure(); Mobile.Revalidate(); settings?.UpdateUpdateStatus(); };
         Experience.Configure();
         Notifications.PresentBubble=m=>floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&notificationBubble.ShowMessage(m,Platform.Bounds(floating),Platform.IsDark(Preferences),Copy,VisualTreeHelper.GetDpi(floating).DpiScaleX);

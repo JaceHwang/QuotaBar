@@ -17,7 +17,7 @@ import QuotaCore
     private var snapshotOrder: [BarkEventIdentity] = []
     var policyError = false
     var onPolicyChange: (() -> Void)?
-    @discardableResult func loadPolicy(store: NotificationPolicyStore, legacy: LegacyNotificationPreferences) -> Bool {
+    @discardableResult func loadPolicy(store: NotificationPolicyStore, legacy: LegacyNotificationPreferences?) -> Bool {
         do {
             let value = try store.loadOrMigrate(legacy: legacy)
             policyStore = store; applyPolicy(value); policyError = store.corrupted

@@ -2,14 +2,14 @@ using System.Text.Json;
 namespace QuotaBar.Core;
 public sealed class NotificationPolicyStore(string path) {
  public bool Corrupted { get; private set; }
- public NotificationPolicyPreferences LoadOrMigrate(LegacyNotificationPreferences legacy) {
+ public NotificationPolicyPreferences LoadOrMigrate(LegacyNotificationPreferences? legacy) {
   if(File.Exists(path)) {
    var json=File.ReadAllText(path);
    var value=NotificationPolicyPreferences.Decode(json);
    Corrupted=value.RecoveredInvalidData;
    return value;
   }
-  var migrated=NotificationPolicyMigration.Migrate(legacy); Save(migrated); return migrated;
+  var migrated=legacy is null?NotificationPolicyPreferences.AllSelected():NotificationPolicyMigration.Migrate(legacy); Save(migrated); return migrated;
  }
  public void Save(NotificationPolicyPreferences value) {
   Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);

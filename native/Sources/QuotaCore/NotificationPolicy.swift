@@ -18,6 +18,11 @@ public struct NotificationPolicyPreferences: Codable, Equatable, Sendable {
     public init() {
         rules = Dictionary(uniqueKeysWithValues: NotificationCategory.allCases.map { ($0, [.quotaRecovered, .bankExpiring72h, .bankExpiring24h].contains($0) ? [.bubble] : []) })
     }
+    public static func allSelected() -> NotificationPolicyPreferences {
+        var p = NotificationPolicyPreferences()
+        p.rules = Dictionary(uniqueKeysWithValues: NotificationCategory.allCases.map { ($0, Set(NotificationChannel.allCases)) })
+        return p
+    }
     private enum CodingKeys: String, CodingKey { case schema, enabledChannels, rules, lowRemainingThreshold, bubblePausedUntil }
     public init(from decoder: Decoder) throws {
         self.init()

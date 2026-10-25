@@ -105,6 +105,17 @@ final class NotificationPolicyTests: XCTestCase {
             XCTAssertEqual(decoded.lowRemainingThreshold, (1...99).contains(value) ? value : 20)
         }
     }
+    func testFreshInstallSelectsEveryRuleWithoutOverwritingSavedPolicy() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = NotificationPolicyStore(url: root.appendingPathComponent("policy.json"))
+        let fresh = try store.loadOrMigrate(legacy: nil)
+        for category in NotificationCategory.allCases { XCTAssertEqual(fresh.rules[category], Set(NotificationChannel.allCases)) }
+        XCTAssertEqual(fresh.enabledChannels, [.bubble])
+        var edited = fresh; edited.rules[.quotaLow] = []; edited.lowRemainingThreshold = 15
+        try store.save(edited)
+        XCTAssertEqual(try store.loadOrMigrate(legacy: nil), edited)
+    }
     func testDefaultsAndSafeDecoding() throws {
         let p = NotificationPolicyPreferences()
         XCTAssertEqual(p.rules[.quotaRecovered], [.bubble])

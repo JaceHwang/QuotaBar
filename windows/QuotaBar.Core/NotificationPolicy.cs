@@ -11,6 +11,7 @@ public sealed record NotificationPolicyPreferences {
  public Dictionary<NotificationCategory,HashSet<NotificationChannel>> Rules { get; init; }=Enum.GetValues<NotificationCategory>().ToDictionary(c=>c,c=>c is NotificationCategory.QuotaRecovered or NotificationCategory.BankExpiring72h or NotificationCategory.BankExpiring24h?new HashSet<NotificationChannel>{NotificationChannel.Bubble}:[]);
  public int LowRemainingThreshold { get; init; }=20;
  public DateTimeOffset? BubblePausedUntil { get; init; }
+ public static NotificationPolicyPreferences AllSelected()=>new() { Rules=Enum.GetValues<NotificationCategory>().ToDictionary(c=>c,c=>Enum.GetValues<NotificationChannel>().ToHashSet()) };
  public static JsonSerializerOptions JsonOptions { get; }=new() { PropertyNamingPolicy=JsonNamingPolicy.CamelCase,Converters={new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)} };
  public static NotificationPolicyPreferences Decode(string json) {
   try {
