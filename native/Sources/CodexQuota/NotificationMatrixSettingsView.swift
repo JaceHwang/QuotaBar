@@ -8,7 +8,9 @@ import QuotaCore
     private let copy: ExperienceCopy
     private let categories: [NotificationCategory] = [.quotaLow, .quotaExhausted, .quotaRecovered, .bankExpiring72h, .bankExpiring24h, .updateAvailable]
     private var cells: [NSButton] = []
-    private var masters: [NSButton] = []
+    private var masters: [QuotaSettingsSwitch] = []
+    private let testButton = SettingsAccentButton(frame: .zero)
+    private let test: () -> Void
     private let threshold = NSPopUpButton()
     private let status = NSTextField(wrappingLabelWithString: "")
     private let systemStatus = NSTextField(wrappingLabelWithString: "")
@@ -16,15 +18,15 @@ import QuotaCore
     private let pause = SettingsAccentButton(frame: .zero)
     private let preview: () -> Void
     private let unread: () -> Void
-    init(router: AppNotificationRouter, language: CodexDisplayLanguage, preview: @escaping () -> Void, unread: @escaping () -> Void) {
-        self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.unread = unread
+    init(router: AppNotificationRouter, language: CodexDisplayLanguage, preview: @escaping () -> Void, unread: @escaping () -> Void, test: @escaping () -> Void = {}) {
+        self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.unread = unread; self.test = test
         super.init(frame: .zero); orientation = .vertical; alignment = .leading; spacing = 12
         let channels = NSStackView(); channels.orientation = .horizontal; channels.spacing = 16; channels.distribution = .fillEqually
         for (i, channel) in NotificationChannel.allCases.enumerated() {
             let column = QuotaSettingsStyle.column(5)
-            let button = NSButton(checkboxWithTitle: channelTitle(channel), target: self, action: #selector(masterChanged(_:)))
+            let button = QuotaSettingsSwitch(); button.target = self; button.action = #selector(masterChanged(_:))
             button.tag = i; button.identifier = .init("notification.master.\(channel.rawValue)"); button.setAccessibilityLabel(channelTitle(channel))
-            masters.append(button); column.addArrangedSubview(button)
+            masters.append(button); QuotaSettingsStyle.fill(QuotaSettingsStyle.row(channelTitle(channel), control: button), in: column)
             let label = channel == .system ? systemStatus : channel == .mobile ? mobileStatus : QuotaSettingsStyle.label(copy.text("Independent channel", "独立接收渠道", "獨立接收管道"), size: 11, secondary: true)
             label.font = .systemFont(ofSize: 11); label.textColor = .secondaryLabelColor; QuotaSettingsStyle.fill(label, in: column)
             channels.addArrangedSubview(column)
@@ -58,6 +60,10 @@ import QuotaCore
         for i in 1...3 { grid.column(at: i).width = 64; grid.column(at: i).xPlacement = .center }
         grid.column(at: 0).width = 240; grid.column(at: 0).xPlacement = .fill
         QuotaSettingsStyle.fill(QuotaSettingsStyle.card(grid), in: self)
+        testButton.title = copy.text("Send test notification", "发送测试通知", "傳送測試通知")
+        testButton.target = self; testButton.action = #selector(testTapped); testButton.identifier = .init("notification.test")
+        addArrangedSubview(testButton)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Tests use the enabled channel switches above, independently of category selections.", "按上方已开启的渠道测试，不受分类勾选影响。", "依上方已開啟的管道測試，不受分類勾選影響。"), size: 11, secondary: true), in: self)
         let actions = NSStackView(); actions.spacing = 8
         pause.target = self; pause.action = #selector(pauseTapped); pause.identifier = .init("notification.pause"); actions.addArrangedSubview(pause)
         actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Preview bubble", "预览气泡", "預覽氣泡"), target: self, action: #selector(previewTapped)))
@@ -102,7 +108,12 @@ import QuotaCore
     }
     private func refresh() {
         let p = router.policyPreferences
-        for (i, box) in cells.enumerated() { box.state = p.rules[categories[i/3]]?.contains(NotificationChannel.allCases[i%3]) == true ? .on : .off }
+        for (i, box) in cells.enumerated() {
+            let channel = NotificationChannel.allCases[i%3]
+            box.state = p.rules[categories[i/3]]?.contains(channel) == true ? .on : .off
+            box.isEnabled = p.enabledChannels.contains(channel)
+        }
+        testButton.isEnabled = !p.enabledChannels.isEmpty
         for (i, box) in masters.enumerated() { box.state = p.enabledChannels.contains(NotificationChannel.allCases[i]) ? .on : .off }
         threshold.selectItem(at: [10, 20, 30].firstIndex(of: p.lowRemainingThreshold) ?? 1)
         pause.title = (p.bubblePausedUntil.map { $0 > Date() } ?? false) ? copy.text("Resume bubbles", "恢复气泡", "恢復氣泡") : copy.text("Pause bubbles 1 hour", "暂停气泡1小时", "暫停氣泡1小時")
@@ -111,13 +122,14 @@ import QuotaCore
     }
     @objc private func ruleChanged(_ sender: NSButton) {
         let category = categories[sender.tag/3], channel = NotificationChannel.allCases[sender.tag%3]
+        guard router.policyPreferences.enabledChannels.contains(channel) else { refresh(); return }
         let enabled = sender.state == .on
         var p = router.policyPreferences; var selected = p.rules[category] ?? []
         if enabled { selected.insert(channel) } else { selected.remove(channel) }
         p.rules[category] = selected; let saved = router.configurePolicy(p); refresh()
         if saved && enabled && channel == .system { permission() }
     }
-    @objc private func masterChanged(_ sender: NSButton) {
+    @objc private func masterChanged(_ sender: QuotaSettingsSwitch) {
         let channel = NotificationChannel.allCases[sender.tag]
         let enabled = sender.state == .on
         let saved = router.setChannelEnabled(channel, enabled: enabled)
@@ -134,6 +146,7 @@ import QuotaCore
     }
     @objc private func thresholdChanged() { var p = router.policyPreferences; p.lowRemainingThreshold = [10, 20, 30][threshold.indexOfSelectedItem]; _ = router.configurePolicy(p); refresh() }
     @objc private func pauseTapped() { var p = router.policyPreferences; p.bubblePausedUntil = (p.bubblePausedUntil.map { $0 > Date() } ?? false) ? nil : Date().addingTimeInterval(3600); _ = router.configurePolicy(p); refresh() }
+    @objc private func testTapped() { guard !router.policyPreferences.enabledChannels.isEmpty else { return }; test() }
     @objc private func previewTapped() { preview() }
     @objc private func unreadTapped() { unread() }
 }

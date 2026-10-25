@@ -44,13 +44,19 @@ internal sealed class AppNotificationRouter : IDisposable {
     void ApplyPolicy(NotificationPolicyPreferences value) {
         PolicyActive=true; PolicyPreferences=value;
         foreach(var snapshot in snapshots.Values) snapshot.Restrict(value,DateTimeOffset.UtcNow);
-        foreach(var m in messages.Values.Where(m=>m.Category!=null).ToArray()) {
+        foreach(var m in messages.Values.Where(m=>m.Category!=null||(m.Kind==ExperienceNotificationKind.Test&&!previews.Contains(m.Id))).ToArray()) {
             if(!ChannelAllowed(m,NotificationChannel.Bubble)) { var active=state.ActiveId==m.Id; state.Dismiss(m.Id,false); if(active) { HideBubble?.Invoke(); bubbleTimer.Stop(); } }
             if(!ChannelAllowed(m,NotificationChannel.System)) { systemQueue.CancelId(m.Id); if(nativeActive?.Id==m.Id) { nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); } }
         }
         Mobile?.Revalidate(); PolicyChanged?.Invoke(); Dispatch(); DispatchSystem();
     }
+    public void SendTestNotification(string title,string body) {
+        if(stopped||PolicyPreferences.EnabledChannels.Count==0) return;
+        Enqueue(new("channel-test-"+Guid.NewGuid(),ExperienceNotificationKind.Test,null,title,body,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow.AddSeconds(30)));
+        if(PolicyPreferences.EnabledChannels.Contains(NotificationChannel.Mobile)&&Mobile is {} mobile) _=mobile.Test(title,body);
+    }
     bool ChannelAllowed(ExperienceNotification m,NotificationChannel channel) {
+        if(m.Category is null && PolicyActive && m.Kind==ExperienceNotificationKind.Test) return PolicyPreferences.EnabledChannels.Contains(channel)&&(channel!=NotificationChannel.Bubble||!(PolicyPreferences.BubblePausedUntil>DateTimeOffset.UtcNow));
         if(m.Category is not {} category) return channel switch { NotificationChannel.Bubble=>preferences.UsesBubble&&!preferences.Paused(DateTimeOffset.UtcNow),NotificationChannel.System=>preferences.UsesSystem,_=>true };
         return snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)&&snapshot.Eligible(channel)&&NotificationPolicy.Decision(category,channel,PolicyPreferences,DateTimeOffset.UtcNow)==NotificationDecision.Allowed;
     }

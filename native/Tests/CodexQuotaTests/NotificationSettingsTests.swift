@@ -26,21 +26,84 @@ import QuotaCore
     func testMatrixHasEighteenIndependentCellsAndThreshold() throws {
         let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixUI.\(UUID())")!); defer { router.stop() }
         XCTAssertTrue(router.configurePolicy(NotificationPolicyPreferences()))
-        let view = NotificationSettingsView(router: router, language: .simplifiedChinese, floatingVisible: true, preview: {}, showUnread: {}, enableFloating: {})
+        var tests = 0
+        let view = NotificationSettingsView(router: router, language: .simplifiedChinese, floatingVisible: true, preview: {}, showUnread: {}, enableFloating: {}, test: { tests += 1 })
         let buttons = tree(view).compactMap { $0 as? NSButton }
+        let testButton = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.test" })
+        testButton.performClick(nil); XCTAssertEqual(tests, 1)
+        let matrix = try XCTUnwrap(tree(view).compactMap { $0 as? NotificationMatrixSettingsView }.first)
+        let gridCard = try XCTUnwrap(matrix.arrangedSubviews.first { tree($0).contains { $0 is NSGridView } })
+        XCTAssertEqual(matrix.arrangedSubviews.firstIndex(of: testButton), matrix.arrangedSubviews.firstIndex(of: gridCard).map { $0 + 1 })
         XCTAssertEqual(buttons.filter { $0.identifier?.rawValue.hasPrefix("notification.rule.") == true }.count, 18)
         let low = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.rule.quotaLow.bubble" })
         low.performClick(nil)
         XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
         XCTAssertFalse(router.policyPreferences.rules[.quotaLow]?.contains(.mobile) == true)
-        let master = try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.master.bubble" })
-        master.performClick(nil)
+        let master = try XCTUnwrap(tree(view).compactMap { $0 as? NSSwitch }.first { $0.identifier?.rawValue == "notification.master.bubble" })
+        master.state = .off; NSApp.sendAction(master.action!, to: master.target, from: master)
         XCTAssertFalse(router.policyPreferences.enabledChannels.contains(.bubble))
         XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
+        XCTAssertFalse(low.isEnabled)
+        low.performClick(nil)
+        XCTAssertTrue(router.policyPreferences.rules[.quotaLow]?.contains(.bubble) == true)
+        master.state = .on; NSApp.sendAction(master.action!, to: master.target, from: master)
+        XCTAssertTrue(low.isEnabled); XCTAssertEqual(low.state, .on)
         let threshold = try XCTUnwrap(tree(view).compactMap { $0 as? NSPopUpButton }.first { $0.identifier?.rawValue == "notification.threshold" })
         threshold.selectItem(at: 2); NSApp.sendAction(threshold.action!, to: threshold.target, from: threshold)
         XCTAssertEqual(router.policyPreferences.lowRemainingThreshold, 30)
         XCTAssertFalse(low.accessibilityLabel()?.isEmpty ?? true)
+    }
+    func testExampleUsesChannelMastersInsteadOfLegacyModeOrCategoryRules() {
+        let defaults = UserDefaults(suiteName: "MatrixTestRoute.\(UUID())")!
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var old = router.preferences; old.mode = .off; router.configure(old)
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules = [:]
+        XCTAssertTrue(router.configurePolicy(p))
+        var system = 0, bubbles = 0
+        router.sendSystem = { _, done in system += 1; done(true) }
+        router.presentBubble = { _ in bubbles += 1; return true }; router.updateEnvironment(canPresent: true)
+        func send() { router.sendTestNotification(title: "Example", body: "Sample") }
+        send(); XCTAssertEqual(system, 1); XCTAssertEqual(bubbles, 0)
+        p.enabledChannels = [.bubble]; XCTAssertTrue(router.configurePolicy(p))
+        send(); XCTAssertEqual(system, 1); XCTAssertEqual(bubbles, 1)
+        p.enabledChannels = []; XCTAssertTrue(router.configurePolicy(p))
+        old.mode = .both; router.configure(old)
+        send(); XCTAssertEqual(system, 1); XCTAssertEqual(bubbles, 1)
+    }
+    func testMobileExampleUsesDedicatedTestAPIOnlyWhenMasterEnabled() async throws {
+        let (mobile, _, transport) = BarkNotificationTests().controller()
+        defer { mobile.stop() }
+        XCTAssertTrue(mobile.saveKey("example-key"))
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixMobile.\(UUID())")!); defer { router.stop() }
+        router.bark = mobile
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.mobile]; p.rules = [:]
+        XCTAssertTrue(router.configurePolicy(p))
+        router.sendTestNotification(title: "Example", body: "No account data")
+        await mobile.waitUntilIdle(); XCTAssertEqual(transport.sends, 1)
+        p.enabledChannels = []; XCTAssertTrue(router.configurePolicy(p))
+        router.sendTestNotification(title: "Example", body: "No account data")
+        await mobile.waitUntilIdle(); XCTAssertEqual(transport.sends, 1)
+        XCTAssertTrue(router.unread.isEmpty)
+    }
+    func testControllerButtonTestsMastersAfterDeniedPermissionButCelebrationStaysLocal() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (mobile, _, transport) = BarkNotificationTests().controller(); defer { mobile.stop() }
+        XCTAssertTrue(mobile.saveKey("example-key"))
+        let defaults = UserDefaults(suiteName: "MatrixWiring.\(UUID())")!
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }; router.bark = mobile
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.bubble, .system, .mobile]; p.rules = [:]
+        XCTAssertTrue(router.configurePolicy(p)); router.updateEnvironment(canPresent: true)
+        var permissions = 0, bubbles = 0
+        router.presentBubble = { _ in bubbles += 1; return true }; router.sendSystem = { _, done in done(false) }
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, requestPermission: { permissions += 1; $0("denied") }, router: router)
+        let view = controller.makeSettingsView()
+        let buttons = tree(view).compactMap { $0 as? NSButton }
+        XCTAssertEqual(buttons.filter { $0.title == "Send test notification" }.count, 1)
+        try XCTUnwrap(buttons.first { $0.title == "Preview celebration" }).performClick(nil)
+        await mobile.waitUntilIdle(); XCTAssertEqual(transport.sends, 0); XCTAssertEqual(permissions, 0)
+        try XCTUnwrap(buttons.first { $0.identifier?.rawValue == "notification.test" }).performClick(nil)
+        await mobile.waitUntilIdle(); XCTAssertEqual(transport.sends, 1); XCTAssertEqual(permissions, 1); XCTAssertGreaterThan(bubbles, 0)
     }
     func testMatrixRendersAllLanguagesAndThemesWithoutClippingControls() throws {
         for language in [CodexDisplayLanguage.simplifiedChinese, .traditionalChinese, .english] {

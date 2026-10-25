@@ -10,12 +10,14 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
  readonly TextBlock status;
  readonly ComboBox threshold;
  readonly Button pause;
+ readonly Button test;
+ bool refreshing;
  public NotificationMatrixSettingsView(Coordinator owner) {
   this.owner=owner; copy=owner.Copy; dark=Platform.IsDark(owner.Preferences); var fg=Ui.Foreground(dark); var muted=SettingsVisual.Muted(dark); status=Ui.Text("",11,muted); status.TextWrapping=TextWrapping.Wrap;
   var channels=new Grid();
   foreach(var channel in Enum.GetValues<NotificationChannel>()) {
    channels.ColumnDefinitions.Add(new()); var column=new StackPanel { Margin=new Thickness(0,0,12,0) };
-   var box=SettingsVisual.Toggle(ChannelTitle(channel),owner.Notifications.PolicyPreferences.EnabledChannels.Contains(channel),fg,on=> { if(!owner.Notifications.SetChannelEnabled(channel,on)) status!.Text=copy.Text("Could not change channel. Check configuration or storage.","无法更改渠道，请检查配置或存储。","無法更改管道，請檢查設定或儲存。"); Refresh(); });
+   var box=SettingsVisual.Toggle(ChannelTitle(channel),owner.Notifications.PolicyPreferences.EnabledChannels.Contains(channel),fg,on=> { if(refreshing) return; if(!owner.Notifications.SetChannelEnabled(channel,on)) status!.Text=copy.Text("Could not change channel. Check configuration or storage.","无法更改渠道，请检查配置或存储。","無法更改管道，請檢查設定或儲存。"); Refresh(); });
    box.Tag="notification.master."+Key(channel); masters[channel]=box; column.Children.Add(box);
    var label=channel switch { NotificationChannel.Bubble=>copy.Text("Independent channel","独立接收渠道","獨立接收管道"),NotificationChannel.System=>copy.Text("Controlled by system settings","由系统设置控制显示","由系統設定控制顯示"),_=>owner.Mobile.HasKey?copy.Text("Configured","已配置","已設定"):copy.Text("Not configured","未配置","未設定") };
    var note=Ui.Text(label,11,muted); note.TextWrapping=TextWrapping.Wrap; column.Children.Add(note); Grid.SetColumn(column,(int)channel); channels.Children.Add(column);
@@ -35,11 +37,13 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
    foreach(var channel in Enum.GetValues<NotificationChannel>()) {
     var box=new CheckBox { IsChecked=owner.Notifications.PolicyPreferences.Rules.TryGetValue(category,out var selected)&&selected.Contains(channel),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Tag="notification.rule."+Key(category)+"."+Key(channel) };
     System.Windows.Automation.AutomationProperties.SetName(box,Title(category)+" · "+ChannelTitle(channel)); cells[(category,channel)]=box;
-    box.Click+=(_,_)=> { var p=owner.Notifications.PolicyPreferences; var rules=p.Rules.ToDictionary(r=>r.Key,r=>new HashSet<NotificationChannel>(r.Value)); if(!rules.TryGetValue(category,out var set)) rules[category]=set=[]; if(box.IsChecked==true) set.Add(channel); else set.Remove(channel); owner.Notifications.ConfigurePolicy(p with { Rules=rules }); Refresh(); };
+    box.Click+=(_,_)=> { if(!owner.Notifications.PolicyPreferences.EnabledChannels.Contains(channel)) { Refresh(); return; } var p=owner.Notifications.PolicyPreferences; var rules=p.Rules.ToDictionary(r=>r.Key,r=>new HashSet<NotificationChannel>(r.Value)); if(!rules.TryGetValue(category,out var set)) rules[category]=set=[]; if(box.IsChecked==true) set.Add(channel); else set.Remove(channel); owner.Notifications.ConfigurePolicy(p with { Rules=rules }); Refresh(); };
     Add(grid,i+1,(int)channel+1,box);
    }
   }
   Children.Add(SettingsVisual.Card(grid,dark));
+  test=Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),owner.Experience.TestNotification); test.Tag="notification.test"; Children.Add(test);
+  var testHint=Ui.Text(copy.Text("Tests use the enabled channel switches above, independently of category selections.","按上方已开启的渠道测试，不受分类勾选影响。","依上方已開啟的管道測試，不受分類勾選影響。"),11,muted); testHint.TextWrapping=TextWrapping.Wrap; Children.Add(testHint);
   var actions=new WrapPanel();
   pause=Ui.Button("",()=> { var p=owner.Notifications.PolicyPreferences; owner.Notifications.ConfigurePolicy(p with { BubblePausedUntil=p.BubblePausedUntil>DateTimeOffset.UtcNow?null:DateTimeOffset.UtcNow.AddHours(1) }); Refresh(); }); pause.Tag="notification.pause"; actions.Children.Add(pause);
   actions.Children.Add(Ui.Button(copy.Text("Preview bubble","预览气泡","預覽氣泡"),()=> { var m=new ExperienceNotification("preview-"+Guid.NewGuid(),ExperienceNotificationKind.Test,null,copy.Text("Example notification","示例通知","範例通知"),copy.Text("Example only. Quota and reminder history are unchanged.","仅为示例，不改变真实额度及提醒记录。","僅為範例，不改變真實額度及提醒記錄。"),DateTimeOffset.UtcNow); if(!owner.Notifications.Preview(m)) status.Text=copy.Text("Enable the floating button and close details to preview.","请开启悬浮按钮并收起详情后预览。","請開啟懸浮按鈕並收起詳情後預覽。"); }));
@@ -51,12 +55,15 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   threshold.SelectionChanged+=(_,_)=> { if(threshold.SelectedIndex>=0) { owner.Notifications.ConfigurePolicy(owner.Notifications.PolicyPreferences with { LowRemainingThreshold=new[]{10,20,30}[threshold.SelectedIndex] }); Refresh(); } };
  }
  void Refresh() {
+  refreshing=true;
   var p=owner.Notifications.PolicyPreferences;
-  foreach(var (key,box) in cells) box.IsChecked=p.Rules.TryGetValue(key.Item1,out var selected)&&selected.Contains(key.Item2);
+  foreach(var (key,box) in cells) { box.IsChecked=p.Rules.TryGetValue(key.Item1,out var selected)&&selected.Contains(key.Item2); box.IsEnabled=p.EnabledChannels.Contains(key.Item2); box.Opacity=box.IsEnabled?1:0.45; }
+  test.IsEnabled=p.EnabledChannels.Count>0;
   foreach(var (channel,box) in masters) box.IsChecked=p.EnabledChannels.Contains(channel);
   threshold.SelectedIndex=Array.IndexOf(new[]{10,20,30},p.LowRemainingThreshold);
   pause.Content=p.BubblePausedUntil>DateTimeOffset.UtcNow?copy.Text("Resume bubbles","恢复气泡","恢復氣泡"):copy.Text("Pause bubbles 1 hour","暂停气泡1小时","暫停氣泡1小時");
   System.Windows.Automation.AutomationProperties.SetName(pause,pause.Content.ToString());
+  refreshing=false;
   if(owner.Notifications.PolicyError) status.Text=copy.Text("Could not read or save reminder settings.","提醒设置读取或保存失败。","提醒設定讀取或儲存失敗。");
  }
  static string Key<T>(T value) where T:Enum { var name=value.ToString(); return char.ToLowerInvariant(name[0])+name[1..]; }

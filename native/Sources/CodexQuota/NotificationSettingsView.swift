@@ -9,12 +9,12 @@ import QuotaCore
     private let enableFloating: () -> Void
     private let pause = SettingsAccentButton(frame: .zero)
     private let status = NSTextField(wrappingLabelWithString: "")
-    init(router: AppNotificationRouter, language: CodexDisplayLanguage, floatingVisible: Bool, preview: @escaping () -> Void, showUnread: @escaping () -> Void, enableFloating: @escaping () -> Void) {
+    init(router: AppNotificationRouter, language: CodexDisplayLanguage, floatingVisible: Bool, preview: @escaping () -> Void, showUnread: @escaping () -> Void, enableFloating: @escaping () -> Void, test: @escaping () -> Void = {}) {
         self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.showUnread = showUnread; self.enableFloating = enableFloating
         super.init(frame: .zero)
         orientation = .vertical; alignment = .leading; spacing = 10
         if router.policyActive {
-            QuotaSettingsStyle.fill(NotificationMatrixSettingsView(router: router, language: language, preview: preview, unread: showUnread), in: self)
+            QuotaSettingsStyle.fill(NotificationMatrixSettingsView(router: router, language: language, preview: preview, unread: showUnread, test: test), in: self)
             if !floatingVisible { addArrangedSubview(QuotaSettingsStyle.button(copy.text("Enable floating button", "开启悬浮按钮", "開啟懸浮按鈕"), target: self, action: #selector(enableTapped))) }
             return
         }

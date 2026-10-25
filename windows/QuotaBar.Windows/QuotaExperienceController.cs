@@ -68,8 +68,8 @@ internal sealed class QuotaExperienceController {
         owner.Notifications.Enqueue(new(warning is null?"quotabar-"+Guid.NewGuid():"quotabar-warning-"+warning.IncidentID,kind,engine.State.Epoch,title,body,DateTimeOffset.UtcNow,warning is null?deadline:DateTimeOffset.UtcNow.AddSeconds(120),bank,Category:category,Warning:warning));
     }
     public bool Valid(ExperienceNotification message) {
-        if(!storageReady || message.Epoch!=engine.State.Epoch) return false;
         if(message.Kind==ExperienceNotificationKind.Test) return true;
+        if(!storageReady || message.Epoch!=engine.State.Epoch) return false;
         if(message.Warning is {} warning) {
             if(lastObservation is not {} latest||(DateTimeOffset.UtcNow-latest.ReceivedAt).TotalSeconds>120) return false;
             return warning.PeriodIDs.Any(id=> { var w=id=="primary"?latest.Quota.Primary:latest.Quota.Secondary; return w is not null&&(warning.Category==NotificationCategory.QuotaExhausted?w.UsedPercent>=100:w.UsedPercent>=100-warning.Threshold&&w.UsedPercent<100); });
@@ -78,8 +78,15 @@ internal sealed class QuotaExperienceController {
         return (owner.Notifications.PolicyActive?message.Category is {} c&&HasRule(c):engine.Preferences.Bank) && lastObservation is { } o && message.BankEvents is { } events && engine.BankEventsAreCurrent(events,o,DateTimeOffset.UtcNow);
     }
     public void Stop() { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); owner.CancelCelebration(); }
-    public void PreviewCelebration() { owner.PreviewCelebration(); TestNotification(); }
-    public void TestNotification()=>Enqueue(ExperienceNotificationKind.Test,"QuotaBar "+Copy.Text("test notification","测试通知","測試通知"),Copy.Text("Example only — your quota and reminder history are unchanged.","这是一条示例通知，不改变真实额度及提醒记录。","這是一條範例通知，不改變真實額度及提醒記錄。"));
+    public void PreviewCelebration() {
+        owner.PreviewCelebration();
+        owner.Notifications.Preview(new("preview-"+Guid.NewGuid(),ExperienceNotificationKind.Test,null,Copy.Text("Example notification","示例通知","範例通知"),Copy.Text("Example only. Quota and reminder history are unchanged.","仅为示例，不改变真实额度及提醒记录。","僅為範例，不改變真實額度及提醒記錄。"),DateTimeOffset.UtcNow));
+    }
+    public void TestNotification()=>SendTest("QuotaBar "+Copy.Text("test notification","测试通知","測試通知"),Copy.Text("Example only — your quota and reminder history are unchanged.","这是一条示例通知，不改变真实额度及提醒记录。","這是一條範例通知，不改變真實額度及提醒記錄。"));
+    void SendTest(string title,string body) {
+        if(owner.Notifications.PolicyActive) owner.Notifications.SendTestNotification(title,body);
+        else Enqueue(ExperienceNotificationKind.Test,title,body);
+    }
     public UIElement MakeSettingsView() {
         var copy=owner.Copy; var p=owner.Preferences.Experience; var stack=new StackPanel(); var dark=Platform.IsDark(owner.Preferences); var fg=Ui.Foreground(dark); var muted=SettingsVisual.Muted(dark);
         if(owner.Notifications.PolicyActive) stack.Children.Add(new NotificationSettingsView(owner)); else stack.Children.Add(SettingsVisual.Card(new NotificationSettingsView(owner),dark));
@@ -116,7 +123,7 @@ internal sealed class QuotaExperienceController {
             row.Children.Add(right); rows.Children.Add(row); if(i!=3) { var divider=Ui.Divider(); divider.Margin=new Thickness(0,5,0,5); rows.Children.Add(divider); }
         }
         stack.Children.Add(SettingsVisual.Card(rows,dark));
-        var actions=new WrapPanel(); actions.Children.Add(Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),TestNotification)); stack.Children.Add(actions);
+        if(!owner.Notifications.PolicyActive) { var actions=new WrapPanel(); actions.Children.Add(Ui.Button(copy.Text("Send test notification","发送测试通知","傳送測試通知"),TestNotification)); stack.Children.Add(actions); }
         var note=Ui.Text(copy.Text("Celebrations play only while the floating button is visible. Tests use example notifications and do not change reminder history.","小庆祝仅在悬浮按钮可见时播放；测试使用示例通知，不改变提醒记录。","小慶祝僅在懸浮按鈕可見時播放；測試使用範例通知，不改變提醒記錄。"),11,muted); note.TextWrapping=TextWrapping.Wrap; note.Margin=new Thickness(0,0,0,10); stack.Children.Add(note);
         statusLabel=Ui.Text(CurrentStatus,11,muted); statusLabel.TextWrapping=TextWrapping.Wrap; stack.Children.Add(statusLabel);
         var settings=Ui.Button(copy.Text("Notification settings…","通知设置…","通知設定…"),()=> {

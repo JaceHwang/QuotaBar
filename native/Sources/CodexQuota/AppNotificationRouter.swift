@@ -44,7 +44,7 @@ import QuotaCore
     private func applyPolicy(_ value: NotificationPolicyPreferences) {
         policyActive = true; policyPreferences = value
         for key in snapshots.keys { snapshots[key]?.restrict(to: value, now: Date()) }
-        for delivery in deliveries.values where delivery.message.category != nil {
+        for delivery in deliveries.values where delivery.message.category != nil || (delivery.message.kind == .test && !previews.contains(delivery.message.id)) {
             let m = delivery.message
             if !channelAllowed(m, .bubble) {
                 let active = state.activeID == m.id
@@ -61,6 +61,7 @@ import QuotaCore
     }
     private func channelAllowed(_ m: ExperienceNotification, _ channel: NotificationChannel) -> Bool {
         guard let category = m.category else {
+            if policyActive && m.kind == .test { return policyPreferences.enabledChannels.contains(channel) && (channel != .bubble || !(policyPreferences.bubblePausedUntil.map { $0 > Date() } ?? false)) }
             switch channel { case .bubble: return preferences.mode.usesBubble && !preferences.paused(now: Date()); case .system: return preferences.mode.usesSystem; case .mobile: return true }
         }
         let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
@@ -137,6 +138,12 @@ import QuotaCore
             do { completion(try await center.requestAuthorization(options: [.alert]) ? "" : "denied") }
             catch { completion("unavailable") }
         }
+    }
+    func sendTestNotification(title: String, body: String) {
+        guard !stopped, !policyPreferences.enabledChannels.isEmpty else { return }
+        let message = ExperienceNotification(id: "channel-test-" + UUID().uuidString, kind: .test, epoch: nil, title: title, body: body, createdAt: Date(), validUntil: Date().addingTimeInterval(30))
+        enqueue(message, valid: { true }, failed: {})
+        if policyPreferences.enabledChannels.contains(.mobile) { bark?.sendTest(title: title, body: body) }
     }
     @discardableResult func preview(_ message: ExperienceNotification) -> Bool {
         guard canPresent, !stopped else { return false }

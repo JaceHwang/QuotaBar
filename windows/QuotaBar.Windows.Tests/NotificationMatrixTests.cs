@@ -26,6 +26,26 @@ internal static class NotificationMatrixTests {
   var update=new ExperienceNotification("version",ExperienceNotificationKind.Update,null,"x","",DateTimeOffset.UtcNow,Category:NotificationCategory.UpdateAvailable);
   dedup.Enqueue(update); dedup.CancelMessage(update.Id); dedup.Enqueue(update); Check(attempts==1,"accepted same generation cannot resend");
   dedup.CancelMessage(update.Id); dedup.Enqueue(update with { ReminderGeneration="later" }); Check(attempts==2,"new generation may deliver");
+  using var testTray=new System.Windows.Forms.NotifyIcon(); using var testRouter=new AppNotificationRouter(testTray,_=>true,_=>{},_=>{});
+  var testSystems=0; var testBubbles=0;
+  testRouter.Configure(new() { Mode=NotificationDeliveryMode.Off });
+  testRouter.SystemDelivery=(_,done)=> { testSystems++; done(true); }; testRouter.PresentBubble=_=> { testBubbles++; return true; }; testRouter.UpdateEnvironment(true);
+  testRouter.ConfigurePolicy(new() { EnabledChannels=[NotificationChannel.System],Rules=[] });
+  testRouter.SendTestNotification("Example","Sample only"); Check(testSystems==1&&testBubbles==0,"test uses system master even with legacy off and no categories");
+  testRouter.ConfigurePolicy(new() { EnabledChannels=[NotificationChannel.Bubble],Rules=[] });
+  testRouter.SendTestNotification("Example","Sample only"); Check(testSystems==1&&testBubbles==1,"test uses bubble master");
+  testRouter.ConfigurePolicy(new() { EnabledChannels=[],Rules=[] }); testRouter.Configure(new() { Mode=NotificationDeliveryMode.Both });
+  testRouter.SendTestNotification("Example","Sample only"); Check(testSystems==1&&testBubbles==1,"all masters off blocks example even with legacy both");
+  var testRoot=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
+  try {
+   var transport=new BarkTests.Transport();
+   using var mobile=new BarkNotificationController(new BarkTests.Secrets { Key="fake-key" },transport,new BarkDeliveryStore(System.IO.Path.Combine(testRoot,"receipts.json")),new(),_=>{});
+   testRouter.Mobile=mobile; Check(testRouter.SetChannelEnabled(NotificationChannel.Mobile,true),"test mobile can enable");
+   testRouter.SendTestNotification("Example","No account data"); Check(transport.Sends==1,"mobile master uses dedicated example API");
+   Check(testRouter.SetChannelEnabled(NotificationChannel.Mobile,false),"test mobile can disable");
+   testRouter.SendTestNotification("Example","No account data"); Check(transport.Sends==1,"closed mobile master sends nothing");
+  } finally { if(System.IO.Directory.Exists(testRoot)) System.IO.Directory.Delete(testRoot,true); }
+
  }
  public static void TestWarningProducer(System.Windows.Application app) {
   var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
@@ -41,8 +61,20 @@ internal static class NotificationMatrixTests {
    var controls=Tree(matrix).OfType<System.Windows.Controls.CheckBox>().ToArray();
    Check(controls.Count(c=>c.Tag is string tag&&tag.StartsWith("notification.rule."))==18,"18 independent UI cells");
    var low=controls.Single(c=>Equals(c.Tag,"notification.rule.quotaLow.bubble"));
+   Check(!low.IsEnabled,"closed bubble column disabled");
+   low.IsChecked=true; low.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(!owner.Notifications.PolicyPreferences.Rules[NotificationCategory.QuotaLow].Contains(NotificationChannel.Bubble),"disabled cell cannot save");
+   var master=controls.Single(c=>Equals(c.Tag,"notification.master.bubble")); master.IsChecked=true;
+   Check(low.IsEnabled,"opening master enables column");
    low.IsChecked=true; low.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
    Check(owner.Notifications.PolicyPreferences.Rules[NotificationCategory.QuotaLow].Contains(NotificationChannel.Bubble),"UI saves low bubble only");
+   master.IsChecked=false; Check(!low.IsEnabled&&low.IsChecked==true,"closing preserves selection");
+   var testButton=Tree(matrix).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.test"));
+   Check(matrix.Children.IndexOf(testButton)==2,"test immediately follows matrix card");
+   var testSystems=0; owner.Notifications.SystemDelivery=(_,done)=> { testSystems++; done(true); };
+   owner.Experience.PreviewCelebration(); Check(testSystems==0,"celebration preview stays local");
+   testButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+   Check(testSystems==1,"matrix test button wired to enabled system master");
    var categories=new List<NotificationCategory>();
    owner.Notifications.SystemDelivery=(m,done)=> { if(m.Category is {} c) categories.Add(c); done(true); };
    var now=DateTimeOffset.UtcNow; var values=new[]{30,20,0,100,100,0};

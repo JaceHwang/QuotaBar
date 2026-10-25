@@ -31,7 +31,7 @@ import QuotaCore
     var preferences: QuotaExperiencePreferences { displayPreferences }
     init(root: URL, defaults: UserDefaults = .standard, language: @escaping () -> CodexDisplayLanguage, requestPermission: ((@escaping (String) -> Void) -> Void)? = nil, router: AppNotificationRouter? = nil) {
         self.router = router ?? .shared
-        self.requestNotificationPermission = requestPermission ?? { AppNotificationRouter.shared.requestPermission(completion: $0) }
+        self.requestNotificationPermission = requestPermission ?? { (router ?? AppNotificationRouter.shared).requestPermission(completion: $0) }
         self.defaults = defaults; self.language = language; store = QuotaExperienceStore(url: root.appendingPathComponent("experience-state.json"))
         warningStore = QuotaWarningStore(url: root.appendingPathComponent("warning-state.json"))
         warningEngine = QuotaWarningEngine(state: warningStore.load())
@@ -122,7 +122,7 @@ import QuotaCore
     func stop() { router.cancelAuthenticationEpoch(engine.state.epoch); onCancelCelebration?() }
     func makeSettingsView() -> NSView {
         let stack = QuotaSettingsStyle.column(12)
-        let channel = NotificationSettingsView(router: router, language: language(), floatingVisible: floatingVisible(), preview: { [weak self] in self?.previewBubble() }, showUnread: { [weak self] in self?.onShowUnread?() }, enableFloating: { [weak self] in self?.onEnableFloating?() })
+        let channel = NotificationSettingsView(router: router, language: language(), floatingVisible: floatingVisible(), preview: { [weak self] in self?.previewBubble() }, showUnread: { [weak self] in self?.onShowUnread?() }, enableFloating: { [weak self] in self?.onEnableFloating?() }, test: { [weak self] in self?.testNotification() })
         QuotaSettingsStyle.fill(router.policyActive ? channel : QuotaSettingsStyle.card(channel), in: stack)
         let rows = QuotaSettingsStyle.column(0)
         let labels = [copy.text("Quota mood mode", "额度表情模式", "額度表情模式"), copy.text("Notify when quota is restored", "额度恢复时提醒", "額度恢復時提醒"), copy.text("Celebrate quota recovery", "额度恢复时播放小庆祝", "額度恢復時播放小慶祝"), copy.text("Bank expiry reminders", "Bank 到期提醒", "Bank 到期提醒")]
@@ -158,7 +158,7 @@ import QuotaCore
         }
         QuotaSettingsStyle.fill(QuotaSettingsStyle.card(rows), in: stack)
         let testing = QuotaSettingsStyle.column(8)
-        testing.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Send test notification", "发送测试通知", "傳送測試通知"), target: self, action: #selector(testNotification)))
+        if !router.policyActive { testing.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Send test notification", "发送测试通知", "傳送測試通知"), target: self, action: #selector(testNotification))) }
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Celebrations play only while the floating button is visible. Tests use example notifications and do not change reminder history.", "小庆祝仅在悬浮按钮可见时播放；测试使用示例通知，不改变提醒记录。", "小慶祝僅在懸浮按鈕可見時播放；測試使用範例通知，不改變提醒記錄。"), size: 11, secondary: true), in: testing)
         QuotaSettingsStyle.fill(testing, in: stack)
         let status = QuotaSettingsStyle.label(notificationStatus, size: 11, secondary: true); status.isHidden = notificationStatus.isEmpty; stack.addArrangedSubview(status); statusLabel = status
@@ -193,8 +193,16 @@ import QuotaCore
         let message = ExperienceNotification(id: "preview-\(UUID())", kind: .test, epoch: nil, title: copy.text("Example notification", "示例通知", "範例通知"), body: copy.text("5 hours remaining 100%; 7 days remaining 36%. Example only.", "5 小时剩余 100%；7 天剩余 36%。仅为示例。", "5 小時剩餘 100%；7 天剩餘 36%。僅為範例。"), createdAt: Date())
         if !router.preview(message) { setNotificationStatus(("Show the floating button and close quota details to preview.", "请开启悬浮按钮并收起额度详情后预览。", "請開啟懸浮按鈕並收起額度詳情後預覽。")) }
     }
-    @objc private func preview() { onCelebrate?(); testNotification() }
+    @objc private func preview() { onCelebrate?(); previewBubble() }
     @objc private func testNotification() {
+        if router.policyActive {
+            requestNotificationPermission { [weak self] result in
+                guard let self else { return }
+                router.sendTestNotification(title: "QuotaBar " + copy.text("test notification", "测试通知", "測試通知"), body: copy.text("Example only — your quota and reminder history are unchanged.", "这是一条示例通知，不改变真实额度及提醒记录。", "這是一條範例通知，不改變真實額度及提醒記錄。"))
+                if !result.isEmpty { setNotificationStatus(("System notifications unavailable", "系统提醒不可用", "系統提醒不可用")) }
+            }
+            return
+        }
         if !router.preferences.mode.usesSystem { enqueue(.test, title: copy.text("Example notification", "示例通知", "範例通知"), body: copy.text("Example only — reminder history is unchanged.", "示例提醒，不改变真实额度及提醒记录。", "範例提醒，不改變真實額度及提醒記錄。")); return }
         requestNotificationPermission { [weak self] result in
             guard let self else { return }
