@@ -35,10 +35,12 @@ static class QuotaWarningTests {
      engine=new(JsonSerializer.Deserialize<QuotaWarningState>(json.ToJsonString())!);
     }
     i++; if(step.TryGetProperty("restart",out var restart)&&restart.GetBoolean()) engine=new(JsonSerializer.Deserialize<QuotaWarningState>(JsonSerializer.Serialize(engine.State))!);
+    if(step.TryGetProperty("configure",out var edits)) foreach(var edit in edits.EnumerateArray()) engine.ConfigureLowThresholds(edit.EnumerateArray().Select(x=>x.GetInt32()));
     var remaining=step.GetProperty("remaining").GetInt32(); var at=now.AddSeconds(i*20);
+    var received=step.TryGetProperty("stale",out var stale)&&stale.GetBoolean()?at.AddSeconds(-121):at;
     var second=step.TryGetProperty("second",out var s)?new QuotaWindow(100-s.GetInt32(),s.GetInt32(),now.AddDays(7),10080):null;
     var q=new QuotaSnapshot(new(100-remaining,remaining,now.AddHours(1),300),second,"plus",null,null,at);
-    var events=engine.Observe(new("a",i,at,q),step.GetProperty("thresholds").EnumerateArray().Select(x=>x.GetInt32()).ToArray(),at);
+    var events=engine.Observe(new("a",i,received,q),step.GetProperty("thresholds").EnumerateArray().Select(x=>x.GetInt32()).ToArray(),at);
     var actual=events.Select(x=>x.Category==NotificationCategory.QuotaExhausted?0:x.Threshold);
     if(!actual.SequenceEqual(step.GetProperty("expected").EnumerateArray().Select(x=>x.GetInt32()))) throw new Exception(item.GetProperty("name").GetString()+" step "+i);
     if(step.TryGetProperty("periods",out var periods)&&!events[0].PeriodIDs.SequenceEqual(periods.EnumerateArray().Select(x=>x.GetString()!))) throw new Exception("wrong threshold periods");

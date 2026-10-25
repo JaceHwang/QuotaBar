@@ -690,5 +690,138 @@
         ]
       }
     ]
+  },
+  {
+    "name": "configure remove and readd between reads consumes low only, stale preserves pending",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            10
+          ],
+          [
+            20,
+            10
+          ]
+        ],
+        "stale": true,
+        "expected": []
+      },
+      {
+        "remaining": 15,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "pending low baseline preserves depletion crossing",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [],
+          [
+            20
+          ]
+        ],
+        "expected": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "re-enabled low preserves consumed level",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [],
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      }
+    ]
   }
 ]

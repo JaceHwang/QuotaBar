@@ -73,7 +73,7 @@ internal sealed class DynamicThresholdChipsView : WrapPanel {
   input.LostKeyboardFocus+=(_,e)=> { if(!ReferenceEquals(e.NewFocus,remove)) Finish(true); };
   row.Children.Add(input);
   var suffix=Ui.Text(unit,11,SettingsVisual.Muted(dark)); suffix.VerticalAlignment=VerticalAlignment.Center; suffix.Margin=new Thickness(2,0,2,0); row.Children.Add(suffix);
-  remove=Ui.Button("×",()=> { if(rebuilding) return; finished=true; adding=false; if(original.HasValue) save(read().Where(v=>v!=original.Value).ToArray(),null); Render(); });
+  remove=Ui.Button("×",()=> { if(rebuilding) return; finished=true; adding=false; if(original.HasValue) save(read().Where(v=>v!=original.Value).ToArray(),null); Render(); if(original.HasValue&&read().Contains(original.Value)) { input.Text=original.Value.ToString(); finished=false; } });
   // Keep the editor intact while Tab/click moves to its own delete action.
   // Treat editor and delete as one focus region; commit only when leaving it.
   remove.LostKeyboardFocus+=(_,e)=> { if(!ReferenceEquals(e.NewFocus,input)) Finish(true); };

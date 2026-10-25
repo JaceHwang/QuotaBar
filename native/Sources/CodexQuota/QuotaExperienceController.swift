@@ -119,7 +119,9 @@ import QuotaCore
             }
             bankHours = selectedBank
             let categories = Set([NotificationCategory.quotaLow, .quotaExhausted].filter(hasRule))
-            if categories != warningCategories { warningEngine.resetBaseline(); warningCategories = categories }
+            if categories.contains(.quotaExhausted) != warningCategories.contains(.quotaExhausted) { warningEngine.resetBaseline() }
+            warningCategories = categories
+            warningEngine.configureLowThresholds(hasRule(.quotaLow) ? router.policyPreferences.configuredLowThresholds : [])
         }
         engine.configure(p)
     }

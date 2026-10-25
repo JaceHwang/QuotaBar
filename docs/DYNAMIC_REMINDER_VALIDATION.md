@@ -4,7 +4,7 @@ Approved A: compact editable chips, merged Bank, low immediately before Bank, si
 
 ## Local verification
 
-- Full governance:192 QuotaCore tests and136 AppKit tests passed, plus install/cleanup/signing fixtures, .NET Core behavior/lifecycle suites and Windows app/setup/UI test cross-builds.
+- Full governance:192 QuotaCore tests and138 AppKit tests passed, plus install/cleanup/signing fixtures, .NET Core behavior/lifecycle suites and Windows app/setup/UI test cross-builds.
 - Real controller/router tests: low20→10 produces exact threshold metadata; empty low list retains depletion; Bank12 uses its exact mapping while24 retains mobile-only mapping; removed thresholds reject late actual-router completion.
 - AppKit11 settings tests cover15 cells, independent columns and disabled state, add/edit/remove/invalid/Escape/save failure, mixed Bank channels, focus continuity,32-value wrapping and three languages/themes. Six native renders under native/.dist/dynamic-threshold-render were inspected.
 - Bank shared dynamic fixtures cover72→24→12, jumps, empty/invalid/normalization/cap,8760-hour retention, restart and complete-inventory baselines. Independent task review found no P1/P2.
@@ -14,4 +14,4 @@ Approved A: compact editable chips, merged Bank, low immediately before Bank, si
 
 ## Pending delivery checks
 
-Whole-branch independent review, Windows/macOS native CI and a clean signed Mac candidate plus actual local installation are pending. No real phone test has been sent; no merge or public release is authorized. Product versions remain unchanged.
+Whole-branch review found two P2 integration cases: remove/re-add low levels between reads could replay, and a failed WPF delete could lock its reused editor. A single fix wave added immediate low-only configuration baselines (preserving depletion), both actual-controller regressions, and failed-delete recovery. Swift/.NET red failures were captured and full governance192Core+138AppKit passed after repair; native WPF is still pending. Scoped re-review, latest Windows/macOS CI and a clean signed Mac candidate plus actual local installation remain pending. No real phone test has been sent; no merge or public release is authorized. Product versions remain unchanged.

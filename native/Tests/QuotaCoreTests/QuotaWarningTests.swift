@@ -12,7 +12,7 @@ final class QuotaWarningTests: XCTestCase {
         engine.observe(observation(remaining, sequence, reset: reset, second: second), threshold: threshold, now: now.addingTimeInterval(Double(sequence)*20))
     }
     func testDynamicSharedWarningCases() throws {
-        struct Step: Decodable { let remaining: Int; let second: Int?; let thresholds: [Int]; let legacy: Bool?; let restart: Bool?; let expected: [Int]; let periods: [String]? }
+        struct Step: Decodable { let remaining: Int; let second: Int?; let thresholds: [Int]; let legacy: Bool?; let restart: Bool?; let configure: [[Int]]?; let stale: Bool?; let expected: [Int]; let periods: [String]? }
         struct Case: Decodable { let name: String; let steps: [Step] }
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../contracts/notifications/dynamic-warning-cases.json").standardizedFileURL
         for item in try JSONDecoder().decode([Case].self, from: Data(contentsOf: url)) {
@@ -27,7 +27,8 @@ final class QuotaWarningTests: XCTestCase {
                     engine = QuotaWarningEngine(state: try JSONDecoder().decode(QuotaWarningState.self, from: JSONSerialization.data(withJSONObject: json)))
                 }
                 if step.restart == true { engine = QuotaWarningEngine(state: try JSONDecoder().decode(QuotaWarningState.self, from: JSONEncoder().encode(engine.state))) }
-                let events = engine.observe(observation(step.remaining, i+1, second: step.second), thresholds: step.thresholds, now: now.addingTimeInterval(Double(i+1)*20))
+                for levels in step.configure ?? [] { engine.configureLowThresholds(levels) }
+                let events = engine.observe(observation(step.remaining, i+1, second: step.second, age: step.stale == true ? 121 : 0), thresholds: step.thresholds, now: now.addingTimeInterval(Double(i+1)*20))
                 XCTAssertEqual(events.map { $0.category == .quotaExhausted ? 0 : $0.threshold }, step.expected, "\(item.name) step \(i)")
                 if let periods = step.periods { XCTAssertEqual(events.first?.periodIDs, periods, item.name) }
             }

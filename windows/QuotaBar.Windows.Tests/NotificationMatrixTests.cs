@@ -5,6 +5,7 @@ using QuotaBar.Core;
 using QuotaBar.Windows;
 internal static class NotificationMatrixTests {
  public static void Run(System.Windows.Application app) {
+  TestLowPolicyTransitions(app);
   using var tray=new System.Windows.Forms.NotifyIcon(); var receipts=0; var system=0; var bubbles=0;
   using var router=new AppNotificationRouter(tray,_=>true,_=>{},_=>receipts++);
   router.Configure(new() { Mode=NotificationDeliveryMode.Off });
@@ -137,7 +138,32 @@ internal static class NotificationMatrixTests {
    Check(levels.SequenceEqual(new[]{20,10}),"actual producer attaches exact low threshold metadata");
   } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
  }
+ static void TestLowPolicyTransitions(System.Windows.Application app) {
+  foreach(var editRules in new[]{false,true}) {
+  var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
+  try {
+   using var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets(),barkTransport:new BarkTests.Transport());
+   var policy=new NotificationPolicyPreferences { EnabledChannels=[NotificationChannel.System],Rules=new() { [NotificationCategory.QuotaLow]=[NotificationChannel.System],[NotificationCategory.QuotaExhausted]=[NotificationChannel.System] },LowRemainingThresholds=[20] };
+   owner.Notifications.ConfigurePolicy(policy);
+   var delivered=new List<NotificationCategory>(); owner.Notifications.SystemDelivery=(m,done)=> { if(m.Category is {} c) delivered.Add(c); done(true); };
+   var now=DateTimeOffset.UtcNow; var sequence=0;
+   void Receive(int remaining,int seconds) {
+    var at=now.AddSeconds(seconds); var q=new QuotaSnapshot(new(100-remaining,remaining,now.AddHours(1),300),null,"plus",null,null,at);
+    owner.Experience.Receive(new("a",++sequence,at,q));
+   }
+   void Readd() {
+    owner.Notifications.ConfigurePolicy(editRules?policy with { Rules=new() { [NotificationCategory.QuotaLow]=[],[NotificationCategory.QuotaExhausted]=[NotificationChannel.System] } }:policy.WithLowThresholds([]));
+    owner.Notifications.ConfigurePolicy(policy);
+   }
+   Receive(30,-80); Readd(); Receive(10,-60);
+   Check(delivered.Count==0,"remove and readd between reads establishes low baseline");
+   Receive(30,-40); Readd(); Receive(0,0);
+   Check(delivered.SequenceEqual(new[]{NotificationCategory.QuotaExhausted}),"pending low baseline preserves actual depletion delivery");
+  } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
+ }
+ }
  static void TestChipFocus(System.Windows.Application app,Coordinator owner) {
+  TestFailedDeleteRecovery(app,owner);
   // A shown native window is essential: a synthetic LostKeyboardFocus event cannot
   // detect detaching the destination during the focus transition.
   foreach(var edit in new[]{"20","18","bad"}) foreach(var destination in new[]{"input","add","tab"}) {
@@ -187,6 +213,33 @@ internal static class NotificationMatrixTests {
    } finally { window.Close(); }
   }
  }
+ static void TestFailedDeleteRecovery(System.Windows.Application app,Coordinator owner) {
+  foreach(var commit in new[]{"enter","blur"}) {
+   var values=new[]{20,10}; var accept=false;
+   var chips=new DynamicThresholdChipsView(new System.Windows.Controls.TextBlock { Text="Low" },"low",99,"%",owner.Copy,false,()=>values,(next,_)=> { if(accept) values=next; });
+   var window=new System.Windows.Window { Content=chips,Width=400,Height=140,ShowInTaskbar=false };
+   try {
+    window.Show(); window.Activate(); window.UpdateLayout();
+    void Settle()=>app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    var field=Tree(chips).OfType<System.Windows.Controls.TextBox>().Single(b=>Equals(b.Tag,"notification.threshold.low.20"));
+    var remove=Tree(chips).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.threshold.low.remove.20"));
+    var add=Tree(chips).OfType<System.Windows.Controls.Button>().Single(b=>Equals(b.Tag,"notification.threshold.low.add"));
+    void Key(System.Windows.Input.Key key) {
+     using var source=new System.Windows.Interop.HwndSource(new System.Windows.Interop.HwndSourceParameters("failed delete") { Width=1,Height=1 });
+     field.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,source,0,key) { RoutedEvent=System.Windows.Input.Keyboard.KeyDownEvent });
+    }
+    Check(field.Focus(),"failed-delete field focused"); field.Text="17"; System.Windows.Input.Keyboard.Focus(remove);
+    remove.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); Settle();
+    Check(values.SequenceEqual(new[]{20,10})&&field.Text=="20","refused deletion restores original value");
+    Check(ReferenceEquals(Tree(chips).OfType<System.Windows.Controls.TextBox>().Single(b=>Equals(b.Tag,field.Tag)),field)&&ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement,remove),"refused deletion retains editor and delete focus");
+    System.Windows.Input.Keyboard.Focus(field); field.Text="16"; Key(System.Windows.Input.Key.Escape);
+    Check(field.Text=="20"&&values.SequenceEqual(new[]{20,10}),"Escape remains usable after refused deletion");
+    accept=true; field.Text="18";
+    if(commit=="enter") Key(System.Windows.Input.Key.Enter); else System.Windows.Input.Keyboard.Focus(add);
+    Settle(); Check(values.SequenceEqual(new[]{18,10}),"save recovers after refused deletion through "+commit);
+   } finally { window.Close(); }
+  }
+ }
  public static void TestDynamicBankProducer(System.Windows.Application app) {
   var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
   try {
@@ -201,6 +254,7 @@ internal static class NotificationMatrixTests {
     var deadline=DateTime.UtcNow.AddSeconds(5); while(!owner.Mobile.WhenIdle.IsCompleted&&DateTime.UtcNow<deadline) { app.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle); System.Threading.Thread.Sleep(5); }
     Check(owner.Mobile.WhenIdle.IsCompleted,"fake mobile drain bounded"); owner.Mobile.WhenIdle.GetAwaiter().GetResult();
    }
+   Receive(); Check(systemLevels.Count==0&&transport.Sends==0,"complete empty inventory establishes added hour12 baseline");
    Receive(first); Check(systemLevels.SequenceEqual(new[]{12})&&transport.Sends==0,"hour12 uses exact system mapping rather than legacy24");
    Receive(first,second); Check(systemLevels.Count==1&&transport.Sends==1,"hour24 retains mobile-only mapping");
   } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }

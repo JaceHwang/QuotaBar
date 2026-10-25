@@ -152,6 +152,50 @@ import QuotaCore
         p.setLowThresholds([]); XCTAssertTrue(router.configurePolicy(p)); receive(30,-20); receive(0,0)
         XCTAssertEqual(delivered.last?.category, .quotaExhausted); XCTAssertEqual(delivered.count, 3)
     }
+    func testLowRemoveReaddBetweenReadsBaselinesWithoutSuppressingDepletion() throws {
+        let defaults = UserDefaults(suiteName: "MultiLowProducer.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules[.quotaLow] = [.system]; p.rules[.quotaExhausted] = [.system]; p.setLowThresholds([20]); XCTAssertTrue(router.configurePolicy(p))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        var delivered: [ExperienceNotification] = []; router.sendSystem = { message, done in delivered.append(message); done(true) }
+        let now = Date(), reset = now.addingTimeInterval(3600)
+        func receive(_ remaining: Int, _ seconds: Double) {
+            controller.receive(AllowanceSnapshot(usedPercent: Double(100-remaining), remainingPercent: remaining, resetsAt: reset, receivedAt: now.addingTimeInterval(seconds), windowDurationMins: 300, planType: "plus"), bank: .omitted)
+        }
+        receive(30,-80)
+        p.setLowThresholds([]); XCTAssertTrue(router.configurePolicy(p))
+        p.setLowThresholds([20]); XCTAssertTrue(router.configurePolicy(p))
+        receive(10,-60)
+        XCTAssertTrue(delivered.isEmpty, "Re-added level must not replay its historical crossing")
+        receive(30,-40)
+        p.setLowThresholds([]); XCTAssertTrue(router.configurePolicy(p))
+        p.setLowThresholds([20]); XCTAssertTrue(router.configurePolicy(p))
+        receive(0,0)
+        XCTAssertEqual(delivered.map(\.category), [.quotaExhausted])
+    }
+    func testLowDisableReenableBetweenReadsBaselinesWithoutSuppressingDepletion() throws {
+        let defaults = UserDefaults(suiteName: "MultiLowProducer.\(UUID())")!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
+        var p = NotificationPolicyPreferences(); p.enabledChannels = [.system]; p.rules[.quotaLow] = [.system]; p.rules[.quotaExhausted] = [.system]; p.setLowThresholds([20]); XCTAssertTrue(router.configurePolicy(p))
+        let controller = QuotaExperienceController(root: root, defaults: defaults, language: { .english }, router: router)
+        var delivered: [ExperienceNotification] = []; router.sendSystem = { message, done in delivered.append(message); done(true) }
+        let now = Date(), reset = now.addingTimeInterval(3600)
+        func receive(_ remaining: Int, _ seconds: Double) {
+            controller.receive(AllowanceSnapshot(usedPercent: Double(100-remaining), remainingPercent: remaining, resetsAt: reset, receivedAt: now.addingTimeInterval(seconds), windowDurationMins: 300, planType: "plus"), bank: .omitted)
+        }
+        receive(30,-80)
+        p.rules[.quotaLow] = []; XCTAssertTrue(router.configurePolicy(p))
+        p.rules[.quotaLow] = [.system]; XCTAssertTrue(router.configurePolicy(p))
+        receive(10,-60)
+        XCTAssertTrue(delivered.isEmpty, "Re-added level must not replay its historical crossing")
+        receive(30,-40)
+        p.rules[.quotaLow] = []; XCTAssertTrue(router.configurePolicy(p))
+        p.rules[.quotaLow] = [.system]; XCTAssertTrue(router.configurePolicy(p))
+        receive(0,0)
+        XCTAssertEqual(delivered.map(\.category), [.quotaExhausted])
+    }
     func testDynamicBankProducerAttachesExactHoursAndPreservesSplitDelivery() async throws {
         let defaults = UserDefaults(suiteName: "MultiBankProducer.\(UUID())")!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }

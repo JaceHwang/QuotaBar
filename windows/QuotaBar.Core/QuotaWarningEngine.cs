@@ -20,9 +20,17 @@ public sealed class QuotaWarningEngine {
  public QuotaWarningState State { get; private set; }
  readonly Dictionary<string,double> previous=[];
  readonly Dictionary<string,DateTimeOffset> availableSince=[];
+ HashSet<int>? configuredLowThresholds;
+ readonly HashSet<int> pendingLowBaselines=[];
  long sequence=-1;
  DateTimeOffset? receivedAt;
  public QuotaWarningEngine(QuotaWarningState? state=null) { State=state is { Schema:1,Periods.Count:<=2 }?state:new(); }
+ // Record policy transitions without resetting depletion comparison or recovery timing.
+ public void ConfigureLowThresholds(IEnumerable<int> thresholds) {
+  var levels=thresholds.Where(x=>x is >=1 and <=99).Distinct().OrderDescending().Take(32).ToHashSet();
+  if(configuredLowThresholds is {} previous) pendingLowBaselines.UnionWith(levels.Except(previous));
+  configuredLowThresholds=levels;
+ }
  public void ResetBaseline() { previous.Clear(); availableSince.Clear(); sequence=-1; receivedAt=null; }
  public void ConfirmRecovery(IEnumerable<string> periodIDs) { foreach(var id in periodIDs) if(State.Periods.TryGetValue(id,out var p)) { p.ExhaustionNotified=false; availableSince.Remove(id); } }
  public IReadOnlyList<QuotaWarningEvent> Observe(QuotaObservation o,int threshold,DateTimeOffset now) => Observe(o,[threshold is >=1 and <=99?threshold:20],now,true);
@@ -38,7 +46,8 @@ public sealed class QuotaWarningEngine {
   if(State.Plan!=plan) { State.Periods.Clear(); previous.Clear(); availableSince.Clear(); State.Plan=plan; }
   var thresholds=levels.Where(x=>x is >=1 and <=99).Distinct().OrderDescending().Take(32).ToArray();
   var oldThresholds=State.Thresholds??[State.Threshold];
-  var added=thresholds.Except(oldThresholds).ToHashSet();
+  var added=thresholds.Except(oldThresholds).Concat(pendingLowBaselines).ToHashSet();
+  pendingLowBaselines.Clear();
   var threshold=thresholds.FirstOrDefault(20);
   var scalarChanged=scalar&&State.Threshold!=threshold;
   State.Thresholds=thresholds.ToList(); State.Threshold=threshold;

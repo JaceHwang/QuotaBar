@@ -37,7 +37,9 @@ internal sealed class QuotaExperienceController {
             if(bankHours is {} previousBank) { var added=selectedBank.Except(previousBank).ToArray(); if(added.Length>0) { engine.SuppressBankStages(added); Persist(); } }
             bankHours=selectedBank;
             var categories=new[]{NotificationCategory.QuotaLow,NotificationCategory.QuotaExhausted}.Where(HasRule).ToHashSet();
-            if(!categories.SetEquals(warningCategories)) { warningEngine.ResetBaseline(); warningCategories=categories; }
+            if(categories.Contains(NotificationCategory.QuotaExhausted)!=warningCategories.Contains(NotificationCategory.QuotaExhausted)) warningEngine.ResetBaseline();
+            warningCategories=categories;
+            warningEngine.ConfigureLowThresholds(HasRule(NotificationCategory.QuotaLow)?owner.Notifications.PolicyPreferences.ConfiguredLowThresholds:[]);
         }
         engine.Configure(p); if(!engine.Preferences.Celebration) owner.CancelCelebration(); }
     public void ResetBaseline() { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.ResetBaseline(); warningEngine.ResetBaseline(); lastObservation=null; owner.CancelCelebration(); }
