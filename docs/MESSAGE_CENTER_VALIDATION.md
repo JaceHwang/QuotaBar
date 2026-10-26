@@ -17,3 +17,11 @@ Approved C list/detail design replaces the unread entry on both platforms with a
 Initial CI40274454521 macOS failed while compiling the new test fixture: Xcode26.5 could not type-check its nested expression in time. The fixture is split into explicitly typed local values without changing assertions. Failed-run evidence is retained; final native CI, reviewer findings, candidate provenance and device boundaries will be recorded below before delivery.
 
 Windows user-device acceptance and actual phone delivery remain separate from CI. No real phone test was sent. The PR remains draft; no merge or public release is authorized by this delivery.
+
+## Final review and regression fixes
+
+The fresh whole-feature reviewer found no Critical issue and one Important issue: macOS compact history could not reopen an already-selected row after returning to the list. A one-row native click/Enter regression first failed twice; explicit user activation now passes. The missing explicit category was promoted from a review minor because the approved detail design requires it. Five-category AppKit assertions first failed and now pass. Windows native category regression was observed failing at QuotaExhausted on d938468, CI40275031960/job121415856645, before adding the corresponding labels.
+
+After the macOS fixes, all11 message UI tests and the full197Core/154AppKit suite passed, together with .NET and three Windows builds. Eight native macOS update-helper transaction scenarios passed. Windows native message UI had already passed on ac0c203; the new category regression and final packaging require the next native run.
+
+The125/150/200% evidence is native RenderTargetBitmap output at those densities. It does not change the physical monitor DPI or exercise real scaling-dependent input/work-area behavior. Actual Windows display scaling and user-device interaction remain pending. This limitation does not reduce the native UI assertions or claim they were device tests.

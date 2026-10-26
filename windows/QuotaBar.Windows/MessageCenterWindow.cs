@@ -80,6 +80,14 @@ internal sealed class MessageCenterWindow : Window {
   void Text(string text,double size=12,bool muted=false,string? tag=null) { var t=Ui.Text(text,size,muted?SettingsVisual.Muted(dark):Foreground);t.Margin=new Thickness(0,0,0,12);t.Tag=tag;column.Children.Add(t); }
   if(record==null) { Text(copy.Text("Select a message to view details","选择消息查看详情","選取訊息查看詳細內容"),14,true);return; }
   Text(record.Title,18);Text(record.CreatedAt.ToLocalTime().ToString("g")+" · "+(record.ReadAtMilliseconds==null?copy.Text("Unread","未读","未讀"):copy.Text("Read","已读","已讀")),11,true);
+  var category=record.Category switch {
+   NotificationCategory.QuotaExhausted=>copy.Text("Quota exhausted","额度耗尽","額度耗盡"),
+   NotificationCategory.QuotaRecovered=>copy.Text("Quota recovered","额度恢复","額度恢復"),
+   NotificationCategory.QuotaLow=>copy.Text("Quota low","额度偏低","額度偏低"),
+   NotificationCategory.BankExpiring72h or NotificationCategory.BankExpiring24h=>copy.Text("Bank expiry","Bank 到期提醒","Bank 到期提醒"),
+   _=>copy.Text("Update available","软件有新版本","軟體有新版本")
+  };
+  Text(copy.Text("Category: ","类别：","類別：")+category,11,true,"messages.detail.category");
   if(record.Key.Epoch!=null&&record.Key.Epoch!=router.CurrentMessageEpoch) Text(copy.Text("Earlier session · recorded quota snapshot","历史会话 · 以下为当时的额度记录","歷史工作階段 · 以下為當時的額度記錄"),11,true);
   var channels=Enum.GetValues<NotificationChannel>().Where(record.Channels.Contains).Select(c=>c switch { NotificationChannel.Bubble=>copy.Text("Bubble","气泡通知","氣泡通知"),NotificationChannel.System=>copy.Text("System","系统通知","系統通知"),_=>copy.Text("Mobile","手机推送","手機推播") });
   Text(copy.Text("Configured channels: ","提醒渠道：","提醒管道：")+string.Join(" · ",channels),11,true);Text(record.Body,14,tag:"messages.detail.body");
