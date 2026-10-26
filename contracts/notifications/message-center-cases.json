@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "messages": [
+    {
+      "key": {
+        "id": "low",
+        "generation": "initial",
+        "epoch": "one"
+      },
+      "category": "quotaLow",
+      "title": "low",
+      "body": "original snapshot",
+      "createdAtMilliseconds": 1900000000000,
+      "readAtMilliseconds": null,
+      "channels": [
+        "bubble",
+        "system"
+      ]
+    },
+    {
+      "key": {
+        "id": "update",
+        "generation": "initial",
+        "epoch": null
+      },
+      "category": "updateAvailable",
+      "title": "update",
+      "body": "original snapshot",
+      "createdAtMilliseconds": 1900000001000,
+      "readAtMilliseconds": 1900000002000,
+      "channels": [
+        "mobile"
+      ]
+    },
+    {
+      "key": {
+        "id": "bank",
+        "generation": "initial",
+        "epoch": "one"
+      },
+      "category": "bankExpiring72h",
+      "title": "bank",
+      "body": "original snapshot",
+      "createdAtMilliseconds": 1600000000000,
+      "readAtMilliseconds": null,
+      "channels": [
+        "bubble"
+      ]
+    }
+  ]
+}
