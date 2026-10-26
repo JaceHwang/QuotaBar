@@ -2,6 +2,18 @@ import AppKit
 import QuotaCore
 
 private final class MessageDetailDocument: NSView { override var isFlipped: Bool { true } }
+private final class MessageTableView: NSTableView {
+    var activateSelected: (() -> Void)?
+    override func mouseDown(with event: NSEvent) {
+        let clicked = row(at: convert(event.locationInWindow, from: nil))
+        if clicked >= 0 && clicked == selectedRow { activateSelected?(); return }
+        super.mouseDown(with: event)
+    }
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36 || event.keyCode == 76 { activateSelected?(); return }
+        super.keyDown(with: event)
+    }
+}
 
 @MainActor final class MessageCenterView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     private let router: AppNotificationRouter
@@ -17,7 +29,7 @@ private final class MessageDetailDocument: NSView { override var isFlipped: Bool
     private let retry = SettingsAccentButton(frame: .zero)
     private let footer = NSTextField(wrappingLabelWithString: "")
     private let listScroll = NSScrollView()
-    private let table = NSTableView()
+    private let table = MessageTableView()
     private let empty = NSTextField(wrappingLabelWithString: "")
     private let detailScroll = NSScrollView()
     private let detail = MessageDetailDocument()
@@ -50,6 +62,7 @@ private final class MessageDetailDocument: NSView { override var isFlipped: Bool
         let column = NSTableColumn(identifier: .init("message")); column.minWidth = 150; column.resizingMask = .autoresizingMask; table.addTableColumn(column)
         table.headerView = nil; table.rowHeight = 84; table.intercellSpacing = NSSize(width: 0, height: 4)
         table.dataSource = self; table.delegate = self; table.allowsEmptySelection = true; table.allowsMultipleSelection = false
+        table.activateSelected = { [weak self] in self?.openSelectedMessage() }
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle; table.identifier = .init("messages.list")
         table.setAccessibilityLabel(copy.text("Messages", "消息列表", "消息列表"))
         listScroll.documentView = table; listScroll.hasVerticalScroller = true; listScroll.autohidesScrollers = true
@@ -100,6 +113,9 @@ private final class MessageDetailDocument: NSView { override var isFlipped: Bool
         cell.identifier = id; cell.render(rows[row], date: dates.string(from: rows[row].createdAt), unread: copy.text("Unread", "未读", "未讀"), read: copy.text("Read", "已读", "已讀")); return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
+        openSelectedMessage()
+    }
+    private func openSelectedMessage() {
         guard !rendering, rows.indices.contains(table.selectedRow) else { return }
         let record = rows[table.selectedRow]; selectedKey = record.key; showingDetail = true
         // Filtering this row out must not programmatically select/read its successor.
@@ -120,6 +136,15 @@ private final class MessageDetailDocument: NSView { override var isFlipped: Bool
         }
         let title = addDetail(record.title, size: 20, id: "messages.detail.title"); title.font = .systemFont(ofSize: 20, weight: .semibold)
         _ = addDetail(dates.string(from: record.createdAt) + " · " + (record.readAtMilliseconds == nil ? copy.text("Unread", "未读", "未讀") : copy.text("Read", "已读", "已讀")), size: 11, secondary: true)
+        let category: String
+        switch record.category {
+        case .quotaExhausted: category = copy.text("Quota exhausted", "额度耗尽", "額度耗盡")
+        case .quotaRecovered: category = copy.text("Quota recovered", "额度恢复", "額度恢復")
+        case .quotaLow: category = copy.text("Quota low", "额度偏低", "額度偏低")
+        case .bankExpiring72h, .bankExpiring24h: category = copy.text("Bank expiry", "Bank 到期提醒", "Bank 到期提醒")
+        case .updateAvailable: category = copy.text("Update available", "软件有新版本", "軟體有新版本")
+        }
+        _ = addDetail(copy.text("Category: ", "类别：", "類別：") + category, size: 11, secondary: true, id: "messages.detail.category")
         if record.key.epoch != nil && record.key.epoch != router.currentMessageEpoch { _ = addDetail(copy.text("Earlier session · recorded quota snapshot", "历史会话 · 以下为当时的额度记录", "歷史工作階段 · 以下為當時的額度記錄"), size: 11, secondary: true) }
         let channels = NotificationChannel.allCases.filter { record.channels.contains($0) }.map { c in
             switch c { case .bubble: return copy.text("Bubble", "气泡通知", "氣泡通知"); case .system: return copy.text("System", "系统通知", "系統通知"); case .mobile: return copy.text("Mobile", "手机推送", "手機推播") }

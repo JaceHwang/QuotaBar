@@ -9,7 +9,13 @@ import QuotaCore
         let store = MessageCenterStore(url: root.appendingPathComponent("message-center.json"))
         let time = Int64(Date().timeIntervalSince1970 * 1000)
         let names = ["额度偏低", "Bank 即将到期", "发现新版本"]
-        let rows = (0..<count).map { i in MessageCenterRecord(key:MessageCenterKey(id:"message-\(i)",epoch:"one"),category:i%3 == 0 ? .quotaLow : i%3 == 1 ? .bankExpiring72h : .updateAvailable,title:names[i%3],body:i%3 == 0 ? "5 小时额度周期剩余 15%。这是提醒产生时的记录。" : "历史消息内容",createdAtMilliseconds:time-Int64(i*1000),channels:[.bubble,.system]) }
+        let rows: [MessageCenterRecord] = (0..<count).map { i in
+            let categories: [NotificationCategory] = [.quotaLow, .bankExpiring72h, .updateAvailable]
+            let body = i%3 == 0 ? "5 小时额度周期剩余 15%。这是提醒产生时的记录。" : "历史消息内容"
+            return MessageCenterRecord(key: MessageCenterKey(id: "message-\(i)", epoch: "one"),
+                category: categories[i%3], title: names[i%3], body: body,
+                createdAtMilliseconds: time-Int64(i*1000), channels: [.bubble, .system])
+        }
         XCTAssertTrue(store.append(rows))
         let router = AppNotificationRouter(defaults:UserDefaults(suiteName:"MessageUI.\(UUID())")!);router.bindMessageCenter(store);router.currentMessageEpoch="one";router.openDetails={};router.openUpdates={}
         let view = MessageCenterView(router:router,language:language)
@@ -62,6 +68,34 @@ import QuotaCore
         var opened=0;router.openDetails={opened += 1};try button(view,"messages.latest").performClick(nil);XCTAssertEqual(opened,1)
         try button(view,"messages.back").performClick(nil);view.layoutSubtreeIfNeeded();XCTAssertFalse(list.isHidden);XCTAssertTrue(detail.isHidden)
         XCTAssertEqual(router.messageHistory.count,3)
+    }
+    func testSingleHistoryReopensAfterBackByClickAndEnter() throws {
+        let (root,router,view,window)=setup(count:1)
+        defer { window.close();router.stop();try? FileManager.default.removeItem(at:root) }
+        window.setContentSize(NSSize(width:700,height:540));try switchHistory(view)
+        let list=try table(view)
+        let detail=try XCTUnwrap(tree(view).first { $0.identifier?.rawValue=="messages.detailScroll" })
+        list.selectRowIndexes(IndexSet(integer:0),byExtendingSelection:false)
+        try button(view,"messages.back").performClick(nil)
+        XCTAssertTrue(detail.isHidden);XCTAssertEqual(list.selectedRow,0)
+        let point=list.convert(NSPoint(x:30,y:list.rect(ofRow:0).midY),to:nil)
+        let click=try XCTUnwrap(NSEvent.mouseEvent(with:.leftMouseDown,location:point,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:1,pressure:1))
+        list.mouseDown(with:click);view.layoutSubtreeIfNeeded();XCTAssertFalse(detail.isHidden)
+        try button(view,"messages.back").performClick(nil)
+        let enter=try XCTUnwrap(NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36))
+        list.keyDown(with:enter);view.layoutSubtreeIfNeeded();XCTAssertFalse(detail.isHidden)
+        XCTAssertEqual(router.messageUnreadCount,0);XCTAssertEqual(router.messageHistory.count,1)
+    }
+    func testDetailShowsExplicitLocalizedCategory() throws {
+        let (root,router,view,window)=setup(count:0)
+        defer { window.close();router.stop();try? FileManager.default.removeItem(at:root) }
+        let cases: [(NotificationCategory,String)]=[(.quotaExhausted,"额度耗尽"),(.quotaRecovered,"额度恢复"),(.quotaLow,"额度偏低"),(.bankExpiring72h,"Bank 到期提醒"),(.updateAvailable,"软件有新版本")]
+        for (i,item) in cases.enumerated() {
+            XCTAssertTrue(router.messageStore!.append(MessageCenterRecord(key:.init(id:"category-\(i)"),category:item.0,title:"通用标题",body:"记录",createdAtMilliseconds:Int64(i),channels:[.bubble])))
+            view.refresh();try switchHistory(view);try table(view).selectRowIndexes(IndexSet(integer:0),byExtendingSelection:false)
+            let label=tree(view).compactMap { $0 as? NSTextField }.first { $0.identifier?.rawValue=="messages.detail.category" }
+            XCTAssertEqual(label?.stringValue,"类别："+item.1)
+        }
     }
     func testStorageErrorRetainsTemporaryMessageAndRetryNeverFakesRead() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true);let url=root.appendingPathComponent("message-center.json");try Data("broken".utf8).write(to:url)

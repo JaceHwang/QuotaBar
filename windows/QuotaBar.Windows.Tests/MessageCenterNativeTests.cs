@@ -46,7 +46,18 @@ internal static class MessageCenterNativeTests {
    Check(new MessageCenterStore(Path.Combine(s.Root,"message-center.json")).UnreadCount==0,"read status survives restart");
   } finally { Close(s); }
   var empty=Create(count:0);try { Check(Find<ListBox>(empty.Window,"messages.list").Items.Count==0&&!Find<Button>(empty.Window,"messages.allRead").IsEnabled,"empty state");Find<TabControl>(empty.Window,"messages.tabs").SelectedIndex=1;Pump();Check(Find<TextBlock>(empty.Window,"messages.empty").Visibility==Visibility.Visible,"history empty state"); } finally { Close(empty); }
-  TestStorageFailure();TestWriteFailure();TestLongAndLarge();RenderVariants();Console.WriteLine("PASS Windows message center auto-read/no-cascade, persistence, storage recovery, responsive and multilingual DPI renders");
+  TestCategories();TestStorageFailure();TestWriteFailure();TestLongAndLarge();RenderVariants();Console.WriteLine("PASS Windows message center auto-read/no-cascade, persistence, storage recovery, responsive and multilingual density renders");
+ }
+ static void TestCategories() {
+  var s=Create(count:0);try {
+   var cases=new[]{(NotificationCategory.QuotaExhausted,"额度耗尽"),(NotificationCategory.QuotaRecovered,"额度恢复"),(NotificationCategory.QuotaLow,"额度偏低"),(NotificationCategory.BankExpiring72h,"Bank 到期提醒"),(NotificationCategory.UpdateAvailable,"软件有新版本")};
+   foreach(var (category,title) in cases) {
+    var row=Row((int)category,new Copy("zh-CN"),DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) with { Category=category,Title="通用标题" };Check(s.Router.MessageStore!.Append(row),"category fixture saved");
+    s.Window.Refresh();Find<TabControl>(s.Window,"messages.tabs").SelectedIndex=1;Pump();
+    Find<ListBox>(s.Window,"messages.list").SelectedIndex=s.Router.MessageHistory.ToList().FindIndex(r=>r.Key==row.Key);Pump();
+    Check(Tree(s.Window).OfType<TextBlock>().Any(t=>Equals(t.Tag,"messages.detail.category")&&t.Text=="类别："+title),"explicit detail category "+category);
+   }
+  } finally { Close(s); }
  }
  static void TestStorageFailure() {
   var root=Path.Combine(Path.GetTempPath(),"message-corrupt-ui-"+Guid.NewGuid());Directory.CreateDirectory(root);var path=Path.Combine(root,"message-center.json");File.WriteAllText(path,"broken");
