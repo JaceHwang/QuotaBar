@@ -9,7 +9,7 @@ nonisolated(unsafe) private var standaloneSignalWriteFD: Int32 = -1
 final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private let detail = QuotaDetailPanel()
     private let notificationBubble = CharacterNotificationBubble()
-    private let unreadPanel = NotificationUnreadPanel()
+    private let messagePanel = MessageCenterPanel()
     private var notificationDragging = false
     private var screenLocked = false
     private let floating: FloatingQuotaButton
@@ -193,7 +193,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(notificationSpaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(notificationSpaceChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         if let appMenu = NSApp.mainMenu?.items.first?.submenu {
-            let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒"), action: #selector(showUnreadReminders), keyEquivalent: "u"); unread.target = self; appMenu.insertItem(unread, at: 1)
+            let unread = NSMenuItem(title: text("Messages", "消息提醒", "消息提醒"), action: #selector(showUnreadReminders), keyEquivalent: "u"); unread.target = self; appMenu.insertItem(unread, at: 1)
         }
         render()
         let refreshTimer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
@@ -288,7 +288,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     @objc private func notificationScreenLocked() { screenLocked = true; AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
     @objc private func notificationScreenUnlocked() { screenLocked = false; render() }
     @objc private func notificationSpaceChanged() { AppNotificationRouter.shared.suspend(); render() }
-    @objc private func showUnreadReminders() { AppNotificationRouter.shared.suspend(); unreadPanel.show(router: .shared, language: language) }
+    @objc private func showUnreadReminders() { AppNotificationRouter.shared.suspend(); messagePanel.show(router: .shared, language: language) }
     private func dismissOutsideClick() {
         if notificationBubble.contains(NSEvent.mouseLocation) { return }
         if notificationBubble.isVisible { AppNotificationRouter.shared.suspend() }
@@ -376,7 +376,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
-        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
+        let unread = NSMenuItem(title: text("Messages", "消息提醒", "消息提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         let floatingToggle = NSMenuItem(title: text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), action: #selector(floatingChanged), keyEquivalent: "")
         floatingToggle.target = self; floatingToggle.state = floating.preferences.enabled ? .on : .off
         menu.insertItem(floatingToggle, at: 2)
@@ -597,7 +597,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
         }
-        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
+        let unread = NSMenuItem(title: text("Messages", "消息提醒", "消息提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         floating.showMenu(menu)
     }
     @objc private func themeChanged(_ sender: NSPopUpButton) { defaults.set(["system", "light", "dark"][sender.indexOfSelectedItem], forKey: "standalone.theme"); render() }
@@ -612,7 +612,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
-        AppNotificationRouter.shared.stop(); unreadPanel.close(); DistributedNotificationCenter.default().removeObserver(self)
+        AppNotificationRouter.shared.stop(); messagePanel.close(); DistributedNotificationCenter.default().removeObserver(self)
         experience?.stop()
         updates?.stop()
         stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil

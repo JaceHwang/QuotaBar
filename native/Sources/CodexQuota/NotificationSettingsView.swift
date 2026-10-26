@@ -25,9 +25,9 @@ import QuotaCore
         let actions = NSStackView(); actions.spacing = 8
         actions.addArrangedSubview(pause)
         actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Preview bubble", "预览气泡", "預覽氣泡"), target: self, action: #selector(previewTapped)))
-        actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Unread reminders", "未读提醒", "未讀提醒"), target: self, action: #selector(unreadTapped)))
+        actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Messages", "消息提醒", "消息提醒"), target: self, action: #selector(unreadTapped)))
         addArrangedSubview(actions)
-        let note = copy.text("Bubbles stay quiet while hidden or locked. Unread reminders are kept for this run only. System Focus does not automatically mute bubbles; use Pause.", "浮窗隐藏或锁屏时不冒泡；未读仅保留本次运行。气泡不自动继承系统免打扰，可使用暂停。", "浮窗隱藏或鎖定時不冒泡；未讀僅保留本次執行。氣泡不自動繼承系統勿擾，可使用暫停。")
+        let note = copy.text("Bubbles stay quiet while hidden or locked. Messages are saved locally. System Focus does not automatically mute bubbles; use Pause.", "浮窗隐藏或锁屏时不冒泡；消息记录保存在本机。气泡不自动继承系统免打扰，可使用暂停。", "浮窗隱藏或鎖定時不冒泡；訊息記錄儲存在本機。氣泡不自動繼承系統勿擾，可使用暫停。")
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(note, size: 11, secondary: true), in: self)
         if !floatingVisible {
             addArrangedSubview(QuotaSettingsStyle.label(copy.text("Enable the floating button to preview a bubble.", "开启悬浮按钮后可预览气泡。", "開啟懸浮按鈕後可預覽氣泡。"), size: 11, secondary: true))

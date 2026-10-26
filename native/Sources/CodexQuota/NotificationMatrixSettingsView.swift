@@ -84,7 +84,7 @@ import QuotaCore
         let actions = NSStackView(); actions.spacing = 8
         pause.target = self; pause.action = #selector(pauseTapped); pause.identifier = .init("notification.pause"); actions.addArrangedSubview(pause)
         actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Preview bubble", "预览气泡", "預覽氣泡"), target: self, action: #selector(previewTapped)))
-        actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Unread reminders", "未读提醒", "未讀提醒"), target: self, action: #selector(unreadTapped)))
+        actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Messages", "消息提醒", "消息提醒"), target: self, action: #selector(unreadTapped)))
         addArrangedSubview(actions)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(copy.text("Pause affects bubbles only. Enabling a channel does not replay past reminders. Mobile setup is on the Mobile Push page.", "暂停仅影响气泡，开启渠道不补发历史提醒。手机推送请在手机推送页配置。", "暫停僅影響氣泡，開啟管道不補發歷史提醒。手機推播請在手機推播頁設定。"), size: 11, secondary: true), in: self)
         status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor; QuotaSettingsStyle.fill(status, in: self)
