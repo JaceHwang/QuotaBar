@@ -25,6 +25,7 @@ internal static class Program {
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
         NotificationMatrixTests.TestPolicyFailureRecovery(app);
         NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
+        NotificationMatrixTests.TestMessageCenterRouting(app);
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
         NotificationMatrixTests.TestDynamicBankProducer(app);

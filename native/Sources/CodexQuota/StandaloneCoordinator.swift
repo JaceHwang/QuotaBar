@@ -144,6 +144,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.dismissOutsideClick() }
         }
         let notificationRouter = AppNotificationRouter.shared
+        if notificationRouter.messageStore == nil { notificationRouter.bindMessageCenter(MessageCenterStore(url: root.appendingPathComponent("message-center.json"))) }
         let hasLegacySettings = ["notifications.presentation", "experience.preferences", "bark.preferences", "updates.reminders"].contains { defaults.object(forKey: $0) != nil } || FileManager.default.fileExists(atPath: root.appendingPathComponent("experience-state.json").path)
         let legacyExperience = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
         let legacyPresentation = notificationRouter.preferences
@@ -183,7 +184,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             return notificationBubble.show(message: message, anchor: anchor, dark: theme == .dark, language: language)
         }
         router.hideBubble = { [weak self] in self?.notificationBubble.dismiss() }
-        router.onUnreadChange = { [weak self] in self?.floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty }
+        router.onUnreadChange = { [weak self] in self?.floating.hasUnread = AppNotificationRouter.shared.messageUnreadCount > 0 }
         notificationBubble.onAction = { router.activate(id: $0, token: $1) }
         notificationBubble.onAcknowledge = { router.dismiss(id: $0, read: true, token: $1) }
         notificationBubble.onInteractionChanged = { router.setInteracting($0) }
@@ -362,7 +363,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         } else { detail.hide() }
         let detailVisible = detail.frame != nil
         AppNotificationRouter.shared.updateEnvironment(canPresent: floating.frame != nil && floating.isOnActiveSpace && !detailVisible && !sleeping && !screenLocked && !notificationDragging && !floatingMenuVisible && !stopping)
-        floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty
+        floating.hasUnread = AppNotificationRouter.shared.messageUnreadCount > 0
         let detailFits = detail.frame.map { frame in NSScreen.screens.contains { $0.visibleFrame.contains(frame) } } ?? false
         let diagnostic = "pid=\(ProcessInfo.processInfo.processIdentifier) mode=standalone phase=\(state.phase.rawValue) has_quota=\(snapshot != nil) host_ui=false status_quota=\(statusDisplay.showsQuotaInformation) floating_visible=\(floating.frame != nil) floating_enabled=\(floating.preferences.enabled) detail_visible=\(detailVisible) detail_fits_screen=\(detailFits)\n"
         try? diagnostic.write(to: root.appendingPathComponent("standalone-state.txt"), atomically: true, encoding: .utf8)
@@ -375,7 +376,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
-        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.unread.count))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
+        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         let floatingToggle = NSMenuItem(title: text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), action: #selector(floatingChanged), keyEquivalent: "")
         floatingToggle.target = self; floatingToggle.state = floating.preferences.enabled ? .on : .off
         menu.insertItem(floatingToggle, at: 2)
@@ -596,7 +597,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
         }
-        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.unread.count))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
+        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         floating.showMenu(menu)
     }
     @objc private func themeChanged(_ sender: NSPopUpButton) { defaults.set(["system", "light", "dark"][sender.indexOfSelectedItem], forKey: "standalone.theme"); render() }

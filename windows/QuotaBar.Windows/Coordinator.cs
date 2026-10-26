@@ -42,7 +42,9 @@ internal sealed class Coordinator : IDisposable {
             m=>m.Kind==ExperienceNotificationKind.Update ? Updates.ReminderValid(m.Id[7..]) : Experience?.Valid(m)==true,
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.Install(); else { OpenExperienceDetail(); if(m.Kind==ExperienceNotificationKind.Bank) detail.FocusBank(); } },
             m=> { if(m.Kind==ExperienceNotificationKind.Update) Updates.ReminderShown(m.Id[7..]); });
+        Notifications.BindMessageCenter(new MessageCenterStore(Path.Combine(root,"message-center.json")));
         Notifications.SystemUpdateRequested=ShowUpdateSettings;
+        Notifications.MessageDetailsRequested=OpenExperienceDetail;
         Mobile=new(barkSecrets??new BarkSecretStore(),barkTransport??new BarkPushClient(),new BarkDeliveryStore(Path.Combine(root,"bark-deliveries.json")),Preferences.Bark,value=> { var updated=Preferences with { Bark=value }; store.Save(updated); Preferences=updated; });
         Notifications.Mobile=Mobile; Mobile.CurrentMessages=()=>Notifications.CurrentMessages.Concat(Updates.CurrentReminder is { } update?new[]{update}:Array.Empty<ExperienceNotification>());
         Mobile.Changed+=()=> { if(!stopping) settings?.UpdateMobileStatus(); };
@@ -53,7 +55,7 @@ internal sealed class Coordinator : IDisposable {
         Experience.Configure();
         Notifications.PresentBubble=m=>floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&notificationBubble.ShowMessage(m,Platform.Bounds(floating),Platform.IsDark(Preferences),Copy,VisualTreeHelper.GetDpi(floating).DpiScaleX);
         Notifications.HideBubble=notificationBubble.Dismiss;
-        Notifications.UnreadChanged=()=>floating.HasUnread=Notifications.Unread.Count>0;
+        Notifications.UnreadChanged=()=> { floating.HasUnread=Notifications.MessageUnreadCount>0;menuKey=null;if(!stopping) UpdateTray(); };
         notificationBubble.ActionRequested=(id,token)=>Notifications.Activate(id,token); notificationBubble.Acknowledged=(id,token)=>Notifications.Dismiss(id,true,token); notificationBubble.InteractionChanged=Notifications.SetInteracting;
         floating.DragStarted+=()=> { notificationDragging=true; Notifications.UpdateEnvironment(false); };
         floating.DragFinished+=()=> { notificationDragging=false; Render(); };
@@ -137,7 +139,7 @@ internal sealed class Coordinator : IDisposable {
         MenuItem Item(string name,Action action) { var i=new MenuItem { Header=name }; i.Click+=(_,_)=>action(); return i; }
         yield return Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail);
         yield return Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
-        yield return Item(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.Unread.Count+")",ShowUnread);
+        yield return Item(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.MessageUnreadCount+")",ShowUnread);
         var floatItem=Item(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕"),()=>SetFloating(!Preferences.FloatingEnabled)); floatItem.IsCheckable=true; floatItem.IsChecked=Preferences.FloatingEnabled; yield return floatItem;
         yield return Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
         yield return Item(copy.Text("Settings…","设置…","設定…"),ShowSettings);
@@ -145,13 +147,13 @@ internal sealed class Coordinator : IDisposable {
     }
     void UpdateTray() {
         var copy=Copy;
-        var key=copy.Language+":"+Preferences.FloatingEnabled+":"+Notifications.Unread.Count;
+        var key=copy.Language+":"+Preferences.FloatingEnabled+":"+Notifications.MessageUnreadCount;
         if(menuKey!=key && tray.ContextMenuStrip?.Visible!=true) {
         var menu=new Forms.ContextMenuStrip();
         menu.Opening+=(_,_)=> { trayMenuOpen=true; Notifications.UpdateEnvironment(false); };
         void Item(string text,Action action) { menu.Items.Add(text,null,(_,_)=>action()); }
         Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail); Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
-        var unreadItem=new Forms.ToolStripMenuItem(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.Unread.Count+")"); unreadItem.Click+=(_,_)=>ShowUnread(); menu.Items.Add(unreadItem);
+        var unreadItem=new Forms.ToolStripMenuItem(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.MessageUnreadCount+")"); unreadItem.Click+=(_,_)=>ShowUnread(); menu.Items.Add(unreadItem);
         var floatItem=new Forms.ToolStripMenuItem(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕")) { Checked=Preferences.FloatingEnabled };
         floatItem.Click+=(_,_)=> { SetFloating(!Preferences.FloatingEnabled); floatItem.Checked=Preferences.FloatingEnabled; }; menu.Items.Add(floatItem);
         Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
@@ -171,7 +173,7 @@ internal sealed class Coordinator : IDisposable {
         if(stopping) return;
         UpdateTray(); floating.Render(Snapshot,State,Preferences,Copy,Platform.IsDark(Preferences)); RenderDetail(); settings?.UpdateStatus();
         Notifications.UpdateEnvironment(floating.IsVisible&&Platform.OnCurrentDesktop(floating)&&!detail.IsVisible&&!sleeping&&!screenLocked&&!notificationDragging&&!floatingMenuOpen&&!trayMenuOpen&&!stopping);
-        floating.HasUnread=Notifications.Unread.Count>0;
+        floating.HasUnread=Notifications.MessageUnreadCount>0;
         WriteDiagnostic();
     }
     void RenderDetail() {

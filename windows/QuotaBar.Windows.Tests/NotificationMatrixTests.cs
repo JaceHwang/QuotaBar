@@ -104,6 +104,34 @@ internal static class NotificationMatrixTests {
    Check(System.IO.File.Exists(path),"successful retry persists policy");
   } finally { System.IO.Directory.Delete(root,true); }
  }
+ public static void TestMessageCenterRouting(System.Windows.Application app) {
+  var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"message-routing-"+Guid.NewGuid());
+  try {
+   using(var owner=new Coordinator(app,root,barkSecrets:new BarkTests.Secrets())) {
+    var p=NotificationPolicyPreferences.AllSelected() with { EnabledChannels=[NotificationChannel.System,NotificationChannel.Mobile] };owner.Notifications.ConfigurePolicy(p);
+    var sends=0;owner.Notifications.SystemDelivery=(_,done)=> { sends++;done(true); };
+    foreach(var category in new[]{NotificationCategory.QuotaExhausted,NotificationCategory.QuotaRecovered,NotificationCategory.QuotaLow,NotificationCategory.BankExpiring72h,NotificationCategory.UpdateAvailable}) {
+     var kind=category==NotificationCategory.UpdateAvailable?ExperienceNotificationKind.Update:category==NotificationCategory.BankExpiring72h?ExperienceNotificationKind.Bank:ExperienceNotificationKind.Recovery;
+     var m=new ExperienceNotification(category.ToString(),kind,"one",category.ToString(),"snapshot",DateTimeOffset.UtcNow,Category:category,ReminderThreshold:category==NotificationCategory.QuotaLow?20:category==NotificationCategory.BankExpiring72h?72:null);
+     // Use the actual router with its delivery-validity seam, independent of quota producer fixtures.
+     using var tray=new System.Windows.Forms.NotifyIcon();using var router=new AppNotificationRouter(tray,_=>true,_=>{},_=>{});
+     router.BindMessageCenter(new MessageCenterStore(System.IO.Path.Combine(root,category+".json")));router.ConfigurePolicy(p);router.SystemDelivery=(_,done)=>done(true);router.Enqueue(m);
+     Check(router.MessageHistory.Count==1&&router.MessageUnreadCount==1&&router.MessageHistory[0].Channels.SetEquals([NotificationChannel.System,NotificationChannel.Mobile]),"every real category captured once");
+     Check(router.MarkMessageRead(router.MessageHistory[0].Key)&&router.MessageUnreadCount==0,"explicit read persists");
+    }
+    using var liveTray=new System.Windows.Forms.NotifyIcon();using var live=new AppNotificationRouter(liveTray,_=>true,_=>{},_=>{});
+    var path=System.IO.Path.Combine(root,"archive.json");live.BindMessageCenter(new MessageCenterStore(path));live.ConfigurePolicy(p with { EnabledChannels=[NotificationChannel.Bubble],BubblePausedUntil=DateTimeOffset.UtcNow.AddHours(1) });
+    live.Enqueue(new("paused",ExperienceNotificationKind.Recovery,"one","paused","",DateTimeOffset.UtcNow,Category:NotificationCategory.QuotaRecovered));Check(live.MessageHistory.Count==1,"pause still archives");
+    live.ConfigurePolicy(p with { EnabledChannels=[NotificationChannel.Mobile] });live.Enqueue(new("mobile",ExperienceNotificationKind.Update,null,"mobile","",DateTimeOffset.UtcNow,Category:NotificationCategory.UpdateAvailable));Check(live.MessageHistory.Count==2,"mobile only archives");
+    live.CancelMessage("mobile");live.Enqueue(new("mobile",ExperienceNotificationKind.Update,null,"later","",DateTimeOffset.UtcNow,ReminderGeneration:"later",Category:NotificationCategory.UpdateAvailable));Check(live.MessageHistory.Count==3,"new generation distinct archive");
+    live.SendTestNotification("example","not history");Check(live.MessageHistory.Count==3,"test excluded");
+    live.ConfigurePolicy(p with { EnabledChannels=[] });live.Enqueue(new("off",ExperienceNotificationKind.Recovery,"one","off","",DateTimeOffset.UtcNow,Category:NotificationCategory.QuotaRecovered));Check(live.MessageHistory.Count==3,"all off excludes");
+    live.CancelAuthenticationEpoch("one");Check(live.MessageHistory.Count==3,"cancel does not delete history");
+    using var restoredTray=new System.Windows.Forms.NotifyIcon();using var restored=new AppNotificationRouter(restoredTray,_=>true,_=>{},_=>{});restored.SystemDelivery=(_,_)=>sends++;restored.BindMessageCenter(new MessageCenterStore(path));restored.UpdateEnvironment(true);Check(restored.MessageUnreadCount==3&&sends==0,"restoration no notification replay");
+    Check(restored.MarkAllMessagesRead()&&new MessageCenterStore(path).UnreadCount==0,"all read restart persisted");
+   }
+  } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
+ }
  public static void TestWarningProducer(System.Windows.Application app) {
   var root=System.IO.Path.Combine(System.IO.Path.GetTempPath(),Guid.NewGuid().ToString());
   try {
@@ -197,6 +225,7 @@ internal static class NotificationMatrixTests {
    }
    Check(System.Linq.Enumerable.SequenceEqual(categories,new[]{NotificationCategory.QuotaLow,NotificationCategory.QuotaLow,NotificationCategory.QuotaExhausted,NotificationCategory.QuotaExhausted}),"producer uses every configured low level and internally rearms");
    Check(levels.SequenceEqual(new[]{20,10}),"actual producer attaches exact low threshold metadata");
+   Check(owner.Notifications.MessageHistory.Any(r=>r.Category==NotificationCategory.QuotaLow)&&owner.Notifications.MessageHistory.Any(r=>r.Category==NotificationCategory.QuotaExhausted),"actual quota producer persists low and depleted business messages");
   } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
  }
  static void TestLowPolicyTransitions(System.Windows.Application app) {
@@ -318,6 +347,7 @@ internal static class NotificationMatrixTests {
    Receive(); Check(systemLevels.Count==0&&transport.Sends==0,"complete empty inventory establishes added hour12 baseline");
    Receive(first); Check(systemLevels.SequenceEqual(new[]{12})&&transport.Sends==0,"hour12 uses exact system mapping rather than legacy24");
    Receive(first,second); Check(systemLevels.Count==1&&transport.Sends==1,"hour24 retains mobile-only mapping");
+   Check(owner.Notifications.MessageHistory.Count==2&&owner.Notifications.MessageHistory.Any(r=>r.Channels.SetEquals([NotificationChannel.System]))&&owner.Notifications.MessageHistory.Any(r=>r.Channels.SetEquals([NotificationChannel.Mobile])),"actual dynamic Bank messages persist exact configured channels");
   } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
  }
  public static void TestUpdateProducer(System.Windows.Application app) {
@@ -330,6 +360,7 @@ internal static class NotificationMatrixTests {
    owner.Updates.Check(true); var end=DateTime.UtcNow.AddSeconds(5);
    while(owner.Updates.Checking&&DateTime.UtcNow<end) { System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle); System.Threading.Thread.Sleep(10); }
    Check(!owner.Updates.Checking&&categories.SequenceEqual(new[]{NotificationCategory.UpdateAvailable}),"manual check uses matrix while legacy reminder and automatic checks are off");
+   Check(owner.Notifications.MessageHistory.Count==1&&owner.Notifications.MessageHistory[0].Category==NotificationCategory.UpdateAvailable,"actual update producer persists message history");
   } finally { if(System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root,true); }
  }
  sealed class Feed : System.Net.Http.HttpMessageHandler {

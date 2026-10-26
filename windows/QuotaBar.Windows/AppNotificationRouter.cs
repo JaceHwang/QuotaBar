@@ -26,6 +26,57 @@ internal sealed class AppNotificationRouter : IDisposable {
     public string? PolicyFailure { get; private set; }
     readonly Dictionary<BarkEventIdentity,NotificationDeliverySnapshot> snapshots=[];
     readonly Queue<BarkEventIdentity> snapshotOrder=[];
+    public MessageCenterStore? MessageStore { get; private set; }
+    string? currentMessageEpoch;
+    public string? CurrentMessageEpoch { get=>currentMessageEpoch; set { if(currentMessageEpoch==value) return;currentMessageEpoch=value;MessageChanged(); } }
+    public IReadOnlyList<MessageCenterRecord> MessageHistory=>MessageStore?.Records??[];
+    public int MessageUnreadCount=>MessageStore?.UnreadCount??Unread.Count;
+    public string? MessageStorageError=>MessageStore?.Error;
+    public bool MessageHasUnpersistedMessages=>MessageStore?.HasUnpersistedMessages??false;
+    public bool IsMessagePersisted(MessageCenterKey key)=>MessageStore?.IsPersisted(key)??false;
+    public event Action? MessageCenterChanged;
+    public Action? MessageDetailsRequested;
+    void MessageChanged() { UnreadChanged?.Invoke();MessageCenterChanged?.Invoke(); }
+    public void BindMessageCenter(MessageCenterStore store) {
+        MessageStore=store;
+        var active=messages.Values.Where(m=>valid(m)&&!previews.Contains(m.Id)).Select(MessageRecord).OfType<MessageCenterRecord>().ToArray();
+        if(active.Length>0) store.Append(active);MessageChanged();
+    }
+    MessageCenterRecord? MessageRecord(ExperienceNotification message) {
+        if(message.Kind==ExperienceNotificationKind.Test) return null;
+        var category=message.Category??(message.Kind==ExperienceNotificationKind.Bank?NotificationCategory.BankExpiring72h:message.Kind==ExperienceNotificationKind.Update?NotificationCategory.UpdateAvailable:NotificationCategory.QuotaRecovered);
+        HashSet<NotificationChannel> channels=[];
+        if(message.Category!=null) {
+            var threshold=message.ReminderThreshold??message.Warning?.Threshold??message.BankEvents?.FirstOrDefault()?.Stage;
+            foreach(var channel in Enum.GetValues<NotificationChannel>()) if(NotificationPolicy.Decision(category,channel,PolicyPreferences,DateTimeOffset.UtcNow,threshold) is NotificationDecision.Allowed or NotificationDecision.Paused) channels.Add(channel);
+        } else {
+            if(preferences.UsesBubble) channels.Add(NotificationChannel.Bubble);if(preferences.UsesSystem) channels.Add(NotificationChannel.System);if(Mobile?.Preferences.Enabled==true) channels.Add(NotificationChannel.Mobile);
+        }
+        if(channels.Count==0) return null;
+        return new(new(message.Id,message.ReminderGeneration,message.Epoch),category,message.Title,message.Body,message.CreatedAt.ToUnixTimeMilliseconds(),consumed.Contains(message.Id)?DateTimeOffset.UtcNow.ToUnixTimeMilliseconds():null,channels);
+    }
+    void CaptureMessage(ExperienceNotification message) { if(MessageStore is {} store&&MessageRecord(message) is {} row) { store.Append(row);MessageChanged(); } }
+    void SaveLiveRead(ExperienceNotification message) { if(message.Kind!=ExperienceNotificationKind.Test&&!previews.Contains(message.Id)) MessageStore?.MarkRead(new(message.Id,message.ReminderGeneration,message.Epoch),DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); }
+    public bool MarkMessageRead(MessageCenterKey key) {
+        var saved=MessageStore?.MarkRead(key,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())??false;
+        if(saved&&messages.TryGetValue(key.Id,out var live)&&live.ReminderGeneration==key.Generation&&live.Epoch==key.Epoch) {
+            consumed.Add(key.Id);var active=state.ActiveId==key.Id;state.Dismiss(key.Id,true);if(active) { HideBubble?.Invoke();bubbleTimer.Stop(); }
+        }
+        MessageChanged();return saved;
+    }
+    public bool MarkAllMessagesRead() {
+        var saved=MessageStore?.MarkAllRead(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())??false;
+        if(saved) {
+            var keys=MessageHistory.Select(r=>r.Key).ToHashSet();foreach(var live in messages.Values) if(keys.Contains(new(live.Id,live.ReminderGeneration,live.Epoch))) { consumed.Add(live.Id);state.Dismiss(live.Id,true); }
+            HideBubble?.Invoke();bubbleTimer.Stop();
+        }
+        MessageChanged();return saved;
+    }
+    public bool RetryMessageStorage() { var saved=MessageStore?.Reload()??false;MessageChanged();return saved; }
+    public bool OpenMessageLatest(MessageCenterRecord record) {
+        var open=record.Category==NotificationCategory.UpdateAvailable?SystemUpdateRequested:MessageDetailsRequested;
+        if(open is null) return false;open();MarkMessageRead(record.Key);return true;
+    }
     public bool PolicyError { get; private set; }
     public Action? PolicyChanged;
     public bool LoadPolicy(NotificationPolicyStore store,LegacyNotificationPreferences? legacy) {
@@ -113,6 +164,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     void Enqueue(ExperienceNotification input,bool forceBubble) {
         var message=input with { DeliveryToken=Guid.NewGuid().ToString() };
         if(stopped||messages.ContainsKey(message.Id)||!forceBubble&&!valid(message)||!message.Valid(DateTimeOffset.UtcNow)) return;
+        if(!forceBubble) CaptureMessage(message);
         messages[message.Id]=message;
         if(messages.Count>128) { var oldest=messages.Values.Where(m=>m.Id!=state.ActiveId&&m.Id!=nativeActive?.Id).OrderBy(m=>m.CreatedAt).First(); messages.Remove(oldest.Id); receipted.Remove(oldest.Id); semanticReceipts.Remove(new(oldest.Id,oldest.ReminderGeneration)); }
         Snapshot(message);
@@ -145,12 +197,12 @@ internal sealed class AppNotificationRouter : IDisposable {
     public void Suspend() { previews.Clear(); state.Suspend(); bubbleTimer.Stop(); HideBubble?.Invoke(); }
     public void Dismiss(string id,bool read,string? token=null) {
         if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return;
-        if(read) consumed.Add(id);
-        var active=state.ActiveId==id; state.Dismiss(id,read); previews.Remove(id); if(active) { bubbleTimer.Stop(); HideBubble?.Invoke(); } UnreadChanged?.Invoke(); Dispatch();
+        if(read) { if(messages.TryGetValue(id,out var message)) SaveLiveRead(message);consumed.Add(id); }
+        var active=state.ActiveId==id; state.Dismiss(id,read); previews.Remove(id); if(active) { bubbleTimer.Stop(); HideBubble?.Invoke(); } MessageChanged(); Dispatch();
     }
     public Action? SystemUpdateRequested;
     public void ActivateLatest(string id,string? token=null) { if(consumed.Contains(id)||!messages.TryGetValue(id,out var m)||token!=null&&token!=m.DeliveryToken) return; if(m.Kind==ExperienceNotificationKind.Update) { if(valid(m)) { Dismiss(id,true,token); SystemUpdateRequested?.Invoke(); } return; } Dismiss(id,true); clicked(m); }
-    public void Activate(string id,string? token=null) { if(consumed.Contains(id)) return; if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return; if(messages.TryGetValue(id,out var message)&&(valid(message)||previews.Contains(id))) { consumed.Add(id); Receipt(message); Suspend(); state.Dismiss(id,true); UnreadChanged?.Invoke(); clicked(message); } else Dismiss(id,true); }
+    public void Activate(string id,string? token=null) { if(consumed.Contains(id)) return; if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return; if(messages.TryGetValue(id,out var message)&&(valid(message)||previews.Contains(id))) { SaveLiveRead(message);consumed.Add(id); Receipt(message); Suspend(); state.Dismiss(id,true); MessageChanged(); clicked(message); } else Dismiss(id,true); }
     void DispatchSystem() {
         if(stopped||nativeTimeout.IsEnabled) return;
         while(systemQueue.Next(DateTimeOffset.UtcNow) is { } next) {

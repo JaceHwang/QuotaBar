@@ -15,6 +15,74 @@ import QuotaCore
     private var policyStore: NotificationPolicyStore?
     private var snapshots: [BarkEventIdentity: NotificationDeliverySnapshot] = [:]
     private var snapshotOrder: [BarkEventIdentity] = []
+    private(set) var messageStore: MessageCenterStore?
+    private var messageObservers: [UUID: () -> Void] = [:]
+    var currentMessageEpoch: String? { didSet { if oldValue != currentMessageEpoch { messageChanged() } } }
+    var messageHistory: [MessageCenterRecord] { messageStore?.records ?? [] }
+    var messageUnreadCount: Int { messageStore?.unreadCount ?? unread.count }
+    var messageStorageError: String? { messageStore?.error }
+    var messageHasUnpersistedMessages: Bool { messageStore?.hasUnpersistedMessages ?? false }
+    func isMessagePersisted(_ key: MessageCenterKey) -> Bool { messageStore?.isPersisted(key) ?? false }
+    func observeMessages(_ change: @escaping () -> Void) -> UUID { let id = UUID(); messageObservers[id] = change; return id }
+    func removeMessageObserver(_ id: UUID) { messageObservers.removeValue(forKey: id) }
+    private func messageChanged() { onUnreadChange?(); for change in Array(messageObservers.values) { change() } }
+    func bindMessageCenter(_ store: MessageCenterStore) {
+        messageStore = store
+        let active = deliveries.values.filter { $0.valid() && !previews.contains($0.message.id) }.compactMap { messageRecord($0.message) }
+        if !active.isEmpty { _ = store.append(active) }
+        messageChanged()
+    }
+    private func messageRecord(_ message: ExperienceNotification) -> MessageCenterRecord? {
+        guard message.kind != .test else { return nil }
+        let category = message.category ?? (message.kind == .bank ? .bankExpiring72h : message.kind == .update ? .updateAvailable : .quotaRecovered)
+        let channels: Set<NotificationChannel>
+        if message.category != nil {
+            channels = Set(NotificationChannel.allCases.filter {
+                let decision = NotificationPolicy.decision(category: category, channel: $0, preferences: policyPreferences, now: Date(), threshold: message.reminderThreshold)
+                return decision == .allowed || decision == .paused
+            })
+        } else {
+            var selected: Set<NotificationChannel> = []
+            if preferences.mode.usesBubble { selected.insert(.bubble) }; if preferences.mode.usesSystem { selected.insert(.system) }
+            if bark?.preferences.enabled == true { selected.insert(.mobile) }; channels = selected
+        }
+        let time = message.createdAt.timeIntervalSince1970 * 1000
+        guard !channels.isEmpty, time.isFinite, time >= 0, time <= 253402300799999 else { return nil }
+        return MessageCenterRecord(key: MessageCenterKey(id: message.id, generation: message.reminderGeneration, epoch: message.epoch), category: category, title: message.title, body: message.body, createdAtMilliseconds: Int64(time), readAtMilliseconds: consumed.contains(message.id) ? Int64(Date().timeIntervalSince1970 * 1000) : nil, channels: channels)
+    }
+    private func captureMessage(_ message: ExperienceNotification) {
+        guard let store = messageStore, let row = messageRecord(message) else { return }
+        _ = store.append(row); messageChanged()
+    }
+    private func saveLiveRead(_ message: ExperienceNotification) {
+        guard message.kind != .test, !previews.contains(message.id) else { return }
+        _ = messageStore?.markRead(MessageCenterKey(id: message.id, generation: message.reminderGeneration, epoch: message.epoch), atMilliseconds: Int64(Date().timeIntervalSince1970 * 1000))
+    }
+    @discardableResult func markMessageRead(_ key: MessageCenterKey) -> Bool {
+        let saved = messageStore?.markRead(key, atMilliseconds: Int64(Date().timeIntervalSince1970 * 1000)) ?? false
+        if saved, let live = deliveries[key.id]?.message, live.reminderGeneration == key.generation, live.epoch == key.epoch {
+            consumed.insert(key.id); let active = state.activeID == key.id; state.dismiss(id: key.id, read: true)
+            if active { hideBubble?(); timer?.invalidate(); timer = nil }
+        }
+        messageChanged(); return saved
+    }
+    @discardableResult func markAllMessagesRead() -> Bool {
+        let saved = messageStore?.markAllRead(atMilliseconds: Int64(Date().timeIntervalSince1970 * 1000)) ?? false
+        if saved {
+            let keys = Set(messageHistory.map(\.key))
+            for live in deliveries.values where live.message.kind != .test {
+                let key = MessageCenterKey(id: live.message.id, generation: live.message.reminderGeneration, epoch: live.message.epoch)
+                if keys.contains(key) { consumed.insert(live.message.id); state.dismiss(id: live.message.id, read: true) }
+            }
+            hideBubble?(); timer?.invalidate(); timer = nil
+        }
+        messageChanged(); return saved
+    }
+    @discardableResult func retryMessageStorage() -> Bool { let saved = messageStore?.reload() ?? false; messageChanged(); return saved }
+    @discardableResult func openMessageLatest(_ record: MessageCenterRecord) -> Bool {
+        let open = record.category == .updateAvailable ? openUpdates : openDetails
+        guard let open else { return false }; open(); _ = markMessageRead(record.key); return true
+    }
     var policyError = false
     var onPolicyChange: (() -> Void)?
     @discardableResult func loadPolicy(store: NotificationPolicyStore, legacy: LegacyNotificationPreferences?) -> Bool {
@@ -156,6 +224,7 @@ import QuotaCore
     func enqueue(_ input: ExperienceNotification, valid: @escaping () -> Bool, failed: @escaping () -> Void, shown: @escaping () -> Void = {}, action: (() -> Void)? = nil, forceBubble: Bool = false) {
         var m = input; m.deliveryToken = UUID().uuidString
         guard !stopped, valid(), m.valid(now: Date()) else { return }
+        if !forceBubble { captureMessage(m) }
         let identity = BarkEventIdentity(id: m.id, generation: m.reminderGeneration)
         let sharedShown = { [weak self] in
             guard let self, !self.sharedReceived.contains(identity), valid() else { return }
@@ -226,11 +295,11 @@ import QuotaCore
     func setInteracting(_ value: Bool) { state.setInteracting(value, now: Date()) }
     func dismiss(id: String, read: Bool, token: String? = nil) {
         guard token == nil || deliveries[id]?.message.deliveryToken == token else { return }
-        if read { consumed.insert(id) }
+        if read { if let message = deliveries[id]?.message { saveLiveRead(message) }; consumed.insert(id) }
         let active = state.activeID == id
         state.dismiss(id: id, read: read); previews.remove(id)
         if active { hideBubble?(); timer?.invalidate(); timer = nil }
-        onUnreadChange?(); dispatch()
+        messageChanged(); dispatch()
     }
     func suspend() { previews = []; state.suspend(); timer?.invalidate(); timer = nil; hideBubble?() }
     var openUpdates: (() -> Void)?
@@ -242,8 +311,8 @@ import QuotaCore
     func activate(id: String, token: String? = nil) {
         guard !consumed.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken else { return }
         guard d.valid() else { dismiss(id: id, read: true, token: token); return }
-        consumed.insert(id)
-        receipt(id); suspend(); state.dismiss(id: id, read: true); onUnreadChange?()
+        saveLiveRead(d.message); consumed.insert(id)
+        receipt(id); suspend(); state.dismiss(id: id, read: true); messageChanged()
         if let action = d.action { action() }
         else if d.message.kind == .bank { (openBank ?? openDetails)?() }
         else { openDetails?() }

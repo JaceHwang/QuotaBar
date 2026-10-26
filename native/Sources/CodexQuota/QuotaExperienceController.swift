@@ -37,6 +37,7 @@ import QuotaCore
         warningEngine = QuotaWarningEngine(state: warningStore.load())
         let state = store.load(); engine = QuotaExperienceEngine(state: state, suppressFirstBank: store.corrupted)
         super.init()
+        self.router.currentMessageEpoch = state.epoch
         let prefs = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
         displayPreferences = prefs; configureDetection(); persist()
         let priorPolicyChange = self.router.onPolicyChange
@@ -53,7 +54,7 @@ import QuotaCore
     }
     func resetBaseline() { router.cancelAuthenticationEpoch(engine.state.epoch); engine.resetBaseline(); warningEngine.resetBaseline(); lastObservation = nil; onCancelCelebration?() }
     func accountCleared() {
-        router.cancelAuthenticationEpoch(engine.state.epoch); engine.rotateEpoch(); warningEngine = QuotaWarningEngine(); sequence = 0; lastObservation = nil
+        router.cancelAuthenticationEpoch(engine.state.epoch); engine.rotateEpoch(); router.currentMessageEpoch = engine.state.epoch; warningEngine = QuotaWarningEngine(); sequence = 0; lastObservation = nil
         onCancelCelebration?(); persist()
     }
     func receive(_ quota: AllowanceSnapshot, bank: BankFieldState) {

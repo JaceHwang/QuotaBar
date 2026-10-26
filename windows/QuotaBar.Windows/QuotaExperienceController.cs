@@ -19,7 +19,7 @@ internal sealed class QuotaExperienceController {
         _=>""
     };
     public QuotaExperienceController(Coordinator owner,string root) {
-        this.owner=owner; warningStore=new(Path.Combine(root,"warning-state.json")); warningEngine=new(warningStore.Load()); store=new(Path.Combine(root,"experience-state.json")); var state=store.Load(); engine=new(state,store.Corrupted); engine.Configure(owner.Preferences.Experience); Persist();
+        this.owner=owner; warningStore=new(Path.Combine(root,"warning-state.json")); warningEngine=new(warningStore.Load()); store=new(Path.Combine(root,"experience-state.json")); var state=store.Load(); engine=new(state,store.Corrupted); engine.Configure(owner.Preferences.Experience); owner.Notifications.CurrentMessageEpoch=state.Epoch; Persist();
     }
     ExperienceCopy Copy=>new(owner.Preferences.Language);
     bool Persist() {
@@ -44,7 +44,7 @@ internal sealed class QuotaExperienceController {
         engine.Configure(p); if(!engine.Preferences.Celebration) owner.CancelCelebration(); }
     public void ResetBaseline() { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.ResetBaseline(); warningEngine.ResetBaseline(); lastObservation=null; owner.CancelCelebration(); }
     public void ClearAccount() {
-        owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.RotateEpoch(); warningEngine=new(); sequence=0; lastObservation=null; owner.CancelCelebration(); Persist();
+        owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.RotateEpoch(); owner.Notifications.CurrentMessageEpoch=engine.State.Epoch; warningEngine=new(); sequence=0; lastObservation=null; owner.CancelCelebration(); Persist();
     }
     public void Receive(QuotaObservation observation) {
         Configure();
