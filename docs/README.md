@@ -33,3 +33,5 @@
 - [角色提醒与手机推送发布](releases/character-reminders.md)：本轮授权、双端来源、原生验证及正式资产进度。
 
 - [应用内下载安装](IN_APP_UPDATES.zh-CN.md)：开发候选的显式点击、官方资产校验、原生助手、回退和首版手动安装边界。
+
+- [消息提醒验收](MESSAGE_CENTER_VALIDATION.md)：C列表详情、自动已读、本地历史、双端候选和实机验收边界。
