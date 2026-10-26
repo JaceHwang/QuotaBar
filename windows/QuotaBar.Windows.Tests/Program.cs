@@ -26,6 +26,7 @@ internal static class Program {
         NotificationMatrixTests.TestPolicyFailureRecovery(app);
         NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
         NotificationMatrixTests.TestMessageCenterRouting(app);
+        MessageCenterNativeTests.Run(app);
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
         NotificationMatrixTests.TestDynamicBankProducer(app);

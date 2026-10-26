@@ -16,7 +16,7 @@ internal sealed class Coordinator : IDisposable {
     readonly FloatingWindow floating=new();
     readonly DetailWindow detail=new();
     readonly CharacterNotificationBubble notificationBubble=new();
-    NotificationUnreadWindow? unreadWindow;
+    MessageCenterWindow? messageWindow;
     bool notificationDragging,screenLocked,trayMenuOpen;
     readonly DetailInteractionState interaction=new();
     readonly TrayClickGate trayClickGate=new();
@@ -139,7 +139,7 @@ internal sealed class Coordinator : IDisposable {
         MenuItem Item(string name,Action action) { var i=new MenuItem { Header=name }; i.Click+=(_,_)=>action(); return i; }
         yield return Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail);
         yield return Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
-        yield return Item(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.MessageUnreadCount+")",ShowUnread);
+        yield return Item(copy.Text("Messages","消息提醒","訊息提醒")+" ("+Notifications.MessageUnreadCount+")",ShowUnread);
         var floatItem=Item(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕"),()=>SetFloating(!Preferences.FloatingEnabled)); floatItem.IsCheckable=true; floatItem.IsChecked=Preferences.FloatingEnabled; yield return floatItem;
         yield return Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
         yield return Item(copy.Text("Settings…","设置…","設定…"),ShowSettings);
@@ -153,7 +153,7 @@ internal sealed class Coordinator : IDisposable {
         menu.Opening+=(_,_)=> { trayMenuOpen=true; Notifications.UpdateEnvironment(false); };
         void Item(string text,Action action) { menu.Items.Add(text,null,(_,_)=>action()); }
         Item(copy.Text("Quota details","额度详情","額度詳情"),ToggleTrayDetail); Item(copy.Text("Refresh","刷新","重新整理"),Refresh);
-        var unreadItem=new Forms.ToolStripMenuItem(copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+Notifications.MessageUnreadCount+")"); unreadItem.Click+=(_,_)=>ShowUnread(); menu.Items.Add(unreadItem);
+        var unreadItem=new Forms.ToolStripMenuItem(copy.Text("Messages","消息提醒","訊息提醒")+" ("+Notifications.MessageUnreadCount+")"); unreadItem.Click+=(_,_)=>ShowUnread(); menu.Items.Add(unreadItem);
         var floatItem=new Forms.ToolStripMenuItem(copy.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕")) { Checked=Preferences.FloatingEnabled };
         floatItem.Click+=(_,_)=> { SetFloating(!Preferences.FloatingEnabled); floatItem.Checked=Preferences.FloatingEnabled; }; menu.Items.Add(floatItem);
         Item(copy.Text("Check for updates…","检查更新…","檢查更新…"),()=> { ShowSettings(); Updates.Check(true); });
@@ -247,20 +247,20 @@ internal sealed class Coordinator : IDisposable {
         try { File.WriteAllText(Path.Combine(root,"standalone-state.txt"),$"pid={Environment.ProcessId} mode=standalone phase={State.Phase} has_quota={Snapshot is not null} host_ui=false floating_visible={floating.IsVisible} floating_enabled={Preferences.FloatingEnabled} detail_visible={detail.IsVisible}\n"); }
         catch(IOException) { }
     }
-    public void ShowUnread() { Notifications.Suspend(); unreadWindow?.Close(); unreadWindow=new(Notifications,Copy,Platform.IsDark(Preferences)); unreadWindow.Show(); }
+    public void ShowUnread() { Notifications.Suspend(); if(messageWindow is { IsVisible:true }) { messageWindow.Activate(); return; } var window=new MessageCenterWindow(Notifications,Copy,Platform.IsDark(Preferences)); messageWindow=window; window.Closed+=(_,_)=> { if(ReferenceEquals(messageWindow,window)) messageWindow=null; }; window.Show(); }
     void SessionChanged(object sender,SessionSwitchEventArgs e) { app.Dispatcher.BeginInvoke(()=> { if(e.Reason==SessionSwitchReason.SessionLock) { screenLocked=true; Notifications.UpdateEnvironment(false); } else if(e.Reason==SessionSwitchReason.SessionUnlock) { screenLocked=false; Render(); } }); }
     void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) { Experience.ResetBaseline(); Notifications.UpdateEnvironment(false); } if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
     void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); }); }
     void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(()=> { Notifications.Suspend(); Render(); }); }
     void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(()=> { Refresh(); Updates.Check(); }); }
     public async void Quit() {
-        if(stopping) return; stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); unreadWindow?.Close(); Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
+        if(stopping) return; stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); messageWindow?.Close(); Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();
         await Updates.Installer.Operation.WaitForCleanup();
         ShutdownDiagnostic("runtime-disposing"); if(runtime is not null) await runtime.DisposeAsync(); ShutdownDiagnostic("runtime-disposed"); app.Shutdown();
     }
     void ShutdownDiagnostic(string stage) { try { File.WriteAllText(Path.Combine(root,"shutdown-state.txt"),$"pid={Environment.ProcessId} stage={stage}\n"); } catch(IOException) { } }
     public void Dispose() {
-        stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); unreadWindow?.Close(); Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
+        stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); messageWindow?.Close(); Updates.Dispose(); tick.Stop(); pointer.Stop(); outside?.Dispose(); tray.Dispose(); trayIcon?.Dispose(); job.Dispose();
         SystemEvents.SessionSwitch-=SessionChanged; SystemEvents.PowerModeChanged-=PowerChanged; SystemEvents.UserPreferenceChanged-=ThemeChanged; SystemEvents.DisplaySettingsChanged-=DisplayChanged;
         System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged-=NetworkChanged;
     }

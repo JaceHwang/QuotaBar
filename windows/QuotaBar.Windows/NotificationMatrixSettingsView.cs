@@ -58,7 +58,7 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   var actions=new WrapPanel();
   pause=Ui.Button("",()=> { var p=owner.Notifications.PolicyPreferences; owner.Notifications.ConfigurePolicy(p with { BubblePausedUntil=p.BubblePausedUntil>DateTimeOffset.UtcNow?null:DateTimeOffset.UtcNow.AddHours(1) }); Refresh(); }); pause.Tag="notification.pause"; actions.Children.Add(pause);
   actions.Children.Add(Ui.Button(copy.Text("Preview bubble","预览气泡","預覽氣泡"),()=> { var m=new ExperienceNotification("preview-"+Guid.NewGuid(),ExperienceNotificationKind.Test,null,copy.Text("Example notification","示例通知","範例通知"),copy.Text("Example only. Quota and reminder history are unchanged.","仅为示例，不改变真实额度及提醒记录。","僅為範例，不改變真實額度及提醒記錄。"),DateTimeOffset.UtcNow); if(!owner.Notifications.Preview(m)) status.Text=copy.Text("Enable the floating button and close details to preview.","请开启悬浮按钮并收起详情后预览。","請開啟懸浮按鈕並收起詳情後預覽。"); }));
-  actions.Children.Add(Ui.Button(copy.Text("Unread reminders","未读提醒","未讀提醒"),owner.ShowUnread)); Children.Add(actions);
+  actions.Children.Add(Ui.Button(copy.Text("Messages","消息提醒","訊息提醒"),owner.ShowUnread)); Children.Add(actions);
   var footer=Ui.Text(copy.Text("Pause affects bubbles only. Enabling a channel does not replay past reminders. Configure mobile push on its settings page.","暂停仅影响气泡，开启渠道不补发历史提醒。手机推送请在手机推送页配置。","暫停僅影響氣泡，開啟管道不補發歷史提醒。手機推播請在手機推播頁設定。"),11,muted); footer.TextWrapping=TextWrapping.Wrap; footer.Margin=new Thickness(0,8,0,8); Children.Add(footer);
   Children.Add(status);
   if(!owner.Preferences.FloatingEnabled) Children.Add(Ui.Button(copy.Text("Enable floating button","开启悬浮按钮","開啟懸浮按鈕"),()=>owner.Save(owner.Preferences with { FloatingEnabled=true })));
