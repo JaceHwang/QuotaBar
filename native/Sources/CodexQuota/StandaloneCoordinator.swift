@@ -6,7 +6,7 @@ nonisolated(unsafe) private var standaloneSignalWriteFD: Int32 = -1
 
 /// Owns only the application's status item and official runtime; never discovers host windows.
 @MainActor
-final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
+final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let detail = QuotaDetailPanel()
     private let notificationBubble = CharacterNotificationBubble()
     private let messagePanel = MessageCenterPanel()
@@ -28,6 +28,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var updates: QuotaUpdateController?
     private var bark: BarkNotificationController?
     private var settings: NSWindow?
+    private var settingsUsesDock = false
     private var statusLabel: NSTextField?
     private weak var accountIdentityLabel: NSTextField?
     private weak var accountPlanLabel: NSTextField?
@@ -413,13 +414,31 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func showSettings() {
-        if let settings { settings.makeKeyAndOrderFront(nil); updates?.onChange?(); NSApp.activate(ignoringOtherApps: true); return }
+        settingsUsesDock = true
+        NSApp.setActivationPolicy(.regular)
+        if let settings {
+            if settings.isMiniaturized { settings.deminiaturize(nil) }
+            settings.makeKeyAndOrderFront(nil); updates?.onChange?(); NSApp.activate(ignoringOtherApps: true); return
+        }
         let window = makeSettingsWindow()
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
+    }
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === settings else { return }
+        settings = nil; settingsShell = nil
+        guard settingsUsesDock else { return }
+        settingsUsesDock = false
+        // Coalesce close/recreate operations (language changes or account settings)
+        // so rebuilding an open settings window does not flash its Dock icon.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.settings == nil, !self.settingsUsesDock, !self.stopping else { return }
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
     func makeSettingsWindow() -> NSWindow {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定"); window.isReleasedWhenClosed = false
+        window.delegate = self
         window.minSize = NSSize(width: 840, height: 560)
         func column() -> NSStackView { QuotaSettingsStyle.column(22) }
         func button(_ title: String, _ action: Selector) -> NSButton { QuotaSettingsStyle.button(title, target: self, action: action) }
