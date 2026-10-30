@@ -32,7 +32,11 @@ import XCTest
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
         XCTAssertFalse(window.isMiniaturized); XCTAssertTrue(window.isVisible)
-        window.close(); RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        window.close()
+        let closeDeadline = Date().addingTimeInterval(5)
+        while NSApp.activationPolicy() != .accessory && Date() < closeDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
         XCTAssertEqual(NSApp.activationPolicy(), .accessory, "closing settings hides Dock again")
         XCTAssertTrue(coordinator.applicationShouldHandleReopen(NSApp, hasVisibleWindows: true))
         XCTAssertEqual(NSApp.activationPolicy(), .regular)
@@ -45,7 +49,11 @@ import XCTest
         RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         XCTAssertEqual(NSApp.activationPolicy(), .regular, "queued close must not hide a reopened settings Dock entry")
         let replacement = try XCTUnwrap(NSApp.windows.first { $0 !== window && $0 !== fresh && $0.delegate === coordinator && $0.isVisible })
-        replacement.close(); RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        replacement.close()
+        let finalCloseDeadline = Date().addingTimeInterval(5)
+        while NSApp.activationPolicy() != .accessory && Date() < finalCloseDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
         XCTAssertEqual(NSApp.activationPolicy(), .accessory)
     }
 }
