@@ -36,6 +36,12 @@ internal static class FloatingControlsTests {
    floating.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice,0,MouseButton.Left) { RoutedEvent=Mouse.MouseUpEvent });Pump();
    Check(events.SequenceEqual(new[]{"position","finished"}),"save final position before capture-loss finish, exactly once: "+string.Join(",",events));
    Check((saved-expected).Length<2&&(Platform.Bounds(floating).Location-expected).Length<2&&clicks==0,"release/refresh preserves new position without primary click");
+   events.Clear();floating.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice,0,MouseButton.Left) { RoutedEvent=Mouse.MouseDownEvent });
+   typeof(FloatingWindow).GetField("dragging",BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(floating,true);
+   Platform.Place(floating,new Point(340,270));expected=Platform.Bounds(floating).Location;floating.ReleaseMouseCapture();Pump();
+   Check(events.SequenceEqual(new[]{"position","finished"})&&(saved-expected).Length<2&&clicks==0,"unexpected capture loss persists position without click");
+   events.Clear();floating.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice,0,MouseButton.Left) { RoutedEvent=Mouse.MouseDownEvent });floating.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice,0,MouseButton.Left) { RoutedEvent=Mouse.MouseUpEvent });
+   Check(events.Count==0&&clicks==1,"ordinary click stays separate from dragging");
   } finally { floating.Close(); }
   var root=Path.Combine(Path.GetTempPath(),"floating-settings-"+Guid.NewGuid());
   using(var owner=new Coordinator(app,root)) {

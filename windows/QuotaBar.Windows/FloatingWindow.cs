@@ -39,15 +39,20 @@ internal sealed class FloatingWindow : Window {
             if(!dragging && delta.Length<4*VisualTreeHelper.GetDpi(this).DpiScaleX) return;
             if(!dragging) DragStarted?.Invoke(); CancelCelebration(); dragging=true; Cursor=Cursors.SizeAll; Platform.Place(this,saved+delta);
         };
-        MouseLeftButtonUp+=(_,e)=> {
-            if(down is null) return;
-            var wasDragging=dragging;
-            ReleaseMouseCapture(); down=null; Cursor=Cursors.Hand;
-            if(wasDragging) PositionChanged?.Invoke(Platform.Bounds(this).Location); else Primary?.Invoke();
-            dragging=false; if(wasDragging) DragFinished?.Invoke(); e.Handled=true;
-        };
-        LostMouseCapture+=(_,_)=> { var was=dragging; down=null; dragging=false; Cursor=Cursors.Hand; if(was) DragFinished?.Invoke(); };
+        MouseLeftButtonUp+=(_,e)=> { if(down is null) return; FinishPointer(true);e.Handled=true; };
+        LostMouseCapture+=(_,_)=>FinishPointer(false);
     }
+    void FinishPointer(bool allowClick) {
+        if(down is null) return;
+        var wasDragging=dragging;
+        var finalPosition=wasDragging?Platform.Bounds(this).Location:(Point?)null;
+        // Clear state first: ReleaseMouseCapture raises LostMouseCapture synchronously.
+        down=null;origin=null;dragging=false;Cursor=Cursors.Hand;
+        if(finalPosition is {} position) PositionChanged?.Invoke(position);
+        if(IsMouseCaptured) ReleaseMouseCapture();
+        if(wasDragging) DragFinished?.Invoke();else if(allowClick) Primary?.Invoke();
+    }
+
     public void Render(QuotaSnapshot? quota,RefreshState state,Preferences preferences,Copy copy,bool dark) {
         if(!preferences.FloatingEnabled) { HideFloat(); return; }
         var fg=Ui.Foreground(dark);
@@ -87,5 +92,5 @@ internal sealed class FloatingWindow : Window {
             Platform.Place(this,new(preferences.FloatingX??area.X+area.Width-Width-24,preferences.FloatingY??area.Y+24));
         }
     }
-    public void HideFloat() { CancelCelebration(); close.Visibility=Visibility.Hidden; down=null; dragging=false; if(IsMouseCaptured) ReleaseMouseCapture(); Hide(); }
+    public void HideFloat() { FinishPointer(false); CancelCelebration(); close.Visibility=Visibility.Hidden; Hide(); }
 }
