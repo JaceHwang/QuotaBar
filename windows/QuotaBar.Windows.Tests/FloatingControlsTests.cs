@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +14,8 @@ using System.Windows.Threading;
 using QuotaBar.Core;
 using QuotaBar.Windows;
 internal static class FloatingControlsTests {
+ [StructLayout(LayoutKind.Sequential)] struct NativePoint { public int X,Y; public NativePoint(int x,int y) { X=x;Y=y; } }
+ [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(NativePoint point);
  static void Check(bool v,string s) { if(!v) throw new Exception("floating controls: "+s); }
  static IEnumerable<DependencyObject> Tree(DependencyObject v) { yield return v;foreach(var c in LogicalTreeHelper.GetChildren(v).OfType<DependencyObject>()) foreach(var d in Tree(c)) yield return d; }
  static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);
@@ -22,6 +26,7 @@ internal static class FloatingControlsTests {
     floating.Render(null,state,prefs with { FloatingBackgroundTransparency=value },copy,dark);Pump();
     var color=((SolidColorBrush)((Border)floating.Content).Background).Color;
     Check(color.R==(dark?0:255)&&color.G==color.R&&color.B==color.R&&Math.Abs(color.A-255*(1-value/100))<1,"pure theme background alpha");
+    if(value==100) { var bounds=Platform.Bounds(floating);var at=new NativePoint((int)bounds.X+3,(int)(bounds.Y+bounds.Height/2));Check(WindowFromPoint(at)==new WindowInteropHelper(floating).Handle,"fully transparent background retains native padding drag hit area"); }
    }
    floating.Render(null,state,prefs,copy,false);Pump();
    var events=new List<string>();var saved=new Point(140,140);var clicks=0;
