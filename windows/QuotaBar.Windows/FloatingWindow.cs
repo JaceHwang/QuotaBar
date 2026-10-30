@@ -51,7 +51,8 @@ internal sealed class FloatingWindow : Window {
     public void Render(QuotaSnapshot? quota,RefreshState state,Preferences preferences,Copy copy,bool dark) {
         if(!preferences.FloatingEnabled) { HideFloat(); return; }
         var fg=Ui.Foreground(dark);
-        surface.Background=dark?new SolidColorBrush(Color.FromArgb(230,30,31,35)):new SolidColorBrush(Color.FromArgb(235,245,245,245));
+        var alpha=(byte)Math.Round(255*(1-preferences.Validated().FloatingBackgroundTransparency/100));
+        surface.Background=new SolidColorBrush(dark?Color.FromArgb(alpha,0,0,0):Color.FromArgb(alpha,255,255,255));
         close.Foreground=fg; close.ToolTip=copy.Text("Close floating button","关闭悬浮按钮","關閉懸浮按鈕");
         System.Windows.Automation.AutomationProperties.SetName(close,(string)close.ToolTip);
         foreach(var child in content.Children.Cast<UIElement>().Where(v=>v!=close).ToArray()) content.Children.Remove(child);

@@ -96,6 +96,12 @@ internal sealed class SettingsWindow : Window {
     UIElement General(bool dark) {
         var c=owner.Copy; var p=owner.Preferences; var fg=Ui.Foreground(dark); var panel=new StackPanel();
         panel.Children.Add(SettingsVisual.Toggle(c.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕"),p.FloatingEnabled,fg,on=>owner.Save(owner.Preferences with { FloatingEnabled=on },false)));
+        var transparency=new Slider { Minimum=0,Maximum=100,Value=p.FloatingBackgroundTransparency,TickFrequency=1,IsSnapToTickEnabled=true,SmallChange=1,LargeChange=10,Width=180,VerticalAlignment=VerticalAlignment.Center,Tag="settings.floatingTransparency" };
+        System.Windows.Automation.AutomationProperties.SetName(transparency,c.Text("Background transparency","背景透明度","背景透明度"));
+        var value=Ui.Text($"{p.FloatingBackgroundTransparency:0}%",12,fg);value.Width=42;value.Margin=new Thickness(10,0,0,0);value.Tag="settings.floatingTransparency.value";
+        var controls=new StackPanel { Orientation=Orientation.Horizontal };controls.Children.Add(transparency);controls.Children.Add(value);
+        transparency.ValueChanged+=(_,_)=> { owner.Save(owner.Preferences with { FloatingBackgroundTransparency=Math.Round(transparency.Value) },false); value.Text=$"{owner.Preferences.FloatingBackgroundTransparency:0}%"; };
+        panel.Children.Add(SettingsVisual.Row(c.Text("Background transparency","背景透明度","背景透明度"),controls,dark));
         var quota=SettingsVisual.Toggle(c.Text("Show quota in tray","托盘显示额度","系統匣顯示額度"),p.ShowsQuotaInformation,fg,on=>owner.Save(owner.Preferences with { ShowsQuotaInformation=on },false)); quota.FontSize=13; panel.Children.Add(quota);
         var startup=SettingsVisual.Toggle(c.Text("Launch at login","登录时启动","登入時啟動"),Platform.StartupEnabled,fg,on=> { try { Platform.SetStartup(on); } catch(Exception e) when(e is UnauthorizedAccessException or IOException) { Build(); MessageBox.Show(c.Text("Startup registration failed","启动项设置失败","啟動項設定失敗")); } }); panel.Children.Add(startup); return panel;
     }

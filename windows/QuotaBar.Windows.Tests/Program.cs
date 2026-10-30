@@ -23,6 +23,7 @@ internal static class Program {
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        FloatingControlsTests.Run(app);
         NotificationMatrixTests.TestPolicyFailureRecovery(app);
         NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
         NotificationMatrixTests.TestMessageCenterRouting(app);
@@ -431,6 +432,7 @@ internal static class Program {
         var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cleaned=false; var exitAfterCleanup=false;
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        FloatingControlsTests.Run(app);
         using var owner=new Coordinator(app,root,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),async (_,_,cancel)=> {
             entered.SetResult();
             try { await Task.Delay(Timeout.Infinite,cancel); }

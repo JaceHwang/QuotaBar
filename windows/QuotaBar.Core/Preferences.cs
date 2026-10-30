@@ -9,6 +9,7 @@ public sealed record Preferences {
     public bool AutomaticUpdates { get; init; }=true;
     public bool UpdateReminders { get; init; }=false;
     public bool FloatingEnabled { get; init; }=true;
+    public double FloatingBackgroundTransparency { get; init; }=20;
     public bool ShowsQuotaInformation { get; init; }=true;
     public double? FloatingX { get; init; }
     public double? FloatingY { get; init; }
@@ -21,6 +22,7 @@ public sealed record Preferences {
         Notifications=(Notifications??new()).Validated(),
         FloatingX=FloatingX is double x && double.IsFinite(x)?x:null,
         FloatingY=FloatingY is double y && double.IsFinite(y)?y:null,
+        FloatingBackgroundTransparency=double.IsFinite(FloatingBackgroundTransparency)?Math.Clamp(FloatingBackgroundTransparency,0,100):20,
         DetailHeight=double.IsFinite(DetailHeight)?Math.Max(220,DetailHeight):580,
         Theme=new[]{"system","light","dark"}.Contains(Theme)?Theme:"system",
         Language=new[]{"system","zh-CN","zh-TW","en"}.Contains(Language)?Language:"system"

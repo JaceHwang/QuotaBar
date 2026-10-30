@@ -418,7 +418,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
     }
     func makeSettingsWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定"); window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 840, height: 560)
         func column() -> NSStackView { QuotaSettingsStyle.column(22) }
@@ -536,7 +536,22 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             QuotaSettingsStyle.fill(QuotaSettingsStyle.row(titles[i], control: toggle), in: stack)
             if i < 2 { QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: stack) }
         }
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: stack)
+        let slider = NSSlider(value: floating.preferences.backgroundTransparency, minValue: 0, maxValue: 100, target: self, action: #selector(floatingTransparencyChanged(_:)))
+        slider.identifier = .init("settings.floatingTransparency"); slider.isContinuous = true
+        slider.setAccessibilityLabel(text("Background transparency", "背景透明度", "背景透明度"))
+        slider.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        let value = QuotaSettingsStyle.label("\(Int(slider.doubleValue))%", size: 12)
+        value.identifier = .init("settings.floatingTransparency.value"); value.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        let controls = NSStackView(views: [slider,value]); controls.spacing = 10
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Background transparency", "背景透明度", "背景透明度"), control: controls), in: stack)
         return stack
+    }
+    @objc private func floatingTransparencyChanged(_ sender: NSSlider) {
+        floating.preferences.backgroundTransparency = sender.doubleValue.rounded()
+        if let row = sender.superview as? NSStackView,
+           let value = row.arrangedSubviews.compactMap({ $0 as? NSTextField }).first { value.stringValue = "\(Int(floating.preferences.backgroundTransparency))%" }
+        render()
     }
     @objc private func generalSettingChanged(_ sender: QuotaSettingsSwitch) {
         switch sender.tag {

@@ -9,6 +9,11 @@ if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_P
     return 0;
 }
 var tests = new (string Name, Action Run)[] {
+    ("floating background transparency defaults, clamps and persists", () => {
+        Check(new Preferences().FloatingBackgroundTransparency==20,"default20");
+        foreach(var (input,expected) in new[]{(-4d,0d),(110d,100d),(65d,65d),(double.NaN,20d)}) Check((new Preferences { FloatingBackgroundTransparency=input }).Validated().FloatingBackgroundTransparency==expected,"validated background percentage");
+        var path=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".json");try { var store=new PreferencesStore(path);store.Save(new Preferences { FloatingBackgroundTransparency=65 });Check(store.Load().FloatingBackgroundTransparency==65,"persisted percentage");File.WriteAllText(path,"{}");Check(store.Load().FloatingBackgroundTransparency==20,"old preferences default"); } finally { File.Delete(path); }
+    }),
     ("renamed repository uses canonical update endpoint and release URL", () => {
         Check(UpdateFeed.Endpoint.AbsoluteUri=="https://jacehwang.github.io/QuotaBar/updates.json","canonical update endpoint");
         var feed="""{"schemaVersion":1,"stable":{"windows-x64":{"version":"1.1.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.1.0"}}}""";
