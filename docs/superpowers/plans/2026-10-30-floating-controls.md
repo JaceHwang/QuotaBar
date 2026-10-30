@@ -8,17 +8,17 @@
 **Defaults:** Developer choice20% transparency;0%=opaque,100%=transparent. Invalid values clamp0–100; nonfinite values use20. Live updates save immediately, including disabled floating state; no account/history changes.
 
 ## Task1: Persist and display native transparency
-- [ ] Write failing Swift preference/background and settings slider tests, .NET preference persistence tests; observe RED.
-- [ ] Implement FloatingQuotaPreferences.backgroundTransparency and Preferences.FloatingBackgroundTransparency. Add slider/value row in display settings; live repaint and persist without rebuilding focused slider.
-- [ ] Render pure white/light and black/dark, retain background on hover; system appearance follows actual appearance. Test0/20/100%, malformed preferences and restart.
+- [x] Write failing Swift preference/background and settings slider tests, .NET preference persistence tests; observe RED.
+- [x] Implement FloatingQuotaPreferences.backgroundTransparency and Preferences.FloatingBackgroundTransparency. Add slider/value row in display settings; live repaint and persist without rebuilding focused slider.
+- [x] Render pure white/light and black/dark, retain background on hover; system appearance follows actual appearance. Test0/20/100%, malformed preferences and restart.
 
 ## Task2: Window controls and Windows drag regression
-- [ ] Add native settings miniaturizable assertion; observe RED; enable normal minimize button.
-- [ ] Add native WPF release/capture regression with Coordinator-equivalent finish/render callback. Observe native CI RED before fixing.
-- [ ] Save final physical position before release can trigger LostMouseCapture, finish exactly once; unexpected capture loss also preserves dragged position; clicks/right-click/close unaffected.
-- [ ] Validate clamping, persistence, redraw after release and source capture handling.
+- [x] Add native settings miniaturizable assertion; observe RED; enable normal minimize button.
+- [x] Add native WPF release/capture regression with Coordinator-equivalent finish/render callback. Observe native CI RED before fixing.
+- [x] Save final physical position before release can trigger LostMouseCapture, finish exactly once; unexpected capture loss also preserves dragged position; clicks/right-click/close unaffected.
+- [x] Validate clamping, persistence, redraw after release and source capture handling.
 
 ## Task3: Verify and deliver
-- [ ] Focused native Swift tests, .NET behavior and crossbuild; full governance; native Windows CI for drag/slider.
-- [ ] Fresh final review and fixes; inspect native visual artifacts, keep Windows device claims separate.
-- [ ] Update roadmap and board with implementation/test evidence; retain draft/no public release. No version changes.
+- [x] Focused native Swift tests, .NET behavior and crossbuild; full governance; native Windows CI for drag/slider.
+- [x] Fresh final review and fixes; inspect native visual artifacts, keep Windows device claims separate.
+- [x] Update roadmap and board with implementation/test evidence; retain draft/no public release. No version changes.
