@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/JaceHwang/QuotaBar/compare/v1.4.0...v1.5.0) (2026-10-30)
+
+
+### Features
+
+* add reminder settings, local history and floating controls ([#60](https://github.com/JaceHwang/QuotaBar/issues/60)) ([63e9ae6](https://github.com/JaceHwang/QuotaBar/commit/63e9ae6e088fec974c0b8608c1c90a7e5cf45924))
+
 ## [1.4.0](https://github.com/JaceHwang/QuotaBar/compare/v1.3.0...v1.4.0) (2026-10-24)
 
 
