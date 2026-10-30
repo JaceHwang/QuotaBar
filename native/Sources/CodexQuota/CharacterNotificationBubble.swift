@@ -69,6 +69,7 @@ enum NotificationCharacterArtwork: String { case attention, recovery, bank, neut
     }
     func content(message: ExperienceNotification, dark: Bool, language: CodexDisplayLanguage, width: CGFloat, artwork: NotificationCharacterArtwork? = nil) -> NSView {
         currentID = message.id
+        let artwork = artwork ?? ((message.category == .quotaLow || message.category == .quotaExhausted) ? NotificationCharacterArtwork.attention : nil)
         let copy = ExperienceCopy(language)
         let cardWidth = width - 112
         let textWidth = cardWidth - 40

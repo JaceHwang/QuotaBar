@@ -22,10 +22,12 @@ internal static class ApplicationUpdateOperationTests {
         awaitingUi.Cancel(); paused.Flush(); await Task.Delay(40); if(earlyPermits!=0 || awaitingUi.Progress.Phase!=ApplicationUpdatePhase.Cancelled) throw new Exception("Queued handoff survived cancellation");
         var dispatch=new DeliveryContext(); var dispatched=new ApplicationUpdateOperation((_,_,_)=>Task.CompletedTask,dispatch); dispatched.Start("2.0.0"); await Task.Delay(30); if(dispatch.Posts<2) throw new Exception("Update events bypassed UI context");
         var count=0; var ready=0; var permits=0;
-        var operation=new ApplicationUpdateOperation(async (_,emit,cancel)=> { Interlocked.Increment(ref count); emit(new(ApplicationUpdatePhase.Downloading,1,3,null)); await Task.Delay(150); },commit:_=>Interlocked.Increment(ref permits));
+        var started=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operation=new ApplicationUpdateOperation(async (_,emit,cancel)=> { Interlocked.Increment(ref count); emit(new(ApplicationUpdatePhase.Downloading,1,3,null)); started.TrySetResult(); await release.Task; },commit:_=>Interlocked.Increment(ref permits));
         operation.Ready+=()=>ready++;
         await Task.Delay(10); if(count!=0) throw new Exception("Update started without a click");
-        operation.Start("2.0.0"); operation.Start("3.0.0"); if(operation.TargetVersion!="2.0.0") throw new Exception("Running target snapshot changed"); await Task.Delay(20); operation.Cancel(); await Task.Delay(200);
+        operation.Start("2.0.0"); operation.Start("3.0.0"); if(operation.TargetVersion!="2.0.0") throw new Exception("Running target snapshot changed"); await started.Task.WaitAsync(TimeSpan.FromSeconds(5)); operation.Cancel(); release.TrySetResult(); await operation.WaitForCleanup();
         if(permits!=0 || count!=1 || ready!=0 || operation.Progress.Phase!=ApplicationUpdatePhase.Cancelled) throw new Exception("Cancelled/double update installed");
         var failure=new ApplicationUpdateOperation((_,_,_)=>throw new IOException("fixture")); failure.Start("2.0.0"); await Task.Delay(30);
         if(failure.Progress.Phase!=ApplicationUpdatePhase.Failed) throw new Exception("Failure not retryable");

@@ -1,0 +1,326 @@
+[
+  {
+    "category": "quotaRecovered",
+    "selected": "bubble",
+    "channel": "bubble",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "bubble",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "bubble",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "system",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "system",
+    "channel": "system",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "system",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "mobile",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "mobile",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaRecovered",
+    "selected": "mobile",
+    "channel": "mobile",
+    "expected": "allowed"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "bubble",
+    "channel": "bubble",
+    "expected": "allowed"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "bubble",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "bubble",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "system",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "system",
+    "channel": "system",
+    "expected": "allowed"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "system",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "mobile",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "mobile",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring72h",
+    "selected": "mobile",
+    "channel": "mobile",
+    "expected": "allowed"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "bubble",
+    "channel": "bubble",
+    "expected": "allowed"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "bubble",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "bubble",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "system",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "system",
+    "channel": "system",
+    "expected": "allowed"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "system",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "mobile",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "mobile",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "bankExpiring24h",
+    "selected": "mobile",
+    "channel": "mobile",
+    "expected": "allowed"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "bubble",
+    "channel": "bubble",
+    "expected": "allowed"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "bubble",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "bubble",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "system",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "system",
+    "channel": "system",
+    "expected": "allowed"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "system",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "mobile",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "mobile",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "updateAvailable",
+    "selected": "mobile",
+    "channel": "mobile",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "bubble",
+    "channel": "bubble",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "bubble",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "bubble",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "system",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "system",
+    "channel": "system",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "system",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "mobile",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "mobile",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaLow",
+    "selected": "mobile",
+    "channel": "mobile",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "bubble",
+    "channel": "bubble",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "bubble",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "bubble",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "system",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "system",
+    "channel": "system",
+    "expected": "allowed"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "system",
+    "channel": "mobile",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "mobile",
+    "channel": "bubble",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "mobile",
+    "channel": "system",
+    "expected": "ruleOff"
+  },
+  {
+    "category": "quotaExhausted",
+    "selected": "mobile",
+    "channel": "mobile",
+    "expected": "allowed"
+  }
+]

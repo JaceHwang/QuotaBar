@@ -9,10 +9,15 @@ import QuotaCore
     private let enableFloating: () -> Void
     private let pause = SettingsAccentButton(frame: .zero)
     private let status = NSTextField(wrappingLabelWithString: "")
-    init(router: AppNotificationRouter, language: CodexDisplayLanguage, floatingVisible: Bool, preview: @escaping () -> Void, showUnread: @escaping () -> Void, enableFloating: @escaping () -> Void) {
+    init(router: AppNotificationRouter, language: CodexDisplayLanguage, floatingVisible: Bool, preview: @escaping () -> Void, showUnread: @escaping () -> Void, enableFloating: @escaping () -> Void, test: @escaping () -> Void = {}) {
         self.router = router; copy = ExperienceCopy(language); self.preview = preview; self.showUnread = showUnread; self.enableFloating = enableFloating
         super.init(frame: .zero)
         orientation = .vertical; alignment = .leading; spacing = 10
+        if router.policyActive {
+            QuotaSettingsStyle.fill(NotificationMatrixSettingsView(router: router, language: language, preview: preview, unread: showUnread, test: test), in: self)
+            if !floatingVisible { addArrangedSubview(QuotaSettingsStyle.button(copy.text("Enable floating button", "开启悬浮按钮", "開啟懸浮按鈕"), target: self, action: #selector(enableTapped))) }
+            return
+        }
         let picker = NSPopUpButton(); picker.addItems(withTitles: [copy.text("Floating bubble", "悬浮气泡", "懸浮氣泡"), copy.text("System notification", "系统通知", "系統通知"), copy.text("Both", "两者", "兩者"), copy.text("Off", "关闭", "關閉")]); picker.selectItem(at: NotificationDeliveryMode.allCases.firstIndex(of: router.preferences.mode) ?? 0)
         picker.target = self; picker.action = #selector(channelChanged(_:)); picker.identifier = .init("notification.channel"); picker.setAccessibilityLabel(copy.text("Reminder display", "提醒展示方式", "提醒顯示方式"))
         QuotaSettingsStyle.fill(QuotaSettingsStyle.row(copy.text("Reminder display", "提醒展示方式", "提醒顯示方式"), control: picker), in: self)
@@ -20,14 +25,15 @@ import QuotaCore
         let actions = NSStackView(); actions.spacing = 8
         actions.addArrangedSubview(pause)
         actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Preview bubble", "预览气泡", "預覽氣泡"), target: self, action: #selector(previewTapped)))
-        actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Unread reminders", "未读提醒", "未讀提醒"), target: self, action: #selector(unreadTapped)))
+        actions.addArrangedSubview(QuotaSettingsStyle.button(copy.text("Messages", "消息提醒", "消息提醒"), target: self, action: #selector(unreadTapped)))
         addArrangedSubview(actions)
-        let note = copy.text("Bubbles stay quiet while hidden or locked. Unread reminders are kept for this run only. System Focus does not automatically mute bubbles; use Pause.", "浮窗隐藏或锁屏时不冒泡；未读仅保留本次运行。气泡不自动继承系统免打扰，可使用暂停。", "浮窗隱藏或鎖定時不冒泡；未讀僅保留本次執行。氣泡不自動繼承系統勿擾，可使用暫停。")
+        let note = copy.text("Bubbles stay quiet while hidden or locked. Messages are saved locally. System Focus does not automatically mute bubbles; use Pause.", "浮窗隐藏或锁屏时不冒泡；消息记录保存在本机。气泡不自动继承系统免打扰，可使用暂停。", "浮窗隱藏或鎖定時不冒泡；訊息記錄儲存在本機。氣泡不自動繼承系統勿擾，可使用暫停。")
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(note, size: 11, secondary: true), in: self)
         if !floatingVisible {
             addArrangedSubview(QuotaSettingsStyle.label(copy.text("Enable the floating button to preview a bubble.", "开启悬浮按钮后可预览气泡。", "開啟懸浮按鈕後可預覽氣泡。"), size: 11, secondary: true))
             addArrangedSubview(QuotaSettingsStyle.button(copy.text("Enable floating button", "开启悬浮按钮", "開啟懸浮按鈕"), target: self, action: #selector(enableTapped)))
         }
+        if router.policyError { status.stringValue = copy.text("Could not migrate reminder settings; previous behavior is preserved.", "提醒设置迁移失败，暂时保留原有行为。", "提醒設定遷移失敗，暫時保留原有行為。") }
         status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor; QuotaSettingsStyle.fill(status, in: self)
     }
     required init?(coder: NSCoder) { nil }

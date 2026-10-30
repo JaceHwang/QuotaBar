@@ -5,6 +5,14 @@ import QuotaCore
 final class FloatingQuotaPreferences {
     private let defaults: UserDefaults
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    var backgroundTransparency: Double {
+        get {
+            guard let number = defaults.object(forKey: "standalone.floating.backgroundTransparency") as? NSNumber else { return 20 }
+            let value = number.doubleValue
+            return value.isFinite ? min(100,max(0,value)) : 20
+        }
+        set { defaults.set(newValue.isFinite ? min(100,max(0,newValue)) : 20, forKey: "standalone.floating.backgroundTransparency") }
+    }
     var enabled: Bool {
         get { defaults.object(forKey: "standalone.floating.enabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "standalone.floating.enabled") }
@@ -146,9 +154,6 @@ final class FloatingQuotaButton: NSObject {
             guard let self else { return }
             closeButton.isHidden = !value
             panel.invalidateCursorRects(for: interaction)
-            panel.appearance?.performAsCurrentDrawingAppearance {
-                interaction.layer?.backgroundColor = (value ? NSColor.labelColor.withAlphaComponent(0.07) : .clear).cgColor
-            }
             onHover?(value)
         }
         interaction.onDragBegan = { [weak self] in self?.onDragStarted?(); self?.celebration.cancel(); self?.dragOrigin = self?.panel.frame.origin }
@@ -166,6 +171,8 @@ final class FloatingQuotaButton: NSObject {
     func show(summary: ResetIndicatorSummary?, theme: CodexInterfaceTheme, tooltip: String, fallback: String, dimmed: Bool) {
         guard preferences.enabled else { hide(); return }
         panel.appearance = theme.appKitAppearance; icon.updateAppearance(theme.appKitAppearance)
+        let dark = panel.effectiveAppearance.bestMatch(from: [.aqua,.darkAqua]) == .darkAqua
+        interaction.layer?.backgroundColor = (dark ? NSColor.black : NSColor.white).withAlphaComponent(1-preferences.backgroundTransparency/100).cgColor
         label.attributedStringValue = summary.map { FloatingQuotaTypography.string(summary: $0, alignment: .left) } ?? NSAttributedString(string: fallback, attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor])
         // NSTextFieldCell includes the drawing insets omitted by attributed-string size().
         // Measure the same cell that renders the text, and always reserve the close slot.

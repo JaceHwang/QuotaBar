@@ -12,6 +12,21 @@ final class QuotaExperienceTests: XCTestCase {
         XCTAssertTrue(QuotaExperiencePreferences().recoveryNotificationEnabled)
         XCTAssertFalse(QuotaExperiencePreferences(moods: true, recovery: false, celebration: false, bank: true).recoveryNotificationEnabled)
     }
+    func testPendingBankBaselineSurvivesRestart() throws {
+        let bank = BankResetSummary(availableCount: 1, credits: [BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil, id: "old")])
+        var engine = QuotaExperienceEngine(state: ExperienceState(epoch: "a"))
+        engine.suppressBankStages([24])
+        let state = try JSONDecoder().decode(ExperienceState.self, from: JSONEncoder().encode(engine.state))
+        var restarted = QuotaExperienceEngine(state: state)
+        let summary = BankResetSummary(availableCount: 1, credits: nil)
+        XCTAssertTrue(restarted.observe(QuotaObservation(epoch: "a", sequence: 1, receivedAt: now, quota: quota(0, bank: summary), bankFieldState: .value), now: now).bank.isEmpty)
+        XCTAssertEqual(restarted.state.pendingBankBaselines, [24])
+        let invalid = BankResetSummary(availableCount: 1, credits: [bank.credits![0], BankResetCredit(status: "available", grantedAt: nil, expiresAt: now.addingTimeInterval(3600), title: nil, description: nil, id: "other")])
+        _ = restarted.observe(QuotaObservation(epoch: "a", sequence: 2, receivedAt: now, quota: quota(0, bank: invalid), bankFieldState: .value), now: now)
+        XCTAssertEqual(restarted.state.pendingBankBaselines, [24])
+        XCTAssertTrue(restarted.observe(QuotaObservation(epoch: "a", sequence: 3, receivedAt: now, quota: quota(0, bank: bank), bankFieldState: .value), now: now).bank.isEmpty)
+        XCTAssertTrue(restarted.observe(QuotaObservation(epoch: "a", sequence: 4, receivedAt: now, quota: quota(0, bank: bank), bankFieldState: .value), now: now).bank.isEmpty)
+    }
     func testDefaultsAndRawBankMetadata() throws {
         XCTAssertEqual(QuotaExperiencePreferences(), QuotaExperiencePreferences(moods: true, recovery: true, celebration: true, bank: true))
         let decoder = JSONDecoder()

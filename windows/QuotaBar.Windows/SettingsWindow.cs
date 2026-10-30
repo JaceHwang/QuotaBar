@@ -50,7 +50,7 @@ internal sealed class SettingsWindow : Window {
         var sidebar=new DockPanel { Margin=new Thickness(12,22,12,16) };
         var brand=new StackPanel { Margin=new Thickness(8,6,0,28) }; var brandRow=new StackPanel { Orientation=Orientation.Horizontal }; brandRow.Children.Add(Ui.ApplicationLogo(42));
         var brandText=new StackPanel { Margin=new Thickness(10,0,0,0) }; var brandName=Ui.Text("QuotaBar",19,fg); brandName.FontWeight=FontWeights.Bold; brandText.Children.Add(brandName); var version=Ui.Text("v"+owner.Updates.Version,12,muted); version.ToolTip=owner.Updates.DisplayVersion; brandText.Children.Add(version); brandRow.Children.Add(brandText); brand.Children.Add(brandRow); DockPanel.SetDock(brand,Dock.Top); sidebar.Children.Add(brand);
-        var navigation=new StackPanel(); var labels=new[]{copy.Text("Account","账户","帳戶"),copy.Text("Display","显示","顯示"),copy.Text("Quota experience","额度表情与管理","額度表情與管理"),copy.Text("Mobile push","手机推送","手機推播"),copy.Text("About app","关于应用","關於應用")}; var keys=new[]{"account","display","moods","mobile","updates"};
+        var navigation=new StackPanel(); var labels=new[]{copy.Text("Account","账户","帳戶"),copy.Text("Display","显示","顯示"),copy.Text("Reminders","提醒","提醒"),copy.Text("Mobile push","手机推送","手機推播"),copy.Text("About app","关于应用","關於應用")}; var keys=new[]{"account","display","moods","mobile","updates"};
         for(var i=0;i<keys.Length;i++) {
             var key=keys[i]; var button=Ui.Button(labels[i],()=> { selectedPage=key; if(key=="mobile") owner.Mobile.RefreshConfiguration(); Build(); }); button.Tag="settings-nav-"+key; button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Padding=new Thickness(10,8,6,8); button.BorderThickness=new Thickness(0); button.FontSize=13;
             button.Content=SettingsVisual.NavigationLabel(i,labels[i],fg);
@@ -96,6 +96,12 @@ internal sealed class SettingsWindow : Window {
     UIElement General(bool dark) {
         var c=owner.Copy; var p=owner.Preferences; var fg=Ui.Foreground(dark); var panel=new StackPanel();
         panel.Children.Add(SettingsVisual.Toggle(c.Text("Show floating button","显示悬浮按钮","顯示懸浮按鈕"),p.FloatingEnabled,fg,on=>owner.Save(owner.Preferences with { FloatingEnabled=on },false)));
+        var transparency=new Slider { Minimum=0,Maximum=100,Value=p.FloatingBackgroundTransparency,TickFrequency=1,IsSnapToTickEnabled=true,SmallChange=1,LargeChange=10,Width=180,VerticalAlignment=VerticalAlignment.Center,Tag="settings.floatingTransparency" };
+        System.Windows.Automation.AutomationProperties.SetName(transparency,c.Text("Background transparency","背景透明度","背景透明度"));
+        var value=Ui.Text($"{p.FloatingBackgroundTransparency:0}%",12,fg);value.Width=42;value.Margin=new Thickness(10,0,0,0);value.Tag="settings.floatingTransparency.value";
+        var controls=new StackPanel { Orientation=Orientation.Horizontal };controls.Children.Add(transparency);controls.Children.Add(value);
+        transparency.ValueChanged+=(_,_)=> { owner.Save(owner.Preferences with { FloatingBackgroundTransparency=Math.Round(transparency.Value) },false); value.Text=$"{owner.Preferences.FloatingBackgroundTransparency:0}%"; };
+        panel.Children.Add(SettingsVisual.Row(c.Text("Background transparency","背景透明度","背景透明度"),controls,dark));
         var quota=SettingsVisual.Toggle(c.Text("Show quota in tray","托盘显示额度","系統匣顯示額度"),p.ShowsQuotaInformation,fg,on=>owner.Save(owner.Preferences with { ShowsQuotaInformation=on },false)); quota.FontSize=13; panel.Children.Add(quota);
         var startup=SettingsVisual.Toggle(c.Text("Launch at login","登录时启动","登入時啟動"),Platform.StartupEnabled,fg,on=> { try { Platform.SetStartup(on); } catch(Exception e) when(e is UnauthorizedAccessException or IOException) { Build(); MessageBox.Show(c.Text("Startup registration failed","启动项设置失败","啟動項設定失敗")); } }); panel.Children.Add(startup); return panel;
     }
@@ -111,7 +117,9 @@ internal sealed class SettingsWindow : Window {
         var identity=new StackPanel { VerticalAlignment=VerticalAlignment.Center }; var brand=Ui.Text("QuotaBar  "+owner.Updates.Version,21,fg); brand.FontWeight=FontWeights.Bold; identity.Children.Add(brand); identity.Children.Add(Ui.Text(c.Text("Your quota companion","你的额度小伙伴","你的額度小夥伴"),13,SettingsVisual.Muted(dark))); hero.Children.Add(identity); page.Children.Add(SettingsVisual.Card(hero,dark));
         var panel=new StackPanel(); panel.Children.Add(Heading(c.Text("Version & updates","版本与更新","版本與更新"),fg));
         panel.Children.Add(SettingsVisual.Toggle(c.Text("Automatically check for updates","自动检查更新","自動檢查更新"),p.AutomaticUpdates,fg,on=> { owner.Save(owner.Preferences with { AutomaticUpdates=on },false); if(on) owner.Updates.Check(true); }));
+        if(!owner.Notifications.PolicyActive) {
         panel.Children.Add(SettingsVisual.Toggle(c.Text("Update reminders","更新提醒","更新提醒"),p.UpdateReminders,fg,on=> { owner.Save(owner.Preferences with { UpdateReminders=on },false); owner.Updates.PreferencesChanged(); }));
+        } else panel.Children.Add(Ui.Text(c.Text("Choose update notification channels in Reminder settings.","更新提醒渠道请在提醒设置中选择。","更新提醒管道請在提醒設定中選擇。"),11,SettingsVisual.Muted(dark)));
         var statusRow=new Grid { Margin=new Thickness(0,10,0,6) }; statusRow.ColumnDefinitions.Add(new()); statusRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
         updateStatus=Ui.Text("",12,fg); updateStatus.TextWrapping=TextWrapping.Wrap; updateStatus.Margin=new Thickness(0,0,12,0); updateStatus.VerticalAlignment=VerticalAlignment.Center; statusRow.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); updateCheck.VerticalAlignment=VerticalAlignment.Center; SettingsVisual.Primary(updateCheck); Grid.SetColumn(updateCheck,1); statusRow.Children.Add(updateCheck); panel.Children.Add(statusRow);
         updateProgress=new ProgressBar { IsIndeterminate=true,Height=3,Margin=new Thickness(0,8,0,8),Visibility=Visibility.Collapsed }; panel.Children.Add(updateProgress);

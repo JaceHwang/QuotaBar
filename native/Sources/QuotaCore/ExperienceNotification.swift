@@ -4,13 +4,17 @@ public struct ExperienceNotification: Sendable {
     public let reminderGeneration: String
     public let id: String
     public var deliveryToken: String? = nil
+    public let category: NotificationCategory?
+    public let reminderThreshold: Int?
+    public var priority: Int { category?.priority ?? (kind == .test ? 5 : kind == .recovery ? 2 : kind == .bank ? 3 : 4) }
     public let kind: ExperienceNotificationKind
     public let epoch: String?
     public let title: String
     public let body: String
     public let createdAt: Date
     public var validUntil: Date? = nil
-    public init(id: String, kind: ExperienceNotificationKind, epoch: String?, title: String, body: String, createdAt: Date, validUntil: Date? = nil, reminderGeneration: String = "initial") {
+    public init(id: String, kind: ExperienceNotificationKind, epoch: String?, title: String, body: String, createdAt: Date, validUntil: Date? = nil, reminderGeneration: String = "initial", category: NotificationCategory? = nil, reminderThreshold: Int? = nil) {
+        self.category = category; self.reminderThreshold = reminderThreshold
         self.reminderGeneration = reminderGeneration; self.id = id; self.kind = kind; self.epoch = epoch; self.title = title; self.body = body; self.createdAt = createdAt; self.validUntil = validUntil
     }
     public func valid(now: Date) -> Bool {
@@ -22,7 +26,7 @@ public struct ExperienceNotificationQueue {
     public init() {}
     public mutating func enqueue(_ message: ExperienceNotification) {
         guard !messages.contains(where: { $0.id == message.id }) else { return }
-        messages.append(message); messages.sort { $0.kind.rawValue < $1.kind.rawValue }
+        messages.append(message); messages.sort { $0.priority < $1.priority }
         if messages.count > 32 { messages.removeLast() }
     }
     public mutating func cancel(epoch: String) { messages.removeAll { $0.epoch == epoch } }

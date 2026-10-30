@@ -46,7 +46,7 @@ final class QuotaUpdateController: NSObject {
     private weak var progress: NSProgressIndicator?
     var onChange: (() -> Void)?
     private var auto: Bool { !defaults.bool(forKey: "updates.autoDisabled") }
-    private var reminders: Bool { defaults.bool(forKey: "updates.reminders") }
+    private var reminders: Bool { let router = AppNotificationRouter.shared; return router.policyActive ? !(router.policyPreferences.rules[.updateAvailable] ?? []).isEmpty : defaults.bool(forKey: "updates.reminders") }
     private var policy: UpdateReminderPolicy {
         get { defaults.data(forKey: "updates.policy").flatMap { try? JSONDecoder().decode(UpdateReminderPolicy.self, from: $0) } ?? UpdateReminderPolicy() }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "updates.policy") }
@@ -123,7 +123,9 @@ final class QuotaUpdateController: NSObject {
         QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Automatically check for updates", "自动检查更新", "自動檢查更新"), control: automatic), in: group)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: group)
         let reminder = QuotaSettingsSwitch(); reminder.target = self; reminder.action = #selector(remindersChanged); reminder.state = reminders ? .on : .off
+        if !AppNotificationRouter.shared.policyActive {
         QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Update reminders", "更新提醒", "更新提醒"), control: reminder), in: group)
+        } else { QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Choose update notification channels in Reminder settings.", "更新提醒渠道请在提醒设置中选择。", "更新提醒管道請在提醒設定中選擇。"), size: 11, secondary: true), in: group) }
         QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: group)
         let label = QuotaSettingsStyle.label("", size: 12, secondary: true); statusField = label
         let checkRow = NSStackView(); checkRow.spacing = 10; checkRow.alignment = .centerY; checkRow.addArrangedSubview(label)
@@ -204,7 +206,7 @@ final class QuotaUpdateController: NSObject {
     private func notifyIfNeeded() {
         guard !stopped, reminders, let release = available, policy.shouldNotify(release.version, now: now()) else { return }
         let attempted = policy
-        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now(), reminderGeneration: attempted.snoozeUntil.map { "snooze:\(Int64(($0.timeIntervalSince1970 * 1000).rounded()))" } ?? "initial")
+        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now(), reminderGeneration: attempted.snoozeUntil.map { "snooze:\(Int64(($0.timeIntervalSince1970 * 1000).rounded()))" } ?? "initial", category: AppNotificationRouter.shared.policyActive ? .updateAvailable : nil)
         AppNotificationRouter.shared.enqueue(message, valid: { [weak self] in
             guard let self else { return false }
             return !stopped && reminders && available == release && policy.skippedVersion != release.version && (policy.snoozeUntil.map { $0 <= now() } ?? true)

@@ -1,0 +1,963 @@
+[
+  {
+    "name": "descending levels and restart",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 15,
+        "thresholds": [
+          20,
+          10
+        ],
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "skip consumes both levels",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      },
+      {
+        "remaining": 50,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "added levels baseline without rearming",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 15,
+        "thresholds": [
+          20,
+          30,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 50,
+        "thresholds": [
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 25,
+        "thresholds": [
+          20,
+          30,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          20,
+          30,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "empty disables low but exhaustion remains",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [],
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "thresholds": [],
+        "expected": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "normalize and coalesce windows by urgency",
+    "steps": [
+      {
+        "remaining": 50,
+        "second": 50,
+        "thresholds": [
+          10,
+          20,
+          20,
+          -1,
+          100
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "second": 10,
+        "thresholds": [
+          10,
+          20,
+          20,
+          -1,
+          100
+        ],
+        "expected": [
+          10
+        ],
+        "periods": [
+          "secondary"
+        ]
+      },
+      {
+        "remaining": 10,
+        "second": 5,
+        "thresholds": [
+          10,
+          20
+        ],
+        "expected": [
+          10
+        ],
+        "periods": [
+          "primary"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "legacy scalar receipt migrates only its consumed level",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 50,
+        "thresholds": [
+          20,
+          10
+        ],
+        "legacy": true,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "maximum unique levels normalized descending",
+    "steps": [
+      {
+        "remaining": 100,
+        "thresholds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          0,
+          100
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 67,
+        "thresholds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99
+        ],
+        "expected": [
+          68
+        ]
+      },
+      {
+        "remaining": 1,
+        "thresholds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99
+        ],
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "added threshold does not suppress depletion",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "thresholds": [
+          30,
+          20,
+          10
+        ],
+        "expected": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "removed consumed threshold stays consumed after restart",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 50,
+        "thresholds": [],
+        "expected": []
+      },
+      {
+        "remaining": 50,
+        "thresholds": [
+          20,
+          10
+        ],
+        "restart": true,
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "all invalid disables low",
+    "steps": [
+      {
+        "remaining": 50,
+        "thresholds": [
+          -1,
+          0,
+          100
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          -1,
+          0,
+          100
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "thresholds": [
+          -1,
+          0,
+          100
+        ],
+        "expected": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "configure remove and readd between reads consumes low only, stale preserves pending",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            10
+          ],
+          [
+            20,
+            10
+          ]
+        ],
+        "stale": true,
+        "expected": []
+      },
+      {
+        "remaining": 15,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 10,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "pending low baseline preserves depletion crossing",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 0,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [],
+          [
+            20
+          ]
+        ],
+        "expected": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "re-enabled low preserves consumed level",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [],
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 20,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      }
+    ]
+  },
+  {
+    "name": "removed pending level cannot consume a threshold before later readdition",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ],
+          [
+            20
+          ]
+        ],
+        "expected": [
+          20
+        ]
+      },
+      {
+        "remaining": 30,
+        "thresholds": [
+          20
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 30,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "expected": [
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "name": "configuration deduplicates before applying threshold count limit",
+    "steps": [
+      {
+        "remaining": 30,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20,
+            10
+          ]
+        ],
+        "expected": []
+      },
+      {
+        "remaining": 5,
+        "thresholds": [
+          20,
+          10
+        ],
+        "configure": [
+          [
+            20
+          ],
+          [
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            10
+          ]
+        ],
+        "expected": [
+          20
+        ]
+      }
+    ]
+  }
+]

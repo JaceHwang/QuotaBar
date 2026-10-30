@@ -39,19 +39,29 @@ internal sealed class FloatingWindow : Window {
             if(!dragging && delta.Length<4*VisualTreeHelper.GetDpi(this).DpiScaleX) return;
             if(!dragging) DragStarted?.Invoke(); CancelCelebration(); dragging=true; Cursor=Cursors.SizeAll; Platform.Place(this,saved+delta);
         };
-        MouseLeftButtonUp+=(_,e)=> {
-            if(down is null) return;
-            var wasDragging=dragging;
-            ReleaseMouseCapture(); down=null; Cursor=Cursors.Hand;
-            if(wasDragging) PositionChanged?.Invoke(Platform.Bounds(this).Location); else Primary?.Invoke();
-            dragging=false; if(wasDragging) DragFinished?.Invoke(); e.Handled=true;
-        };
-        LostMouseCapture+=(_,_)=> { var was=dragging; down=null; dragging=false; Cursor=Cursors.Hand; if(was) DragFinished?.Invoke(); };
+        MouseLeftButtonUp+=(_,e)=> { if(down is null) return; FinishPointer(true);e.Handled=true; };
+        LostMouseCapture+=(_,_)=>FinishPointer(false);
     }
+    void FinishPointer(bool allowClick) {
+        if(down is null) return;
+        var wasDragging=dragging;
+        var finalPosition=wasDragging?Platform.Bounds(this).Location:(Point?)null;
+        // Clear state first: ReleaseMouseCapture raises LostMouseCapture synchronously.
+        down=null;origin=null;dragging=false;Cursor=Cursors.Hand;
+        if(finalPosition is {} position) PositionChanged?.Invoke(position);
+        if(IsMouseCaptured) ReleaseMouseCapture();
+        if(wasDragging) DragFinished?.Invoke();else if(allowClick) Primary?.Invoke();
+    }
+
     public void Render(QuotaSnapshot? quota,RefreshState state,Preferences preferences,Copy copy,bool dark) {
         if(!preferences.FloatingEnabled) { HideFloat(); return; }
         var fg=Ui.Foreground(dark);
-        surface.Background=dark?new SolidColorBrush(Color.FromArgb(230,30,31,35)):new SolidColorBrush(Color.FromArgb(235,245,245,245));
+        var alpha=(byte)Math.Round(255*(1-preferences.Validated().FloatingBackgroundTransparency/100));
+        surface.Background=new SolidColorBrush(dark?Color.FromArgb(alpha,0,0,0):Color.FromArgb(alpha,255,255,255));
+        // Alpha-zero pixels in a layered HWND pass native mouse input through.
+        // A 2/255 backing remains nonzero after unavailable-state dimming while
+        // appearing transparent; the configured surface itself still reaches zero.
+        Background=alpha==0?new SolidColorBrush(dark?Color.FromArgb(2,0,0,0):Color.FromArgb(2,255,255,255)):Brushes.Transparent;
         close.Foreground=fg; close.ToolTip=copy.Text("Close floating button","关闭悬浮按钮","關閉懸浮按鈕");
         System.Windows.Automation.AutomationProperties.SetName(close,(string)close.ToolTip);
         foreach(var child in content.Children.Cast<UIElement>().Where(v=>v!=close).ToArray()) content.Children.Remove(child);
@@ -86,5 +96,5 @@ internal sealed class FloatingWindow : Window {
             Platform.Place(this,new(preferences.FloatingX??area.X+area.Width-Width-24,preferences.FloatingY??area.Y+24));
         }
     }
-    public void HideFloat() { CancelCelebration(); close.Visibility=Visibility.Hidden; down=null; dragging=false; if(IsMouseCaptured) ReleaseMouseCapture(); Hide(); }
+    public void HideFloat() { FinishPointer(false); CancelCelebration(); close.Visibility=Visibility.Hidden; Hide(); }
 }

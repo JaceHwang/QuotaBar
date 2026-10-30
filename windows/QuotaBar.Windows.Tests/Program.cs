@@ -23,6 +23,15 @@ internal static class Program {
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        FloatingControlsTests.Run(app);
+        NotificationMatrixTests.TestPolicyFailureRecovery(app);
+        NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
+        NotificationMatrixTests.TestMessageCenterRouting(app);
+        MessageCenterNativeTests.Run(app);
+        NotificationMatrixTests.Run(app);
+        NotificationMatrixTests.TestWarningProducer(app);
+        NotificationMatrixTests.TestDynamicBankProducer(app);
+        NotificationMatrixTests.TestUpdateProducer(app);
         var quota=QuotaDecoder.Decode(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/rate-limits/read-response.json")));
         quota=quota with { Primary=quota.Primary with { ResetsAt=DateTimeOffset.Now.AddHours(5) },Secondary=quota.Secondary is { } second ? second with { ResetsAt=DateTimeOffset.Now.AddDays(4) } : null };
         var today=DateOnly.FromDateTime(DateTime.Now);
@@ -211,10 +220,12 @@ internal static class Program {
                     var settings=new SettingsWindow(owner); settings.Show(); Pump();
                     var controls=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().ToArray();
                     Check(controls.Any(c=>c.Content?.ToString()=="自动检查更新" && c.IsChecked==false),"update opt-out visible");
-                    Check(controls.Any(c=>c.Content?.ToString()=="更新提醒" && c.IsChecked==false),"system reminders opt in");
+                    Check(!controls.Any(c=>c.Content?.ToString()=="更新提醒")&&owner.Notifications.PolicyPreferences.Rules[NotificationCategory.UpdateAvailable].SetEquals(Enum.GetValues<NotificationChannel>()),"update reminder rules default selected in matrix");
+                    var matrixCells=controls.Where(c=>c.Tag is string tag&&tag.StartsWith("notification.rule.")).ToArray();
+                    Check(matrixCells.Length==15&&matrixCells.All(c=>c.IsChecked==true),"15 matrix cells all selected by fresh default");
                     Check(Tree(settings.Content as DependencyObject??settings).OfType<Button>().Any(c=>c.Content?.ToString()=="检查更新"),"manual update action visible");
                     var experienceToggles=Tree(settings.Content as DependencyObject??settings).OfType<CheckBox>().Where(b=>new[]{"额度表情模式","额度恢复时提醒","额度恢复时播放小庆祝","Bank 到期提醒"}.Contains(b.Content?.ToString())).ToArray();
-                    Check(experienceToggles.Length==4 && experienceToggles.All(b=>b.IsChecked==true),"four independent default-on controls present");
+                    Check(experienceToggles.Length==2 && experienceToggles.All(b=>b.IsChecked==true),"appearance switches independent; recovery and Bank channels owned by matrix");
                     Check(Tree(settings).OfType<ScrollViewer>().Any(),"settings remain reachable on short screens");
                     Check(Tree(settings).OfType<QuotaMoodView>().Count()==6,"inline five mood states plus recovery illustration");
                     Check(Tree(settings).OfType<CheckBox>().Count(b=>b.Content?.ToString()=="显示悬浮按钮")==1,"one owning page for general settings");
@@ -255,8 +266,9 @@ internal static class Program {
                             var pageActions=Tree(settings).OfType<Button>().Where(b=>b.IsVisible && !(b.Tag is string tag && tag.StartsWith("settings-nav-"))).ToArray();
                             foreach(var action in pageActions) {
                                 var eye=action.Tag?.ToString()=="bark-reveal";
-                                Check(action.Height==30 && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
-                                Check(action.MinWidth==(eye?30:100) && action.Padding==new Thickness(eye?0:12,0,eye?0:12,0),"settings actions share content-fit metrics");
+                                var compact=action.Tag is string actionTag && (actionTag.StartsWith("notification.threshold.") || actionTag.StartsWith("notification.selectAll."));
+                                Check(action.Height==(compact?24:30) && action.MinHeight==(compact?24:30) && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
+                                Check(action.MinWidth==(compact?24:eye?30:100) && action.Padding==new Thickness(compact?5:eye?0:12,0,compact?5:eye?0:12,0),"settings actions share content-fit metrics");
                                 Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
                                 if(action.IsEnabled) Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"enabled settings actions share blue and white");
                                 action.ApplyTemplate();
@@ -420,6 +432,7 @@ internal static class Program {
         var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cleaned=false; var exitAfterCleanup=false;
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        FloatingControlsTests.Run(app);
         using var owner=new Coordinator(app,root,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),async (_,_,cancel)=> {
             entered.SetResult();
             try { await Task.Delay(Timeout.Infinite,cancel); }

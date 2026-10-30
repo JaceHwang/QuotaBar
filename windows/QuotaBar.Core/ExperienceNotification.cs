@@ -1,13 +1,14 @@
 namespace QuotaBar.Core;
 public enum ExperienceNotificationKind { Recovery,Bank,Update,Test }
-public sealed record ExperienceNotification(string Id,ExperienceNotificationKind Kind,string? Epoch,string Title,string Body,DateTimeOffset CreatedAt,DateTimeOffset? ValidUntil=null,IReadOnlyList<BankExpiryEvent>? BankEvents=null,string? DeliveryToken=null,string ReminderGeneration="initial") {
+public sealed record ExperienceNotification(string Id,ExperienceNotificationKind Kind,string? Epoch,string Title,string Body,DateTimeOffset CreatedAt,DateTimeOffset? ValidUntil=null,IReadOnlyList<BankExpiryEvent>? BankEvents=null,string? DeliveryToken=null,string ReminderGeneration="initial",NotificationCategory? Category=null,QuotaWarningEvent? Warning=null,int? ReminderThreshold=null) {
+    public int Priority=>Category is {} c?NotificationPolicy.Priority(c):Kind==ExperienceNotificationKind.Test?5:Kind==ExperienceNotificationKind.Recovery?2:Kind==ExperienceNotificationKind.Bank?3:4;
     public bool Valid(DateTimeOffset now)=>now>=CreatedAt.AddSeconds(-5) && (ValidUntil is null || now<ValidUntil) && (Kind!=ExperienceNotificationKind.Recovery || now<=CreatedAt.AddMinutes(5));
 }
 public sealed class ExperienceNotificationQueue {
     readonly List<ExperienceNotification> messages=[];
     public void Enqueue(ExperienceNotification message) {
         if(messages.Any(m=>m.Id==message.Id)) return;
-        messages.Add(message); messages.Sort((a,b)=>a.Kind.CompareTo(b.Kind)); if(messages.Count>32) messages.RemoveAt(messages.Count-1);
+        messages.Add(message); messages.Sort((a,b)=>a.Priority.CompareTo(b.Priority)); if(messages.Count>32) messages.RemoveAt(messages.Count-1);
     }
     public void CancelId(string id)=>messages.RemoveAll(m=>m.Id==id);
     public void Cancel(string epoch)=>messages.RemoveAll(m=>m.Epoch==epoch);

@@ -6,10 +6,10 @@ nonisolated(unsafe) private var standaloneSignalWriteFD: Int32 = -1
 
 /// Owns only the application's status item and official runtime; never discovers host windows.
 @MainActor
-final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
+final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let detail = QuotaDetailPanel()
     private let notificationBubble = CharacterNotificationBubble()
-    private let unreadPanel = NotificationUnreadPanel()
+    private let messagePanel = MessageCenterPanel()
     private var notificationDragging = false
     private var screenLocked = false
     private let floating: FloatingQuotaButton
@@ -28,6 +28,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     private var updates: QuotaUpdateController?
     private var bark: BarkNotificationController?
     private var settings: NSWindow?
+    private var settingsUsesDock = false
     private var statusLabel: NSTextField?
     private weak var accountIdentityLabel: NSTextField?
     private weak var accountPlanLabel: NSTextField?
@@ -143,6 +144,13 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.dismissOutsideClick() }
         }
+        let notificationRouter = AppNotificationRouter.shared
+        if notificationRouter.messageStore == nil { notificationRouter.bindMessageCenter(MessageCenterStore(url: root.appendingPathComponent("message-center.json"))) }
+        let hasLegacySettings = ["notifications.presentation", "experience.preferences", "bark.preferences", "updates.reminders"].contains { defaults.object(forKey: $0) != nil } || FileManager.default.fileExists(atPath: root.appendingPathComponent("experience-state.json").path)
+        let legacyExperience = defaults.data(forKey: "experience.preferences").flatMap { try? JSONDecoder().decode(QuotaExperiencePreferences.self, from: $0) } ?? QuotaExperiencePreferences()
+        let legacyPresentation = notificationRouter.preferences
+        let legacyBark = defaults.data(forKey: "bark.preferences").flatMap { try? JSONDecoder().decode(BarkPreferences.self, from: $0) } ?? BarkPreferences()
+        notificationRouter.loadPolicy(store: NotificationPolicyStore(url: root.appendingPathComponent("notification-policy.json")), legacy: hasLegacySettings ? LegacyNotificationPreferences(mode: legacyPresentation.mode, recovery: legacyExperience.recovery, celebration: legacyExperience.celebration, bank: legacyExperience.bank, updatesReminders: defaults.bool(forKey: "updates.reminders"), barkEnabled: legacyBark.enabled, pausedUntil: legacyPresentation.pausedUntil) : nil)
         if updates == nil {
             updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
         }
@@ -177,7 +185,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             return notificationBubble.show(message: message, anchor: anchor, dark: theme == .dark, language: language)
         }
         router.hideBubble = { [weak self] in self?.notificationBubble.dismiss() }
-        router.onUnreadChange = { [weak self] in self?.floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty }
+        router.onUnreadChange = { [weak self] in self?.floating.hasUnread = AppNotificationRouter.shared.messageUnreadCount > 0 }
         notificationBubble.onAction = { router.activate(id: $0, token: $1) }
         notificationBubble.onAcknowledge = { router.dismiss(id: $0, read: true, token: $1) }
         notificationBubble.onInteractionChanged = { router.setInteracting($0) }
@@ -186,7 +194,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(notificationSpaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(notificationSpaceChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         if let appMenu = NSApp.mainMenu?.items.first?.submenu {
-            let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒"), action: #selector(showUnreadReminders), keyEquivalent: "u"); unread.target = self; appMenu.insertItem(unread, at: 1)
+            let unread = NSMenuItem(title: text("Messages", "消息提醒", "消息提醒"), action: #selector(showUnreadReminders), keyEquivalent: "u"); unread.target = self; appMenu.insertItem(unread, at: 1)
         }
         render()
         let refreshTimer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
@@ -281,7 +289,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     @objc private func notificationScreenLocked() { screenLocked = true; AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
     @objc private func notificationScreenUnlocked() { screenLocked = false; render() }
     @objc private func notificationSpaceChanged() { AppNotificationRouter.shared.suspend(); render() }
-    @objc private func showUnreadReminders() { AppNotificationRouter.shared.suspend(); unreadPanel.show(router: .shared, language: language) }
+    @objc private func showUnreadReminders() { AppNotificationRouter.shared.suspend(); messagePanel.show(router: .shared, language: language) }
     private func dismissOutsideClick() {
         if notificationBubble.contains(NSEvent.mouseLocation) { return }
         if notificationBubble.isVisible { AppNotificationRouter.shared.suspend() }
@@ -356,7 +364,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         } else { detail.hide() }
         let detailVisible = detail.frame != nil
         AppNotificationRouter.shared.updateEnvironment(canPresent: floating.frame != nil && floating.isOnActiveSpace && !detailVisible && !sleeping && !screenLocked && !notificationDragging && !floatingMenuVisible && !stopping)
-        floating.hasUnread = !AppNotificationRouter.shared.unread.isEmpty
+        floating.hasUnread = AppNotificationRouter.shared.messageUnreadCount > 0
         let detailFits = detail.frame.map { frame in NSScreen.screens.contains { $0.visibleFrame.contains(frame) } } ?? false
         let diagnostic = "pid=\(ProcessInfo.processInfo.processIdentifier) mode=standalone phase=\(state.phase.rawValue) has_quota=\(snapshot != nil) host_ui=false status_quota=\(statusDisplay.showsQuotaInformation) floating_visible=\(floating.frame != nil) floating_enabled=\(floating.preferences.enabled) detail_visible=\(detailVisible) detail_fits_screen=\(detailFits)\n"
         try? diagnostic.write(to: root.appendingPathComponent("standalone-state.txt"), atomically: true, encoding: .utf8)
@@ -369,7 +377,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
-        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.unread.count))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
+        let unread = NSMenuItem(title: text("Messages", "消息提醒", "消息提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         let floatingToggle = NSMenuItem(title: text("Show floating button", "显示悬浮按钮", "顯示懸浮按鈕"), action: #selector(floatingChanged), keyEquivalent: "")
         floatingToggle.target = self; floatingToggle.state = floating.preferences.enabled ? .on : .off
         menu.insertItem(floatingToggle, at: 2)
@@ -406,13 +414,31 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func showSettings() {
-        if let settings { settings.makeKeyAndOrderFront(nil); updates?.onChange?(); NSApp.activate(ignoringOtherApps: true); return }
+        settingsUsesDock = true
+        NSApp.setActivationPolicy(.regular)
+        if let settings {
+            if settings.isMiniaturized { settings.deminiaturize(nil) }
+            settings.makeKeyAndOrderFront(nil); updates?.onChange?(); NSApp.activate(ignoringOtherApps: true); return
+        }
         let window = makeSettingsWindow()
         settings = window; window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); render()
     }
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === settings else { return }
+        settings = nil; settingsShell = nil
+        guard settingsUsesDock else { return }
+        settingsUsesDock = false
+        // Coalesce close/recreate operations (language changes or account settings)
+        // so rebuilding an open settings window does not flash its Dock icon.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.settings == nil, !self.settingsUsesDock, !self.stopping else { return }
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
     func makeSettingsWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = text("QuotaBar — Settings", "QuotaBar — 设置", "QuotaBar — 設定"); window.isReleasedWhenClosed = false
+        window.delegate = self
         window.minSize = NSSize(width: 840, height: 560)
         func column() -> NSStackView { QuotaSettingsStyle.column(22) }
         func button(_ title: String, _ action: Selector) -> NSButton { QuotaSettingsStyle.button(title, target: self, action: action) }
@@ -464,8 +490,8 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
         let about = AboutSettingsView(version: bundleVersion ?? updates?.currentVersion ?? "—", updates: updates?.makeSettingsView(), text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
-        let mobile = BarkSettingsView(controller: bark, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
-        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Quota moods and management", "额度表情与管理", "額度表情與管理"), symbol: "face.smiling", content: experiences, navigationTitle: text("Quota experience", "额度表情与管理", "額度表情與管理")), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: mobile), QuotaSettingsPage(title: text("About app", "关于应用", "關於應用程式"), symbol: "info.circle", content: about)]
+        let mobile = BarkSettingsView(controller: bark, enableMobile: { AppNotificationRouter.shared.setChannelEnabled(.mobile, enabled: $0) }, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
+        let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Reminder settings", "提醒设置", "提醒設定"), symbol: "bell", content: experiences, navigationTitle: text("Reminders", "提醒", "提醒")), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: mobile), QuotaSettingsPage(title: text("About app", "关于应用", "關於應用程式"), symbol: "info.circle", content: about)]
         let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? updates?.currentVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }
         settingsShell = shell
@@ -529,7 +555,22 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
             QuotaSettingsStyle.fill(QuotaSettingsStyle.row(titles[i], control: toggle), in: stack)
             if i < 2 { QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: stack) }
         }
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: stack)
+        let slider = NSSlider(value: floating.preferences.backgroundTransparency, minValue: 0, maxValue: 100, target: self, action: #selector(floatingTransparencyChanged(_:)))
+        slider.identifier = .init("settings.floatingTransparency"); slider.isContinuous = true
+        slider.setAccessibilityLabel(text("Background transparency", "背景透明度", "背景透明度"))
+        slider.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        let value = QuotaSettingsStyle.label("\(Int(slider.doubleValue))%", size: 12)
+        value.identifier = .init("settings.floatingTransparency.value"); value.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        let controls = NSStackView(views: [slider,value]); controls.spacing = 10
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.row(text("Background transparency", "背景透明度", "背景透明度"), control: controls), in: stack)
         return stack
+    }
+    @objc private func floatingTransparencyChanged(_ sender: NSSlider) {
+        floating.preferences.backgroundTransparency = sender.doubleValue.rounded()
+        if let row = sender.superview as? NSStackView,
+           let value = row.arrangedSubviews.compactMap({ $0 as? NSTextField }).first { value.stringValue = "\(Int(floating.preferences.backgroundTransparency))%" }
+        render()
     }
     @objc private func generalSettingChanged(_ sender: QuotaSettingsSwitch) {
         switch sender.tag {
@@ -590,7 +631,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
         for (title, action) in [(text("Refresh", "刷新", "重新整理"), #selector(refreshClicked)), (text("Check for Updates…", "检查更新…", "檢查更新…"), #selector(checkUpdates)), (text("Settings…", "设置…", "設定…"), #selector(settingsClicked)), (text("Quit", "退出", "結束"), #selector(quit))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self; menu.addItem(item)
         }
-        let unread = NSMenuItem(title: text("Unread reminders", "未读提醒", "未讀提醒") + " (\(AppNotificationRouter.shared.unread.count))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
+        let unread = NSMenuItem(title: text("Messages", "消息提醒", "消息提醒") + " (\(AppNotificationRouter.shared.messageUnreadCount))", action: #selector(showUnreadReminders), keyEquivalent: ""); unread.target = self; menu.insertItem(unread, at: 0)
         floating.showMenu(menu)
     }
     @objc private func themeChanged(_ sender: NSPopUpButton) { defaults.set(["system", "light", "dark"][sender.indexOfSelectedItem], forKey: "standalone.theme"); render() }
@@ -605,7 +646,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate {
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !stopping else { return .terminateNow }
-        AppNotificationRouter.shared.stop(); unreadPanel.close(); DistributedNotificationCenter.default().removeObserver(self)
+        AppNotificationRouter.shared.stop(); messagePanel.close(); DistributedNotificationCenter.default().removeObserver(self)
         experience?.stop()
         updates?.stop()
         stopping = true; timer?.invalidate(); floatingHoverTimer?.invalidate(); floating.hide(); detail.hide(); statusItem = nil
