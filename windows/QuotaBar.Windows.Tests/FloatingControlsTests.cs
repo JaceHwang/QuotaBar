@@ -16,6 +16,9 @@ using QuotaBar.Windows;
 internal static class FloatingControlsTests {
  [StructLayout(LayoutKind.Sequential)] struct NativePoint { public int X,Y; public NativePoint(int x,int y) { X=x;Y=y; } }
  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(NativePoint point);
+ [DllImport("user32.dll")] static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll")] static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
+ static void InputPump() { System.Threading.Thread.Sleep(50);Pump(); }
  static void Check(bool v,string s) { if(!v) throw new Exception("floating controls: "+s); }
  static IEnumerable<DependencyObject> Tree(DependencyObject v) { yield return v;foreach(var c in LogicalTreeHelper.GetChildren(v).OfType<DependencyObject>()) foreach(var d in Tree(c)) yield return d; }
  static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);
@@ -26,7 +29,16 @@ internal static class FloatingControlsTests {
     floating.Render(null,state,prefs with { FloatingBackgroundTransparency=value },copy,dark);Pump();
     var color=((SolidColorBrush)((Border)floating.Content).Background).Color;
     Check(color.R==(dark?0:255)&&color.G==color.R&&color.B==color.R&&Math.Abs(color.A-255*(1-value/100))<1,"pure theme background alpha");
-    if(value==100) { var bounds=Platform.Bounds(floating);var at=new NativePoint((int)bounds.X+3,(int)(bounds.Y+bounds.Height/2));Check(WindowFromPoint(at)==new WindowInteropHelper(floating).Handle,"fully transparent background retains native padding drag hit area"); }
+    if(value==100) {
+     var bounds=Platform.Bounds(floating);var at=new NativePoint((int)bounds.X+3,(int)(bounds.Y+bounds.Height/2));
+     Check(WindowFromPoint(at)==new WindowInteropHelper(floating).Handle,"fully transparent background retains native padding drag hit area");
+     var oldCursor=Platform.Cursor;try {
+      SetCursorPos(at.X,at.Y);InputPump();mouse_event(2,0,0,0,UIntPtr.Zero);InputPump();
+      Check(floating.IsMouseCaptured,"native pointer down reaches fully transparent dimmed padding");
+      SetCursorPos(at.X+60,at.Y+30);InputPump();mouse_event(4,0,0,0,UIntPtr.Zero);InputPump();
+      var moved=Platform.Bounds(floating).Location-bounds.Location;Check(Math.Abs(moved.X-60)<3&&Math.Abs(moved.Y-30)<3,"native pointer drag moves transparent background");
+     } finally { mouse_event(4,0,0,0,UIntPtr.Zero);SetCursorPos((int)oldCursor.X,(int)oldCursor.Y);InputPump(); }
+    }
    }
    floating.Render(null,state,prefs,copy,false);Pump();
    var events=new List<string>();var saved=new Point(140,140);var clicks=0;
