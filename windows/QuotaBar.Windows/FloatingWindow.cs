@@ -58,6 +58,10 @@ internal sealed class FloatingWindow : Window {
         var fg=Ui.Foreground(dark);
         var alpha=(byte)Math.Round(255*(1-preferences.Validated().FloatingBackgroundTransparency/100));
         surface.Background=new SolidColorBrush(dark?Color.FromArgb(alpha,0,0,0):Color.FromArgb(alpha,255,255,255));
+        // Alpha-zero pixels in a layered HWND pass native mouse input through.
+        // A 2/255 backing remains nonzero after unavailable-state dimming while
+        // appearing transparent; the configured surface itself still reaches zero.
+        Background=alpha==0?new SolidColorBrush(dark?Color.FromArgb(2,0,0,0):Color.FromArgb(2,255,255,255)):Brushes.Transparent;
         close.Foreground=fg; close.ToolTip=copy.Text("Close floating button","关闭悬浮按钮","關閉懸浮按鈕");
         System.Windows.Automation.AutomationProperties.SetName(close,(string)close.ToolTip);
         foreach(var child in content.Children.Cast<UIElement>().Where(v=>v!=close).ToArray()) content.Children.Remove(child);
