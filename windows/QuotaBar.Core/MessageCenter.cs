@@ -10,6 +10,8 @@ public sealed class MessageCenterStore {
  sealed record Document([property:JsonRequired]int Schema,[property:JsonRequired]MessageCenterRecord[] Messages);
  static readonly JsonSerializerOptions options=new() { PropertyNamingPolicy=JsonNamingPolicy.CamelCase,Converters={new JsonStringEnumConverter(JsonNamingPolicy.CamelCase,allowIntegerValues:false)} };
  readonly string path;
+ readonly Action<string,string,bool> moveFile;
+ readonly Action<string,string,bool> copyFile;
  Dictionary<MessageCenterKey,MessageCenterRecord> durable=[],pending=[];
  bool loadBlocked;
  public string? Error { get; private set; }
@@ -17,7 +19,9 @@ public sealed class MessageCenterStore {
  public IReadOnlyList<MessageCenterRecord> Records=>Combined().Values.OrderByDescending(r=>r.CreatedAtMilliseconds).ThenBy(r=>r.Key.Id,StringComparer.Ordinal).ThenBy(r=>r.Key.Generation,StringComparer.Ordinal).ThenBy(r=>r.Key.Epoch??"",StringComparer.Ordinal).Select(Clone).ToArray();
  public int UnreadCount=>Combined().Values.Count(r=>r.ReadAtMilliseconds is null);
  public bool IsPersisted(MessageCenterKey key)=>durable.ContainsKey(key)&&!pending.ContainsKey(key);
- public MessageCenterStore(string path) { this.path=path; Reload(); }
+ public MessageCenterStore(string path):this(path,File.Move) { }
+ internal MessageCenterStore(string path,Action<string,string,bool> moveFile):this(path,moveFile,File.Copy) { }
+ internal MessageCenterStore(string path,Action<string,string,bool> moveFile,Action<string,string,bool> copyFile) { this.path=path;this.moveFile=moveFile;this.copyFile=copyFile; Reload(); }
  static MessageCenterRecord Clone(MessageCenterRecord r)=>r with { Channels=new(r.Channels) };
  static MessageCenterRecord Merge(MessageCenterRecord first,MessageCenterRecord other)=>first with { Channels=first.Channels.Union(other.Channels).ToHashSet(),ReadAtMilliseconds=first.ReadAtMilliseconds is {} a&&other.ReadAtMilliseconds is {} b?Math.Min(a,b):first.ReadAtMilliseconds??other.ReadAtMilliseconds };
  static bool Equivalent(MessageCenterRecord a,MessageCenterRecord b)=>a.Key==b.Key&&a.Category==b.Category&&a.Title==b.Title&&a.Body==b.Body&&a.CreatedAtMilliseconds==b.CreatedAtMilliseconds&&a.ReadAtMilliseconds==b.ReadAtMilliseconds&&a.Channels.SetEquals(b.Channels);
@@ -68,8 +72,25 @@ public sealed class MessageCenterStore {
   try {
    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
    using(var output=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None)) { JsonSerializer.Serialize(output,new Document(1,next.Values.ToArray()),options);output.Flush(true); }
-   File.Move(temp,path,true);durable=next;pending=[];loadBlocked=false;Error=null;return true;
+   Commit(temp);durable=next;pending=[];loadBlocked=false;Error=null;return true;
   } catch(Exception e) when(e is IOException or UnauthorizedAccessException) { Error=e.Message;if(stageOnFailure) Stage(next);return false; }
   finally { try { File.Delete(temp); } catch(IOException) { } catch(UnauthorizedAccessException) { } }
+ }
+ void Commit(string temp) {
+  try { moveFile(temp,path,true);return; }
+  catch(IOException error) when((error.HResult&0xffff)==6) { }
+  // Some Windows filesystems reject rename/replace with ERROR_INVALID_HANDLE.
+  // Keep the last complete document before the non-atomic compatibility write.
+  var backup=path+".backup";var hadPrevious=File.Exists(path);
+  if(hadPrevious) copyFile(path,backup,true);
+  try { copyFile(temp,path,true); }
+  catch(Exception writeError) when(writeError is IOException or UnauthorizedAccessException) {
+   try { if(hadPrevious) copyFile(backup,path,true);else File.Delete(path); }
+   catch(Exception restoreError) when(restoreError is IOException or UnauthorizedAccessException) {
+    loadBlocked=true;
+    throw new IOException("Message history write and restore failed; the previous history backup was retained.",new AggregateException(writeError,restoreError));
+   }
+   throw;
+  }
  }
 }

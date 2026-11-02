@@ -1,5 +1,22 @@
 # QuotaBar troubleshooting
 
+## Windows message history: invalid handle
+
+If opening an unread message or choosing “Mark all read” reports an invalid
+handle, the filesystem may be rejecting the final rename of the saved history.
+The message store first tries its normal atomic rename. Only Windows error 6
+(`ERROR_INVALID_HANDLE`) enables a compatibility copy, with the previous complete
+document retained as `%LOCALAPPDATA%\QuotaBar\message-center.json.backup`.
+Other I/O and permission failures still fail without marking messages read.
+
+The compatibility copy is not atomic. If a write is interrupted, or both the
+write and restoration fail, the damaged primary and complete backup are retained.
+Further writes are blocked while the primary cannot be loaded, so retries cannot
+overwrite the good backup. To recover, exit QuotaBar, preserve a separate copy of
+both files, and restore the valid backup to `message-center.json`, then restart.
+Do not delete message history or account data to clear the error. A backup may
+represent the state before the latest attempted read or message append.
+
 Updated: 2026-10-12.
 
 | Symptom | Check or action |
