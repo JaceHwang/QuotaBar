@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/JaceHwang/QuotaBar/compare/v1.5.0...v1.6.0) (2026-11-02)
+
+
+### Bug Fixes
+
+* harden updates and Windows settings persistence ([#64](https://github.com/JaceHwang/QuotaBar/issues/64)) ([9744fd4](https://github.com/JaceHwang/QuotaBar/commit/9744fd426079d35a201474caab4b2b398b6b9953))
+* **windows:** preserve message history on invalid-handle saves ([#62](https://github.com/JaceHwang/QuotaBar/issues/62)) ([5b1bde3](https://github.com/JaceHwang/QuotaBar/commit/5b1bde349e804eb829b51ddcc223f71753d794d0))
+
+
+### Documentation
+
+* refresh feature gallery and prepare v1.6.0 release ([#65](https://github.com/JaceHwang/QuotaBar/issues/65)) ([ebb242f](https://github.com/JaceHwang/QuotaBar/commit/ebb242fca3812ebf9b7f2298c444a91d6f5a15f3))
+
 ## [1.5.0](https://github.com/JaceHwang/QuotaBar/compare/v1.4.0...v1.5.0) (2026-10-30)
 
 
