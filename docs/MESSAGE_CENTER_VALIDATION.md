@@ -51,3 +51,7 @@ Product a9d4b6e: PR CI40275365757 passed both complete native jobs, including al
 | Dual packaging and draft delivery | Complete native PR CI, verified candidates above, draft PR60; no merge/public release |
 
 No important review finding remains after the verified regression fixes. Real Windows device/monitor scaling and natural phone receipt are explicitly outside the CI claims and remain user acceptance items.
+
+## 2026-11-02 发布前补充
+
+用户在1.6.0发布授权中确认Windows实机相关问题已修复；源码已增加消息历史无效句柄兼容写入及失败恢复保护，PR62已合并。该设备反馈与新正式tag原生构建/公开资产验证分别记录，不能据此扩展为所有DPI/多屏/长期组合完成。截图和功能入口见新版README，正式发布证据见[1.6.0](releases/v1.6.0.md)。

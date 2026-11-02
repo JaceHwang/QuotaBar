@@ -6,96 +6,94 @@
 
 **Keep your Codex quota in sight.**
 
-An independent quota app for macOS and Windows: glance at the menu bar, tray or floating control, then open the details when you need them.
+An independent quota app for macOS and Windows: quota at a glance, configurable reminders, and local message history.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download v1.2.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.2.0) · [Installation](#installation) · [Documentation](docs/README.md)
+[Download v1.6.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0) · [Installation](#installation) · [Documentation](docs/README.md)
 
 </div>
 
 ## Meet QuotaBar
 
-QuotaBar bundles the official Codex 0.144.1 runtime and reads quota through an isolated account. Sign in once through the official browser flow; it keeps working when Codex desktop is closed. No separate CLI installation or old plugin is required.
-
-Floating, menu bar, detail and update screenshots below were captured on macOS v1.0.1 in English. The sidebar settings image is a native rendering of the validated layout with example data from a pre-release test host; its displayed fixture version is not the current release version. No image contains account credentials; these are macOS views, not Windows screenshots.
+QuotaBar bundles the official Codex 0.144.1 runtime and reads quota through an isolated account. Sign in through the official browser flow; it keeps working when Codex desktop is closed. No separate CLI installation or old plugin is required.
 
 ### Quota, always within reach
 
-On macOS, show remaining quota and reset dates on two menu bar lines, or switch to a monochrome icon. On Windows, a circular colored tray icon provides quota in its tooltip. Both platforms offer a freely draggable floating control that remembers its position.
+On macOS, show remaining quota and reset dates in the menu bar, or use a monochrome icon. On Windows, a colored tray icon provides quota in its tooltip. Both platforms offer a draggable floating control that remembers its position.
 
-<img src="docs/images/macos-floating-en.png" alt="QuotaBar running on macOS: floating control with remaining quota and reset times" width="476" />
+<img src="docs/images/macos-floating-en.png" alt="macOS floating quota control with remaining quota and reset times" width="476" />
 
-The floating control is enabled by default. Close it using the button that appears on hover; restore it from the menu bar or tray's “Show floating button” option. The quota-information setting controls menu bar text on macOS and tooltip quota on Windows.
+Hover to preview the detail card, click to pin or dismiss it, or lock it open. Details include available quota periods, reset times, Token usage and Bank information. Missing fields are not treated as zero. Quota percentages are account usage limits; Bank is read-only.
 
-**Two-line quota in the macOS menu bar**
+<img src="docs/images/macos-details-en.png" alt="macOS quota detail card; account footer cropped out" width="360" />
 
-<img src="docs/images/macos-menubar-en.png" alt="Actual macOS menu bar: two lines showing remaining quota and reset dates in English" width="300" />
+These two desktop crops are historical macOS v1.0.1 views. The feature screenshots below are native AppKit/WPF renderings from the current source with example data, captured on 2026-11-02. Fixture version numbers and message contents are examples, not release or account evidence. [Screenshot sources](docs/images/README.md).
 
-### A closer look at your limits
+### Choose what alerts you, and where
 
-Hover the floating control to preview the detail card. Click to pin it, click again to dismiss it, or use the lock to keep it open. Outside clicks dismiss unlocked details.
+Reminder settings combine five categories with three independent channels: **bubbles, system notifications and mobile push**. Channel switches enable or disable their matrix column. Each column has its own select-all/clear-all shortcut; existing choices survive switching a channel off.
 
-<img src="docs/images/macos-details-en.png" alt="Actual English quota detail card with quota windows, Token usage, reset times and Bank information; account footer cropped out" width="360" />
+<img src="docs/images/reminders-macos-en.png" alt="Native macOS reminder matrix: channel switches, per-column selection, editable low-quota percentages and Bank expiry hours" width="616" />
 
-See remaining quota, reset countdowns and local reset times. Available account, plan, Token usage and Bank information appear in the details. Missing fields are not treated as zero. **Quota percentages are account usage limits, not API cash balances**; Bank is read-only. The screenshot preserves the current interface, including truncated English labels and the Token-data availability message.
+Add, edit or remove low-quota percentages and Bank expiry hours. For example, configure 30%, 20% and 10%, or 72, 24 and 12 hours; the image shows example thresholds, not mandatory defaults. Test notifications follow the enabled channel switches independently of category selections. New installations select all category cells, while system/mobile channel switches start off. See [reminder settings](docs/NOTIFICATION_SETTINGS.zh-CN.md).
 
-### Your account, your preferences
+### Unread reminders and local history
 
-Native settings now use Account, Display, Quota experience and Updates sidebar sections. Sign in or out, refresh quota and reload the runtime from the Account section. Choose system, light or dark appearance; follow the system language or select English, simplified Chinese or traditional Chinese. Optional login startup keeps QuotaBar available after you sign in to your computer.
+The **Messages** window has Unread reminders and History tabs. Opening a message marks that message as read; Mark all read clears the unread state without deleting history. Details retain the original snapshot and provide an action to view the current quota or update.
 
-<img src="docs/images/quota-settings-sidebar-en.png" alt="Native macOS sidebar settings rendering with example data: mood legend, recovery reminders, celebration and Bank expiry controls" width="900" />
+<img src="docs/images/messages-windows-en.png" alt="Native Windows message history with a selected read message and two remaining unread reminders" width="900" />
 
-The app keeps its account separate from Codex desktop. It does not scan host windows or require Accessibility permission. Quota normally refreshes about every 60 seconds, with backoff after failures. See [privacy](docs/PRIVACY.md) for data handling.
+Real messages are saved locally and survive restarts. History is not automatically deleted; previews and test notifications are excluded. Storage failures preserve unread state and expose a retry action. Version 1.6.0 adds a guarded backup/copy path for Windows invalid-handle save failures. [Message-center behavior](docs/MESSAGE_CENTER_VALIDATION.md) · [Recovery](docs/TROUBLESHOOTING.md).
 
-### Updates without interrupting your work
+### Download, verify, install and restart
 
-Check for updates from the menu or settings, view release notes, postpone a reminder or skip a version. Automatic checks are enabled by default; system notifications are opt-in. Successful background checks recur every 24 hours, with a check about 30 seconds after each launch. The development branch adds explicit **Update now** download, verification, transactional installation and restart, with cancellation and rollback. The installed v1.3.0 needs a one-time manual upgrade to the first version bundling the updater. See [in-app update requirements and recovery](docs/IN_APP_UPDATES.zh-CN.md) (Chinese). See [update behavior](docs/UPDATE_FEED_OPERATIONS.zh-CN.md) (Chinese).
+In **About app**, choose Update now to download an official release, verify its size, SHA-256 and source, then install and restart. Download progress is visible; cancellation is available before handoff. Installation or basic startup failure triggers rollback. Automatic checks start about **10 seconds after launch**, then every 24 hours after success; checks never automatically install an update.
 
-<img src="docs/images/macos-updates-en.png" alt="Actual macOS update settings showing version 1.0.1 and update-check options" width="510" />
+<img src="docs/images/updates-windows-en.png" alt="Native Windows update download with progress and Cancel download; displayed versions are test fixtures" width="840" />
 
-Settings now uses grouped rows, trailing native switches, state-aware account actions and a single celebration preview. Runtime reload lives under Troubleshooting. Language changes update status messages, and accessibility toggles save preferences.
+The screenshot uses fixture versions 1.0.0 and 999.0.0 to exercise the update controls. Version 1.6.0 fixes macOS download progress and shutdown handoff, retains safe failure diagnostics, and lets the Windows helper take up to 120 seconds to verify/extract the package before declaring it ready. This readiness limit is separate from the 10-second startup check. [Update and recovery guide](docs/IN_APP_UPDATES.zh-CN.md).
+
+### A floating control that fits your desktop
+
+Choose system, light or dark appearance, and adjust **background transparency** with a slider. Only the white/light or black/dark background changes transparency; text and icons stay readable. Hide the floating control with its hover close button and restore it from the menu bar or tray.
+
+<img src="docs/images/display-windows-en.png" alt="Native Windows Display settings with background transparency slider and floating-control preference" width="840" />
+
+Windows drag placement and preferences persist across restarts. macOS settings supports minimizing; its Dock icon remains available while settings is open or minimized. Closing settings keeps QuotaBar running in the background.
+
+### Mobile push and native settings
+
+The five settings pages are Account, Display, Reminders, Mobile push and About app. Bark mobile push is optional and starts disabled. Its Device Key is kept in the operating system credential store. Saving a key does not send a notification; explicit tests use sample content. Service acceptance is not proof that a phone displayed the notification. [Bark setup and data handling](docs/BARK_MOBILE_PUSH.zh-CN.md).
+
+The account is separate from Codex desktop. Quota normally refreshes about every 60 seconds, with backoff after failures. The app does not scan host windows or require Accessibility permission. Choose English, simplified Chinese, traditional Chinese or the system language. [Privacy](docs/PRIVACY.md).
 
 ## Installation
 
-Both platforms share **v1.2.0**. Download the package and checksum/supporting files from the [latest release](https://github.com/JaceHwang/QuotaBar/releases/latest), and verify the checksum before installing.
+Both platforms share **v1.6.0**. Download packages and checksums from the [release page](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0).
 
 | Platform | Download | Support and signing |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG](https://github.com/JaceHwang/QuotaBar/releases/download/v1.2.0/codex-quota-v1.2.0-macos-arm64.dmg) | macOS 14+ declared; device-tested on macOS 27.0. Locally signed, **not Developer ID notarized**. |
-| Windows x64 | [Installer ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.2.0/QuotaBar-1.2.0-windows-x64.zip) | Windows 11 x64. **Unsigned** package. |
+| macOS Apple Silicon | [DMG](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/codex-quota-v1.6.0-macos-arm64.dmg) | macOS 14+ declared; device-tested on macOS 27.0. Locally signed, not Developer ID notarized. |
+| Windows x64 | [Installer ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/QuotaBar-1.6.0-windows-x64.zip) | Windows 11 x64. Unsigned package. |
 
-### macOS
-
-Verify `CODEX-QUOTA-SHA256SUMS.txt`, open the DMG, and use the attached installer for upgrades and migration:
+For macOS, verify `CODEX-QUOTA-SHA256SUMS.txt`, open the DMG and use the release's installer:
 
 ```bash
 python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/QuotaBar.app'
 ```
 
-The default location is **`~/Applications/QuotaBar.app`**. To reopen after quitting, press **Command + Shift + G** in Finder, enter `~/Applications`, and double-click QuotaBar. Reopening a running app shows settings. First launch may require approval in macOS Privacy & Security.
+The standard location is `~/Applications/QuotaBar.app`. For Windows, verify `QUOTABAR-WINDOWS-SHA256SUMS.txt`, extract the whole ZIP and run `QuotaBar/setup/QuotaBar.Setup.exe`; the standard location is `%LOCALAPPDATA%\Programs\QuotaBar`. Upgrades preserve the isolated account and settings. Reopen from Finder or the Windows Start menu. Use Quit to stop the app and its runtime.
 
-The installer preserves the isolated account and preferences, supports transaction recovery and rollback, and migrates the previous `Codex Quota.app` name. See the [macOS installation guide](docs/MACOS_STANDALONE.zh-CN.md) (Chinese).
-
-### Windows
-
-Verify `QUOTABAR-WINDOWS-SHA256SUMS.txt`, extract the **whole ZIP**, and run:
-
-```text
-QuotaBar/setup/QuotaBar.Setup.exe
-```
-
-Reopen QuotaBar from the Start menu. Upgrades and rollback preserve the account and settings. See the [Windows installation guide](docs/WINDOWS_STANDALONE.zh-CN.md) (Chinese).
-
-On both platforms, closing settings keeps the app running. Use **Quit** to stop QuotaBar and its bundled runtime.
+Versions before 1.4.0 need a one-time manual installation to obtain the update helper. In-app updates require the standard per-user installation. [macOS installation](docs/MACOS_STANDALONE.zh-CN.md) · [Windows installation](docs/WINDOWS_STANDALONE.zh-CN.md).
 
 ### Validation scope
 
-The quota experiences and sidebar settings passed native CI on both platforms, including packaging, owned runtime startup/exit and Windows installation lifecycle checks. The user confirmed local device testing passed on both macOS and Windows on2026-10-21. That report does not certify every DPI, minimum-OS, multi-monitor, accessibility or long-running scenario; see the [progress record](docs/PROJECT_PROGRESS-standalone-app.md).
+Both platforms have native CI for UI, package provenance, startup/exit, installation and update rollback. The user confirmed the related Windows fixes on a physical device before this release; macOS completed an actual in-app upgrade during debugging. These reports do not certify every DPI, minimum OS, multi-monitor or long-running configuration. [Progress and release evidence](docs/PROJECT_PROGRESS-standalone-app.md).
 
 ## Development
 
-macOS requires Xcode and the pinned official `codex-cli 0.144.1` binary for packaging:
+macOS requires Xcode and the pinned official `codex-cli 0.144.1` binary:
 
 ```bash
 ./governance doctor
@@ -110,37 +108,6 @@ dotnet run --project windows/QuotaBar.Core.Tests
 python scripts/build-windows-standalone.py
 ```
 
-Native macOS source/tests live in `native/`, Windows source/tests in `windows/`, and installation, packaging and provenance tools in `scripts/`. Formal publishing also runs native startup/exit and installation checks on the target platform. Release Please owns product versions; published assets are immutable.
+Native source/tests live in `native/` and `windows/`; tools live in `scripts/`. Release Please owns product versions; published assets are immutable. Read the roadmap and resume the project board before development. Never commit credentials, runtime binaries or private device screenshots.
 
-Before development, read the [roadmap](docs/PROJECT_PROGRESS-standalone-app.md) and resume the project board. Do not commit runtime binaries, credentials or private device screenshots.
-
-[Architecture](docs/ARCHITECTURE.md) · [Privacy](docs/PRIVACY.md) · [macOS validation](docs/validation/macos-standalone.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Repository governance](docs/GOVERNANCE.md)
-
-## Quota moods and reminders
-
-Four settings are enabled by default; saved opt-outs remain unchanged:
-
-- **Quota mood:** a larger floating battery character shows good, low, exhausted, unavailable and restored states. Numbers remain the primary quota information.
-- **Recovery notification:** a recovery must be confirmed by two fresh quota reads. Multiple restored periods produce one message.
-- **Recovery celebration:** a brief violet star-eyed battery and local sparkles, with one accompanying recovery notification. Hidden floating controls stay hidden; previews send clearly labeled example notifications.
-- **Bank expiry reminder:** known available credits are grouped at72/24 hours before expiry. Missing dates are never guessed and credits are never redeemed automatically.
-
-Enabling either recovery notifications or celebrations permits one notification per confirmed recovery. macOS requests notification permission if undecided; OS notification and Focus settings still apply. Right-clicking the floating control hides quota details before opening its menu. See [privacy](docs/PRIVACY.md) and [troubleshooting](docs/TROUBLESHOOTING.md).
-
-### Character reminders
-
-QuotaBar routes quota recovery, Bank expiry and software update reminders into character speech bubbles beside the floating button. Select bubbles, system notifications, both, or off; existing reminder switches and skipped-version records are preserved. Hidden or locked screens retain unread reminders for the current run without opening the widget. Bubbles can be paused for an hour and do not automatically inherit system Focus. Previews use sample data.
-
-This is not part of the published v1.2.0. See the [validation record](docs/validation/2026-10-22-character-notification-bubbles.md) for platform evidence and remaining checks.
-
-All in-app bubble types remain visible while quota usage is unchanged; a fresh full read confirming a usage change dismisses them. Manual and lifecycle dismissal remain available.
-
-## Bark mobile push
-
-The Mobile push settings page configures one Bark Device Key in the operating system secure credential store. Automatic push defaults off; saving a key does not enable or send. Explicit phone tests use sample content. Valid recovery, Bank expiry and update reminders can reach Bark independently of desktop channels, widget visibility, lock state or bubble pause, while the app is running. Desktop previews are excluded.
-
-Existing reminder policies still apply. Durable mobile receipts prevent replay across refreshes and restarts; failures are not retried automatically. Titles, bodies and the necessary key go over HTTPS to Bark/APNs; service acceptance does not prove phone display. See the [setup and data guide](docs/BARK_MOBILE_PUSH.zh-CN.md) and [validation status](docs/validation/2026-10-23-bark-mobile-push.md). Available starting in v1.3.0.
-
-Settings place **About app** last, retaining update controls alongside GitHub, feedback and a disabled coming-soon website. **Mobile push** includes an illustrated Bark connection guide and an explicit show/hide control for the draft or saved Device Key. See [settings validation](docs/validation/2026-10-23-settings-about-bark-guide.md).
-
-[v1.3.0 release verification](docs/releases/character-reminders.md): exact-tag native packages, public checksums and the stable update feed have been verified for both platforms.
+[Architecture](docs/ARCHITECTURE.md) · [Documentation](docs/README.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Governance](docs/GOVERNANCE.md)

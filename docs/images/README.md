@@ -21,3 +21,15 @@ The original system-language preference and menu bar icon-only setting were rest
 - `settings-c-windows-*.png`：产品提交8ac7ce1在Windows原生CI39896122629的WPF实际渲染，英文深色192 DPI与840×560滚动后的教程/关于页。版本1.0.0为测试注入值，非发布版本；无真实Key。
 
 以上C设置实际截图已于按钮统一后刷新：Mac原生渲染及Windows产品f538e7a/CI39912163460，圆环品牌与统一蓝色操作按钮；Windows版本1.0.0仍为测试注入值。
+
+
+## 2026-11-02 feature gallery
+
+The new feature gallery is captured from product source `655a3dc9369b4d2d7880164fb4a1bcfbb3e613af` before the release version bump. These are real native control renderings with synthetic test data, not AI mockups or live account screenshots. No pixels, labels or values were edited. English and Chinese READMEs reference their corresponding language set.
+
+- `reminders-macos-{en,zh}.png`: AppKit `NotificationSettingsTests.testMatrixRendersAllLanguagesAndThemesWithoutClippingControls`, generated locally on 2026-11-02. The example percentages and hours are editable fixture values; the disabled system/mobile columns illustrate channel-master behavior.
+- `messages-windows-{en,zh}.png`: WPF `MessageCenterNativeTests.RenderVariants`, native Windows CI run [41421908044](https://github.com/JaceHwang/QuotaBar/actions/runs/41421908044), artifact `quotabar-windows-ui` ID 13129808616, 150% rendering. History selection is read while two other messages remain unread. The body text and timestamp are sample records.
+- `updates-windows-{en,zh}.png`: the same Windows artifact, `update-Downloading-*` rendering. Versions 1.0.0 and 999.0.0 and the 1/2 MB download are injected test fixtures, not a public release or a measured real download.
+- `display-windows-{en,zh}.png`: the same artifact, `polish-*-display` rendering with the transparency slider at an example 20%. The view is scrolled to its everyday behavior section.
+
+Mac screenshot tests passed; Windows screenshots come from a native UI job. Screenshots describe visible behavior and do not certify device storage recovery, phone delivery or the complete platform matrix. The older 1.0.1 quota crops remain explicitly identified as historical views in each README.

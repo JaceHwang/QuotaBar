@@ -60,18 +60,18 @@ Include app version, macOS version/architecture and reproduction. Omit credentia
 
 All four controls default on under Quota moods and reminders; saved off choices remain off. macOS requests notification permission if undecided and either reminder is enabled; denied permission must be changed in system settings. A mood is based on unrounded usage; displayed 0% can mean a fraction remains. Gray/question-mark means data is unavailable or stale, not depleted. Recovery takes a second fresh read (15–120 seconds) to confirm; a countdown reaching zero alone never notifies. A still-depleted second window remains a limit.
 
-Enable system notifications for QuotaBar and check OS Focus/Do Not Disturb if a test message is not visible. Preview celebration works only while the floating indicator is already visible. Bank reminders require known available credits with a future expiry, and only notify at the current 72/24-hour stage. Missing/cached Bank details never trigger alerts. A write failure suppresses alerts until local state can be saved; do not delete the isolated account folder to reset a notification.
+Enable system notifications for QuotaBar and check OS Focus/Do Not Disturb if a test message is not visible. Preview celebration works only while the floating indicator is already visible. Bank reminders require known available credits with a future expiry, and notify at the configured hour thresholds. Missing/cached Bank details never trigger alerts. A write failure suppresses alerts until local state can be saved; do not delete the isolated account folder to reset a notification.
 
-## 角色气泡提醒（开发分支，尚未发布）
+## 角色气泡与本地消息提醒
 
-- 在“额度表情与管理 → 提醒展示方式”选择悬浮气泡、系统通知、两者或关闭。各类已有开关仍需开启；升级保留原关闭、跳过版本和稍后提醒记录。
+- 在“提醒”页分别开启气泡、系统或手机总开关，并在对应矩阵列选择类别。关闭的渠道列不可编辑；升级保留原选择、跳过版本和稍后提醒记录。
 - 气泡不要求系统通知权限。系统／两者模式被系统拒绝时，检查系统通知设置；两者模式的气泡仍可工作。
-- 浮窗隐藏、锁屏、休眠、拖动、右键菜单或额度详情展开时不主动冒泡；从菜单／托盘或设置打开“未读提醒”。记录仅本次运行，最多32条，非活跃记录保留24小时，不是完整历史。所有气泡在额度不变时持续显示，新的完整查询确认原始使用率变化后收起；活跃气泡不按24小时清理，仍可主动关闭。旧Bank记录会标为历史，不宣称权益仍可用。
+- 浮窗隐藏、锁屏、休眠、拖动、右键菜单或额度详情展开时不主动冒泡；从菜单／托盘或设置打开“消息提醒”，在未读与历史页查看本地保存的真实消息。气泡展示队列与持久消息档案独立，档案跨重启保留且默认不自动删除。所有气泡在额度不变时持续显示，新的完整查询确认原始使用率变化后收起；活跃气泡不按24小时清理，仍可主动关闭。历史Bank快照不代表权益仍可用。
 - 可“暂停气泡1小时”，重启保留暂停截止时间；系统免打扰不自动控制应用内气泡。
 - “预览气泡”是主动示例展示，可在暂停或关闭自动提醒时测试；请先显示浮窗并收起详情。它不会重置真实去重记录。
-- “知道了”只处理本条消息，不等于关闭浮窗、跳过版本或兑换Bank。“查看Bank”只打开详情；更新入口仍打开已验证的发布页，不自动安装。
+- “知道了”只处理本条消息，不等于关闭浮窗、跳过版本或兑换Bank。“查看Bank”只打开详情；“查看更新”打开关于应用；明确点击“立即更新”才下载和安装。
 
-## Bark 手机推送（开发候选）
+## Bark 手机推送
 
 在设置“手机推送”页填写 Device Key（不是完整 URL），保存、显式发送测试，再开启自动手机推送。保存不自动启用；空输入不清除旧值，请使用“清除 Key”。眼睛按钮可显式查看 Key，切页或窗口失焦会重新遮掩。无需手机号、邮箱或 Apple Device Token，不要在 issue 或聊天中粘贴 Key。
 

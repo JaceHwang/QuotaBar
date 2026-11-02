@@ -6,11 +6,11 @@
 
 **Codex 还剩多少额度，抬眼就能看见。**
 
-独立运行的 macOS / Windows 额度应用。在菜单栏、托盘或悬浮按钮查看额度，需要时再展开详情。
+独立运行的 macOS / Windows 额度应用：随时查看额度、自定义提醒，并在本机保存消息历史。
 
 [English](README.md) · **简体中文**
 
-[下载 v1.2.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.2.0) · [安装说明](#安装) · [文档索引](docs/README.md)
+[下载 v1.6.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0) · [安装说明](#安装) · [文档索引](docs/README.md)
 
 </div>
 
@@ -18,82 +18,82 @@
 
 QuotaBar 内嵌官方 Codex 0.144.1 运行时，通过隔离账户读取额度。使用官方浏览器流程登录后，即使关闭 Codex 桌面版，也能继续查询；无需单独安装 CLI 或旧插件。
 
-浮窗、菜单栏、详情和更新配图来自 macOS v1.0.1；侧栏设置图为已验证布局的原生界面渲染，使用发布前测试宿主和示例数据；图中样例版本号不是当前发布版本。配图不包含凭据，也不代表 Windows 界面。
-
 ### 额度，随时可见
 
-macOS 菜单栏以两行显示剩余额度和重置日期，也可切换为单色图标。Windows 使用圆形彩色托盘图标，悬停即可查看额度提示。两端都提供可自由拖动、记住位置的悬浮按钮。
+macOS 菜单栏显示剩余额度和重置日期，也可切换为单色图标。Windows 使用彩色托盘图标，悬停即可查看额度提示。两端均提供可自由拖动、记住位置的悬浮按钮。
 
-<img src="docs/images/macos-floating-zh.png" alt="macOS 实际运行截图：悬浮按钮显示剩余额度和重置时间" width="476" />
+<img src="docs/images/macos-floating-zh.png" alt="macOS 悬浮按钮：剩余额度与重置时间" width="476" />
 
-悬浮按钮默认开启，悬停时出现关闭按钮；关闭后，可在菜单栏或托盘菜单中选择“显示悬浮按钮”恢复。设置中的额度信息开关，在 macOS 控制菜单栏文字，在 Windows 控制托盘提示中的额度。
+悬停预览详情，点击固定或收起，也可锁定展开状态。详情展示可用的额度周期、重置时间、Token 用量和 Bank 信息；缺失字段不当作零。周期百分比表示账户使用限额，Bank 仅供查看。
 
-**macOS 菜单栏两行额度显示**
+<img src="docs/images/macos-details-zh.png" alt="macOS 额度详情卡；账户底栏已裁去" width="360" />
 
-<img src="docs/images/macos-menubar-zh.png" alt="macOS 菜单栏实际运行截图：两行显示剩余额度与重置日期" width="300" />
+以上两张桌面图来自历史 macOS v1.0.1。下方功能图为 2026-11-02 从当前源码取得的 AppKit／WPF 原生界面渲染，使用示例数据；图中测试版本号和消息不代表正式版本或真实账户。[截图来源与范围](docs/images/README.md)。
 
-### 展开，了解每个额度周期
+### 提醒内容与接收渠道，自由组合
 
-悬停悬浮按钮预览详情卡，点击固定，再次点击收起；使用锁按钮可保持打开。未锁定时，点击外部会收起详情。
+提醒设置将五类事件与**气泡通知、系统通知、手机推送通知**组合成矩阵。三个总开关分别控制对应列的可交互性；每列的“全选”支持全选和全部取消，关闭总开关会保留原来的勾选。
 
-<img src="docs/images/macos-details-zh.png" alt="中文额度详情卡实际运行截图：双周期额度、Token 用量、重置时间与 Bank 信息；已裁去账户底栏" width="360" />
+<img src="docs/images/reminders-macos-zh.png" alt="macOS 原生提醒矩阵：渠道总开关、列全选、可增删的额度百分比和 Bank 到期小时标签" width="616" />
 
-查看剩余额度、重置倒计时和本地重置时间，以及数据可用时的账户、套餐、Token 用量和 Bank 信息。缺失字段不会被当成零。**周期额度不是 API 现金余额**，Bank 信息仅供查看。
+额度偏低百分比和 Bank 到期小时数均可编辑、添加和删除，例如 30%、20%、10% 或 72、24、12 小时；截图中的阈值仅是示例。测试通知按上方已开启的渠道发送，不受下面分类勾选限制。新安装默认勾选全部分类，系统和手机渠道总开关默认关闭。详见[提醒设置说明](docs/NOTIFICATION_SETTINGS.zh-CN.md)。
 
-### 独立账户，熟悉的原生设置
+### 未读提醒与历史消息，本机保存
 
-设置分为“账户”“显示”“额度表情与管理”“更新”四个侧栏页面。设置采用统一右侧原生开关和分组布局；账户操作按登录状态显示，重新加载运行时位于“故障排查”，表情页仅保留额度相关选项和单一预览入口。切换语言会更新状态提示，无障碍切换也会保存偏好。外观支持跟随系统、浅色和深色；语言支持跟随系统、简体中文、繁体中文和英文，还可选择登录电脑后自动启动。
+“消息提醒”包含“未读提醒”和“历史消息”两个页签。打开一条消息会自动标记该条已读；“全部已读”清空未读状态，不删除历史。详情保留提醒产生时的快照，并提供查看当前额度或更新的入口。
 
-<img src="docs/images/quota-settings-sidebar-zh.png" alt="macOS 新版侧栏设置原生渲染：五种表情图例、恢复提醒、小庆祝和 Bank 提醒，使用示例数据" width="900" />
+<img src="docs/images/messages-windows-zh.png" alt="Windows 原生消息历史：选中的消息已读，另外两条仍未读" width="900" />
 
-应用账户与 Codex 桌面版隔离，不扫描宿主窗口，也不需要辅助功能权限。正常情况下约每 60 秒刷新额度，失败后退避重试。数据处理方式见[隐私说明](docs/PRIVACY.md)。
+真实消息在本地保存并跨重启保留，历史不自动删除；预览和测试通知不进入历史。保存失败时保留未读状态并提供重试入口。1.6.0 为 Windows 的无效句柄保存错误增加受保护的备份与兼容写入。详见[消息提醒行为与验收](docs/MESSAGE_CENTER_VALIDATION.md)和[故障恢复](docs/TROUBLESHOOTING.md)。
 
-### 更新提醒，按自己的节奏处理
+### 在应用内下载、校验、安装并重启
 
-从菜单或设置检查更新、阅读更新内容，也可稍后提醒或跳过某个版本。自动检查默认开启，系统提醒默认关闭；每次启动约 30 秒后检查，成功后每 24 小时检查一次。更新入口打开发布页，由你手动下载和安装，详见[更新行为说明](docs/UPDATE_FEED_OPERATIONS.zh-CN.md)。
+在“关于应用”点击“立即更新”，程序会下载官方版本，核对大小、SHA-256 和来源，再交接安装并重启。下载时显示进度，交接前可取消；安装或基本启动检查失败时回退。自动检查在**启动约 10 秒后**首次执行，成功后每 24 小时检查；自动检查不会自动安装。
 
-<img src="docs/images/macos-updates-zh.png" alt="macOS 更新设置实机截图：当前版本 1.0.1 及更新检查选项" width="510" />
+<img src="docs/images/updates-windows-zh.png" alt="Windows 原生更新下载进度与取消按钮；图中版本为测试样例" width="840" />
+
+截图中的 1.0.0 和 999.0.0 是测试版本，用来展示更新控件。1.6.0 修复 macOS 下载进度和退出交接，保留安全的失败阶段与系统错误码；Windows 助手在报告就绪前可用最多 120 秒核验、解压安装包。这里的 120 秒就绪期限与启动后 10 秒检查是两个独立阶段。详见[应用内更新与回退说明](docs/IN_APP_UPDATES.zh-CN.md)。
+
+### 让悬浮按钮融入桌面
+
+外观支持跟随系统、浅色和深色。“背景透明度”滑块只调整浅色白底／深色黑底，文字和图标保持清晰。悬停时可关闭悬浮按钮，之后从菜单栏或托盘恢复。
+
+<img src="docs/images/display-windows-zh.png" alt="Windows 原生显示设置：悬浮按钮、背景透明度滑块和托盘额度选项" width="840" />
+
+Windows 拖动位置与偏好跨重启保存；macOS 设置窗口支持最小化，打开或最小化设置时保留 Dock 图标。关闭设置后，应用继续在后台运行。
+
+### 手机推送与原生设置
+
+设置包含“账户”“显示”“提醒”“手机推送”“关于应用”五页。Bark 手机推送默认关闭，Device Key 保存在系统安全凭据中；保存 Key 不会发送通知，显式测试使用示例内容。“服务已接受”不代表手机已展示通知。详见[Bark 配置与数据说明](docs/BARK_MOBILE_PUSH.zh-CN.md)。
+
+应用账户与 Codex 桌面版隔离，不扫描宿主窗口，也不需要辅助功能权限。正常约每 60 秒刷新额度，失败后退避重试；语言支持跟随系统、简体中文、繁体中文和英文。详见[隐私说明](docs/PRIVACY.md)。
 
 ## 安装
 
-两端共用统一版本 **v1.2.0**。请从[最新版本发布页](https://github.com/JaceHwang/QuotaBar/releases/latest)下载安装包、校验文件及辅助文件，校验后再安装。
+两端共用 **v1.6.0**。请从[发布页](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0)下载安装包及校验文件。
 
 | 平台 | 下载 | 系统与签名 |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.2.0/codex-quota-v1.2.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，**未完成 Developer ID 公证**。 |
-| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.2.0/QuotaBar-1.2.0-windows-x64.zip) | Windows 11 x64，安装包**未签名**。 |
+| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/codex-quota-v1.6.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，未完成 Developer ID 公证。 |
+| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/QuotaBar-1.6.0-windows-x64.zip) | Windows 11 x64，安装包未签名。 |
 
-### macOS
-
-校验 `CODEX-QUOTA-SHA256SUMS.txt`，打开 DMG；升级或迁移时使用附带的安装器：
+macOS 校验 `CODEX-QUOTA-SHA256SUMS.txt`、打开 DMG 后，使用发布附带的安装器：
 
 ```bash
 python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/QuotaBar.app'
 ```
 
-默认安装位置为 **`~/Applications/QuotaBar.app`**。退出后，在 Finder 按 **⌘⇧G**，输入 `~/Applications`，双击 QuotaBar 即可重开；重复打开正在运行的应用会显示设置。首次启动可能需要在系统“隐私与安全性”中批准。
+标准位置是 `~/Applications/QuotaBar.app`。Windows 校验 `QUOTABAR-WINDOWS-SHA256SUMS.txt`，完整解压 ZIP 后运行 `QuotaBar/setup/QuotaBar.Setup.exe`，标准位置为 `%LOCALAPPDATA%\Programs\QuotaBar`。升级保留隔离账户和设置；可从 Finder 或 Windows 开始菜单重新打开。选择“退出”才会停止应用与运行时。
 
-安装器保留隔离账户与偏好，支持事务恢复和回退，也支持从旧名 `Codex Quota.app` 迁移。详见 [macOS 安装说明](docs/MACOS_STANDALONE.zh-CN.md)。
-
-### Windows
-
-校验 `QUOTABAR-WINDOWS-SHA256SUMS.txt`，**完整解压 ZIP**，然后运行：
-
-```text
-QuotaBar/setup/QuotaBar.Setup.exe
-```
-
-退出后可从开始菜单搜索 QuotaBar 重开。升级和回退保留账户及设置，详见 [Windows 安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
-
-两端关闭设置窗口后都会继续常驻；选择“退出”才会停止 QuotaBar 及其内嵌运行时。
+低于 1.4.0 的版本需先手动安装一次，以获得更新助手。应用内更新要求使用标准每用户安装位置。详见 [macOS 安装说明](docs/MACOS_STANDALONE.zh-CN.md)和 [Windows 安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
 
 ### 验证范围
 
-新版额度体验和侧栏设置已通过双端原生 CI，包含打包、自有运行时启动退出及 Windows 安装生命周期检查。2026-10-21 用户确认 macOS 和 Windows 本地实机测试通过；该反馈不代表最低系统、全部 DPI、多屏、无障碍及长期矩阵均有逐项证据，详见[进度记录](docs/PROJECT_PROGRESS-standalone-app.md)。
+两端原生 CI 覆盖界面、包来源、启动退出、安装和更新回退。用户在本次发布前确认相关 Windows 修复在实机完成；macOS 调试中完成过真实应用内升级。这些结果不代表最低系统、所有 DPI、多屏或长期运行组合均已逐项验证。详见[开发进度和发布证据](docs/PROJECT_PROGRESS-standalone-app.md)。
 
 ## 开发
 
-macOS 打包需要 Xcode 和固定的官方 `codex-cli 0.144.1` 二进制：
+macOS 需要 Xcode 和固定的官方 `codex-cli 0.144.1` 二进制：
 
 ```bash
 ./governance doctor
@@ -108,37 +108,6 @@ dotnet run --project windows/QuotaBar.Core.Tests
 python scripts/build-windows-standalone.py
 ```
 
-macOS 源码和测试位于 `native/`，Windows 位于 `windows/`；安装、打包与来源验证工具位于 `scripts/`。正式发布还需在目标平台执行原生启动退出与安装检查。产品版本由 Release Please 管理，已发布资产不可覆盖。
+原生源码和测试分别位于 `native/`、`windows/`，工具位于 `scripts/`。产品版本由 Release Please 管理，已发布资产不可覆盖。开发前读取路线图并恢复项目看板；不要提交凭据、运行时二进制或私人设备截图。
 
-开发前读取[详细路线](docs/PROJECT_PROGRESS-standalone-app.md)并恢复项目看板。请勿提交运行时二进制、凭据或私人设备截图。
-
-[架构](docs/ARCHITECTURE.md) · [隐私](docs/PRIVACY.md) · [macOS 验收](docs/validation/macos-standalone.md) · [故障排查](docs/TROUBLESHOOTING.md) · [仓库治理](docs/GOVERNANCE.md)
-
-## 额度表情与提醒
-
-四项默认开启，已保存的关闭选择继续保留：
-
-- **额度表情模式**：放大的电池角色展示充足、偏低、耗尽、不可用、恢复五种状态，数字仍是主要信息。
-- **恢复提醒**：两次新鲜查询确认恢复后通知，同次多个周期合并一条。
-- **恢复小庆祝**：紫色星星眼角色和短暂局部星光，同步一条恢复通知。隐藏浮窗不主动显示；预览只发送明确的示例通知。
-- **Bank 到期提醒**：提前72／24小时，按已知可用权益合并；缺少日期不猜测，也不自动兑换。
-
-恢复提醒或小庆祝任一开启，同次确认恢复只发一条通知。macOS在权限尚未决定时请求授权，遵循系统通知和勿扰设置。浮窗右键先隐藏详情，再显示选项。详见[隐私](docs/PRIVACY.md)与[故障排查](docs/TROUBLESHOOTING.md)。
-
-### 角色对话提醒
-
-QuotaBar 把恢复、Bank 到期和软件更新提醒接入悬浮按钮旁的角色气泡，支持气泡／系统通知／两者／关闭。原有提醒开关和跳过版本记录保持不变。浮窗隐藏或锁屏时不主动弹出，未读只保留本次运行；气泡可暂停一小时。气泡不自动继承系统免打扰，预览使用示例数据。
-
-以上功能自 v1.3.0 起提供；验证状态见[气泡提醒验收记录](docs/validation/2026-10-22-character-notification-bubbles.md)。
-
-所有应用内气泡在额度不变时持续显示，完整新鲜查询确认使用率变化后收起；仍可主动关闭，原有生命周期关闭条件保留。
-
-## Bark 手机推送
-
-设置新增独立“手机推送”页，可安全保存 Bark Device Key，显式测试后启用。默认关闭，恢复、Bank 到期和软件更新的有效提醒可独立发送到手机；浮窗隐藏、锁屏、暂停气泡或桌面关闭不阻挡手机通道。电脑休眠/退出时无法发送，本地预览不自动推送手机。
-
-Key 仅保存在系统安全凭据中；提醒标题与正文会经 HTTPS 发送到 Bark/APNs。同一事件持久去重，失败不自动重试，“服务已接受”需要用户在手机确认实际展示。详见[配置与数据说明](docs/BARK_MOBILE_PUSH.zh-CN.md)及[验收状态](docs/validation/2026-10-23-bark-mobile-push.md)。该功能自 v1.3.0 起提供。
-
-设置中的“关于应用”位于最后，包含更新功能、GitHub、问题反馈和灰色“待上线”官网入口。“手机推送”提供Key显隐及安装、获取Key、连接测试三步图文向导。设置品牌复用详情圆环，所有操作按钮采用与“获取Bark”一致的高度、字号、圆角和留边，三语言和深浅色同步。详见[设置验收](docs/validation/2026-10-23-settings-about-bark-guide.md)。
-
-[v1.3.0发布记录](docs/releases/character-reminders.md)：准确tag双端原生包、公开校验和及更新清单已核验。
+[架构](docs/ARCHITECTURE.md) · [文档索引](docs/README.md) · [故障排查](docs/TROUBLESHOOTING.md) · [仓库治理](docs/GOVERNANCE.md)
