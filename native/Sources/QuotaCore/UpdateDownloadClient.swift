@@ -107,10 +107,30 @@ public final class UpdateHTTPTransport: UpdateTransport, @unchecked Sendable {
     public func download(_ asset: UpdateAsset, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
         guard asset.url.host == "github.com", asset.url.path.hasPrefix("/\(TrustedUpdateRelease.repository)/releases/download/"), asset.url.query == nil, TrustedUpdateRelease.allowedDownloadRedirect(asset.url) else { throw URLError(.unsupportedURL) }
         var request = URLRequest(url: asset.url); request.setValue("QuotaBar", forHTTPHeaderField: "User-Agent")
-        let (temporary, response) = try await session.download(for: request, delegate: UpdateTransferGuard(maximum: asset.size, progress: progress))
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw URLError(.badServerResponse) }
-        try Task.checkCancellation(); try UpdateFileIntegrity.verify(temporary, asset: asset)
-        try FileManager.default.moveItem(at: temporary, to: destination)
+        let (bytes, response) = try await session.bytes(for: request, delegate: UpdateTransferGuard(maximum: asset.size))
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              response.expectedContentLength <= asset.size else { throw URLError(.badServerResponse) }
+        // Stream bytes explicitly: async download(for:) does not deliver download progress
+        // to its per-task delegate on macOS.
+        try Data().write(to: destination, options: .withoutOverwriting)
+        let output = try FileHandle(forWritingTo: destination)
+        var complete = false
+        defer { try? output.close(); if !complete { try? FileManager.default.removeItem(at: destination) } }
+        var buffer = Data(); buffer.reserveCapacity(65536)
+        var received: Int64 = 0
+        progress(0)
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            guard received < asset.size else { throw URLError(.dataLengthExceedsMaximum) }
+            buffer.append(byte); received += 1
+            if buffer.count == 65536 {
+                try output.write(contentsOf: buffer); buffer.removeAll(keepingCapacity: true)
+                progress(received)
+            }
+        }
+        if !buffer.isEmpty { try output.write(contentsOf: buffer) }
+        try output.close()
+        try Task.checkCancellation(); try UpdateFileIntegrity.verify(destination, asset: asset)
+        progress(received); complete = true
     }
 }

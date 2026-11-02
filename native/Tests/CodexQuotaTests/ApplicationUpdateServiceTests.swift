@@ -42,6 +42,16 @@ import QuotaCore
         let count = await finished.count(); XCTAssertEqual(count, 1)
         XCTAssertEqual(service.progress.phase, .cancelled)
     }
+    func testFailureRetainsSafeErrorCodeWithoutSensitiveMessage() async throws {
+        let service = ApplicationUpdateService(currentVersion: "1.4.0", execute: { _, _ in
+            throw NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut, userInfo: [NSLocalizedDescriptionKey: "secret signed download URL"])
+        })
+        service.start(version: "1.5.0")
+        for _ in 0..<100 { if service.progress.phase == .failed { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(service.progress.phase, .failed)
+        XCTAssertTrue(service.progress.failure?.contains("-1001") == true)
+        XCTAssertFalse(service.progress.failure?.contains("secret") == true)
+    }
     func testReadyAndFailureAreTerminalAndRetryable() async throws {
         let service = ApplicationUpdateService(currentVersion: "1.3.0", execute: { _, _ in throw CocoaError(.fileReadCorruptFile) })
         service.start(version: "2.0.0"); try await Task.sleep(for: .milliseconds(30)); XCTAssertEqual(service.progress.phase, .failed)

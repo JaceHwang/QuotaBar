@@ -53,7 +53,7 @@ final class QuotaUpdateController: NSObject {
     }
     init(defaults: UserDefaults = .standard, version: String, updateExecute: ApplicationUpdateService.Execute? = nil, transport: URLSession? = nil, now: @escaping () -> Date = Date.init, text: @escaping (String, String, String) -> String) {
         installer = ApplicationUpdateService(currentVersion: version, execute: updateExecute)
-        self.now = now; nextCheck = now().addingTimeInterval(30)
+        self.now = now; nextCheck = now().addingTimeInterval(10)
         self.defaults = defaults; self.version = version; self.text = text
         let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 15; config.timeoutIntervalForResource = 20
         session = transport ?? URLSession(configuration: config)
@@ -68,7 +68,7 @@ final class QuotaUpdateController: NSObject {
             Task { @MainActor in self?.check(); self?.notifyIfNeeded() }
         }
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(30))
+            try? await Task.sleep(for: .seconds(10))
             self?.check()
         }
     }
@@ -178,7 +178,7 @@ final class QuotaUpdateController: NSObject {
         case .verifying: return text("Verifying download…", "正在校验安装包…", "正在驗證安裝套件…")
         case .preparing: return text("Preparing update…", "正在准备更新…", "正在準備更新…")
         case .handingOff, .installing: return text("Installing and restarting…", "正在安装并重启…", "正在安裝並重新啟動…")
-        case .failed: return text("Update failed. Retry or use the release page to install manually. Run QuotaBar from ~/Applications first.", "更新失败，可重试或从更新页面手动安装。请先将应用安装至 ~/Applications。", "更新失敗，可重試或從更新頁面手動安裝。請先將應用程式安裝至 ~/Applications。")
+        case .failed: return text("Update failed. Retry or install manually from the release page.", "更新失败，可重试或从更新页面手动安装。", "更新失敗，可重試或從更新頁面手動安裝。") + (update.failure.map { "\n" + $0 } ?? "")
         case .succeeded: return text("Update installed successfully.", "更新安装成功。", "更新安裝成功。")
         case .rolledBack: return text("The new version could not start. Your previous version was restored.", "新版未能正常启动，已恢复旧版本。", "新版未能正常啟動，已恢復舊版本。")
         case .cancelled: return text("Download cancelled; current version unchanged.", "已取消下载，当前版本未变更。", "已取消下載，目前版本未變更。")
