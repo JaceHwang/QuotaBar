@@ -1,5 +1,23 @@
 # QuotaBar troubleshooting
 
+## Windows settings and update preparation
+
+Preferences saves retain atomic replacement by default. Only
+`ERROR_INVALID_HANDLE` (`0x80070006`) enables a compatibility copy, retaining
+the previous settings in `%LOCALAPPDATA%\QuotaBar\preferences.json.backup`.
+An interrupted copy is restored when possible. If restoration fails, subsequent
+saves are blocked; an invalid primary with an existing backup is also protected
+when the compatibility path is retried after restart. Exit the app, preserve
+copies of both files, and restore the valid backup manually. The compatibility
+copy is not atomic and its backup can predate the latest attempted setting.
+
+After downloading, the Windows update helper rechecks hashes and extracts the
+package before signaling readiness. It now has up to 120 seconds instead of 10,
+measured with a monotonic clock; cancellation and early process exit still stop
+the wait. This does not skip package verification or change installation rollback.
+The old generic failure or rollback message alone does not identify the failing
+stage; it must not be treated as proof that the new app crashed.
+
 ## Windows message history: invalid handle
 
 If opening an unread message or choosing “Mark all read” reports an invalid

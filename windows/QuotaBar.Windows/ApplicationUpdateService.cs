@@ -29,8 +29,7 @@ internal sealed class ApplicationUpdateService {
             var job=new UpdateInstallJob(1,Guid.NewGuid().ToString("N"),UpdateLocations.Target,Environment.ProcessId,Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),DateTimeOffset.UtcNow.AddMinutes(10),download.Release); job.Write(download.Directory);
             cancel.ThrowIfCancellationRequested(); var start=new ProcessStartInfo(Path.Combine(copied,"QuotaBar.Setup.exe")) { UseShellExecute=false,CreateNoWindow=true };
             start.ArgumentList.Add("update"); start.ArgumentList.Add(download.Directory); helper=Process.Start(start)??throw new IOException("Update helper unavailable");
-            var deadline=DateTimeOffset.UtcNow.AddSeconds(10);
-            while(!job.HasReceipt("ready",download.Directory)) { cancel.ThrowIfCancellationRequested(); if(helper.HasExited || DateTimeOffset.UtcNow>=deadline) throw new IOException("Update helper not ready"); await Task.Delay(50,cancel); }
+            await UpdateHelperReadiness.WaitAsync(()=>job.HasReceipt("ready",download.Directory),()=>helper.HasExited,cancel);
             cancel.ThrowIfCancellationRequested();
             if(!pending.TryAdd(cancel,new UpdateReadyHandoff(helper,job,download.Directory))) throw new IOException("Duplicate handoff");
             helper=null; handedOff=true;

@@ -653,8 +653,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDele
         networkMonitor?.cancel(); networkMonitor = nil
         removeMouseMonitors()
         for task in tasks { task.cancel() }
-        Task { await updates?.waitForUpdateCleanup(); if let client { await client.stop() }; sender.reply(toApplicationShouldTerminate: true) }
-        return .terminateLater
+        Task { await updates?.waitForUpdateCleanup(); if let client { await client.stop() }; sender.terminate(nil) }
+        // AppKit's terminateLater wait prevents MainActor cleanup from running.
+        // Cancel this attempt, finish cleanup, then re-enter with stopping set.
+        return .terminateCancel
     }
     private func removeMouseMonitors() {
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }

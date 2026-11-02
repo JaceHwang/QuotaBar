@@ -8,6 +8,10 @@ if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_P
     while(await Console.In.ReadLineAsync() is not null) { }
     return 0;
 }
+if(args.Contains("--windows-reliability-settings")) { WindowsReliabilityTests.Settings();return 0; }
+if(args.Contains("--windows-reliability-readiness")) { await WindowsReliabilityTests.Readiness();return 0; }
+WindowsReliabilityTests.Settings();
+await WindowsReliabilityTests.Readiness();
 var tests = new (string Name, Action Run)[] {
     ("floating background transparency defaults, clamps and persists", () => {
         Check(new Preferences().FloatingBackgroundTransparency==20,"default20");

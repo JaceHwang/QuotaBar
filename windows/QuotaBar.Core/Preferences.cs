@@ -28,16 +28,42 @@ public sealed record Preferences {
         Language=new[]{"system","zh-CN","zh-TW","en"}.Contains(Language)?Language:"system"
     };
 }
-public sealed class PreferencesStore(string path) {
-    public string Path { get; }=path;
+public sealed class PreferencesStore {
+    readonly Action<string,string,bool> moveFile,copyFile;
+    bool recoveryRequired;
+    public string Path { get; }
+    public PreferencesStore(string path):this(path,File.Move,File.Copy) { }
+    internal PreferencesStore(string path,Action<string,string,bool> moveFile,Action<string,string,bool>? copyFile=null) { Path=path;this.moveFile=moveFile;this.copyFile=copyFile??File.Copy; }
     public Preferences Load() {
         try { var p=JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path)); return p?.Schema==1 ? p.Validated() : new(); }
         catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { return new(); }
     }
     public void Save(Preferences preferences) {
+        if(recoveryRequired) throw new IOException("Preferences recovery required; the previous settings backup was retained.");
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!);
         var temp=Path+"."+Guid.NewGuid()+".tmp";
-        try { File.WriteAllText(temp,JsonSerializer.Serialize(preferences.Validated(),new JsonSerializerOptions { WriteIndented=true })); File.Move(temp,Path,true); }
+        try { File.WriteAllText(temp,JsonSerializer.Serialize(preferences.Validated(),new JsonSerializerOptions { WriteIndented=true })); Commit(temp); }
         finally { if(File.Exists(temp)) File.Delete(temp); }
+    }
+    void Commit(string temp) {
+        try { moveFile(temp,Path,true);return; }
+        catch(IOException error) when(error.HResult==unchecked((int)0x80070006)) { }
+        var backup=Path+".backup";var hadPrevious=File.Exists(Path);
+        // A failed compatibility write must never replace the only valid backup.
+        if(File.Exists(backup)) {
+            try {
+                if(!hadPrevious || JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path)) is not { Schema:1 }) throw new JsonException("Invalid preferences");
+            } catch(JsonException error) { recoveryRequired=true;throw new IOException("Preferences recovery required; the previous settings backup was retained.",error); }
+        }
+        if(hadPrevious) copyFile(Path,backup,true);
+        try { copyFile(temp,Path,true); }
+        catch(Exception writeError) when(writeError is IOException or UnauthorizedAccessException) {
+            try { if(hadPrevious) copyFile(backup,Path,true);else File.Delete(Path); }
+            catch(Exception restoreError) when(restoreError is IOException or UnauthorizedAccessException) {
+                recoveryRequired=true;
+                throw new IOException("Preferences write and restore failed; the previous settings backup was retained.",new AggregateException(writeError,restoreError));
+            }
+            throw;
+        }
     }
 }

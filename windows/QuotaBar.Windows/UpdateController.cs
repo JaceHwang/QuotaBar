@@ -59,7 +59,7 @@ internal sealed class UpdateController : IDisposable {
         public UpdateReminderPolicy Policy { get; init; }=new();
     }
     public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? updateExecute=null) {
-        now=clock??(()=>DateTimeOffset.UtcNow); next=now().AddSeconds(30);
+        now=clock??(()=>DateTimeOffset.UtcNow); next=now().AddSeconds(10);
         http=transport??new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromSeconds(15) };
         this.owner=owner; Installer=new(Version,updateExecute); Installer.Operation.Changed+=()=>Changed?.Invoke(); Installer.Operation.Ready+=owner.Quit; statePath=Path.Combine(root,"updates.json");
         try { state=JsonSerializer.Deserialize<UpdateState>(File.ReadAllText(statePath))??new(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
@@ -67,7 +67,7 @@ internal sealed class UpdateController : IDisposable {
         timer.Tick+=(_,_)=> { Check(); Notify(); }; timer.Start();
         _=InitialCheck();
     }
-    async Task InitialCheck() { try { await Task.Delay(TimeSpan.FromSeconds(30),lifetime.Token); Check(); } catch(OperationCanceledException) { } }
+    async Task InitialCheck() { try { await Task.Delay(TimeSpan.FromSeconds(10),lifetime.Token); Check(); } catch(OperationCanceledException) { } }
     string Text(string en,string zh,string tw)=>owner.Copy.Text(en,zh,tw);
     public async void Check(bool manual=false) {
         var now=this.now();

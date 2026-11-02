@@ -49,3 +49,49 @@ final class UpdateDownloadTests: XCTestCase {
         }
     }
 }
+
+private final class ProgressHTTPProtocol: URLProtocol {
+    static let body = Data(repeating: 42, count: 196608)
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Length": String(Self.body.count)])!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+private final class TransferProgressValues: @unchecked Sendable {
+    let lock = NSLock()
+    var values: [Int64] = []
+    func append(_ value: Int64) { lock.lock(); defer { lock.unlock() }; values.append(value) }
+}
+extension UpdateDownloadTests {
+    func testHTTPDownloadReportsProgressAndWritesVerifiedPayload() async throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [ProgressHTTPProtocol.self]
+        let transport = UpdateHTTPTransport(configuration: config)
+        let body = ProgressHTTPProtocol.body
+        let asset = UpdateAsset(name: "test.dmg", url: URL(string: "https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0/test.dmg")!, size: Int64(body.count), sha256: SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined())
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let progress = TransferProgressValues()
+        try await transport.download(asset, to: destination) { progress.append($0) }
+        XCTAssertTrue(progress.values.contains { $0 > 0 && $0 < asset.size })
+        XCTAssertEqual(progress.values.last, asset.size)
+        XCTAssertEqual(try Data(contentsOf: destination), body)
+    }
+}
+extension UpdateDownloadTests {
+    func testHTTPBadDigestCleansTransferAndExistingDestinationIsPreserved() async throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [ProgressHTTPProtocol.self]
+        let transport = UpdateHTTPTransport(configuration: config)
+        let asset = UpdateAsset(name: "test.dmg", url: URL(string: "https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0/test.dmg")!, size: Int64(ProgressHTTPProtocol.body.count), sha256: String(repeating: "0", count: 64))
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        do { try await transport.download(asset, to: destination) { _ in }; XCTFail("Bad digest accepted") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        let marker = Data("preserve".utf8); try marker.write(to: destination)
+        do { try await transport.download(asset, to: destination) { _ in }; XCTFail("Existing file overwritten") } catch {}
+        XCTAssertEqual(try Data(contentsOf: destination), marker)
+    }
+}

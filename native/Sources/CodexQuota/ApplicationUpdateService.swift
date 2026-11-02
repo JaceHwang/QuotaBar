@@ -45,7 +45,18 @@ import QuotaCore
             } catch {
                 handoff?.cancel()
                 guard let self, generation == id else { return }
-                task = nil; progress = ApplicationUpdateProgress(Task.isCancelled ? .cancelled : .failed); onChange?()
+                let underlying = error as NSError
+                let safeDomain = String(underlying.domain.filter { $0.isLetter || $0.isNumber || ".-_".contains($0) }.prefix(120))
+                let detail = "\(progress.phase.rawValue): \(safeDomain) (\(underlying.code))"
+                if run == nil, !Task.isCancelled {
+                    let root = UpdateLocations.cache.deletingLastPathComponent()
+                    let record: [String: String] = ["time": ISO8601DateFormatter().string(from: Date()), "version": version, "lastReportedPhase": progress.phase.rawValue, "errorDomain": safeDomain, "errorCode": String(underlying.code)]
+                    try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                    if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
+                        try? data.write(to: root.appendingPathComponent("last-update-error.json"), options: .atomic)
+                    }
+                }
+                task = nil; progress = ApplicationUpdateProgress(Task.isCancelled ? .cancelled : .failed, failure: Task.isCancelled ? nil : detail); onChange?()
             }
         }
     }

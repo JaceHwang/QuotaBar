@@ -51,7 +51,7 @@ final class QuotaUpdateViewTests: XCTestCase {
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AvailableFeedProtocol.self]
         let controller = QuotaUpdateController(defaults: defaults, version: "0.7.0", transport: URLSession(configuration: config), now: { now }, text: { en, _, _ in en })
         defer { controller.stop() }
-        now = now.addingTimeInterval(31)
+        now = now.addingTimeInterval(10)
         controller.check()
         for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(20)) }
         XCTAssertEqual(defaults.object(forKey: "updates.lastSuccess") as? Date, now, "Startup checks even after a recent success")
@@ -75,7 +75,7 @@ final class QuotaUpdateViewTests: XCTestCase {
         defer { controller.stop() }
         let initial = UnavailableFeedProtocol.requests.value
         defaults.set(true, forKey: "updates.autoDisabled")
-        now = now.addingTimeInterval(31); controller.check()
+        now = now.addingTimeInterval(10); controller.check()
         try await Task.sleep(for: .milliseconds(40))
         XCTAssertEqual(UnavailableFeedProtocol.requests.value, initial)
         controller.check(manual: true)
