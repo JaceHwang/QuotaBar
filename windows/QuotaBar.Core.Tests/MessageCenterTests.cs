@@ -4,6 +4,7 @@ static class MessageCenterTests {
  static void Check(bool condition,string name) { if(!condition) throw new Exception(name); }
  static MessageCenterRecord Row(string id,long at=1900000000000,string generation="initial",string? epoch="one")=>new(new(id,generation,epoch),NotificationCategory.QuotaLow,"Quota low","15% snapshot",at,null,[NotificationChannel.Bubble]);
  public static void Run() {
+  InvalidHandleReadPersistence();
   var root=Path.Combine(Path.GetTempPath(),"message-tests-"+Guid.NewGuid()); Directory.CreateDirectory(root); var path=Path.Combine(root,"message-center.json");
   try {
    File.Copy(Path.Combine(AppContext.BaseDirectory,"contracts/notifications/message-center-cases.json"),path);
@@ -30,5 +31,40 @@ static class MessageCenterTests {
    File.WriteAllText(path,"{\"schema\":999,\"messages\":[]}");store=new(path);Check(store.Error!=null&&!store.Append(Row("new"))&&File.ReadAllText(path).Contains("999"),"future schema preserved");
   } finally { Directory.Delete(root,true); }
   Console.WriteLine("PASS persistent message archive contract, read/restart, corrupt/write recovery and10000 records");
+ }
+ static void InvalidHandleReadPersistence() {
+  var root=Path.Combine(Path.GetTempPath(),"message-invalid-handle-"+Guid.NewGuid());Directory.CreateDirectory(root);var path=Path.Combine(root,"history.json");
+  static void InvalidHandle(string source,string destination,bool overwrite)=>throw new IOException("Invalid handle",unchecked((int)0x80070006));
+  try {
+   var store=new MessageCenterStore(path,InvalidHandle);var first=Row("first");var second=Row("second");
+   Check(store.Append([first,second]),"invalid handle fallback creates history");
+   Check(store.MarkRead(first.Key,1900000010000),"invalid handle single read saves");
+   Check(new MessageCenterStore(path).UnreadCount==1,"single read survives restart");
+   Check(store.MarkAllRead(1900000020000)&&store.Error is null,"invalid handle all read saves and clears error");
+   Check(new MessageCenterStore(path).UnreadCount==0&&new MessageCenterStore(path).Records.Count==2,"all read survives restart without losing history");
+   Check(new MessageCenterStore(path+".backup").UnreadCount==1,"previous complete history backed up");
+   var saved=File.ReadAllBytes(path);
+   var denied=new MessageCenterStore(path,(_,_,_)=>throw new IOException("Access denied",unchecked((int)0x80070005)));
+   Check(!denied.Append(Row("denied"))&&File.ReadAllBytes(path).SequenceEqual(saved),"unrelated I/O failures are not bypassed");
+   var damaged=new MessageCenterStore(path,(source,_,_)=> { File.Delete(source);InvalidHandle(source,path,true); });
+   Check(!damaged.Append(Row("failed"))&&File.ReadAllBytes(path).SequenceEqual(saved),"fallback failure preserves committed history");
+   Check(!Directory.EnumerateFiles(root,"*.tmp").Any(),"temporary writes cleaned after failures");
+   var copies=0;
+   var interrupted=new MessageCenterStore(path,InvalidHandle,(source,destination,overwrite)=> {
+    if(++copies==2) { File.WriteAllText(destination,"{interrupted");throw new IOException("partial write"); }
+    File.Copy(source,destination,overwrite);
+   });
+   Check(!interrupted.Append(Row("interrupted"))&&File.ReadAllBytes(path).SequenceEqual(saved),"partial destination write restores previous document");
+   copies=0;
+   var unrecoverable=new MessageCenterStore(path,InvalidHandle,(source,destination,overwrite)=> {
+    if(++copies==2) { File.WriteAllText(destination,"{interrupted");throw new IOException("partial write"); }
+    if(copies==3) throw new IOException("restore unavailable");
+    File.Copy(source,destination,overwrite);
+   });
+   Check(!unrecoverable.Append(Row("unrecoverable"))&&unrecoverable.Error!=null,"restore failure reported");
+   var goodBackup=File.ReadAllBytes(path+".backup");
+   Check(!unrecoverable.Append(Row("retry"))&&!unrecoverable.MarkAllRead(1900000030000)&&File.ReadAllBytes(path+".backup").SequenceEqual(goodBackup),"failed restore blocks retries from overwriting good backup");
+   Check(!new MessageCenterStore(path).MarkAllRead(1900000030000)&&File.ReadAllBytes(path+".backup").SequenceEqual(goodBackup),"restart preserves interrupted document and good backup");
+  } finally { Directory.Delete(root,true); }
  }
 }
