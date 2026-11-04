@@ -235,7 +235,7 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDele
         switch event {
         case .failure(let method, let message):
             state.receiveError(method: method, message: message)
-            if state.phase != .ready { experience?.resetBaseline() }
+            if state.phase != .ready { experience?.resetBaseline(preserveNotifications: true) }
             if method == "account/login/start" { state.loginCompleted(success: false) }
             if method == "account/rateLimits/read" { requestInFlight = false }
         case .loginURL(let url): NSWorkspace.shared.open(url)
@@ -285,14 +285,13 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDele
         }
     }
     @objc private func wake() { sleeping = false; refresh(); updates?.check() }
-    @objc private func sleep() { sleeping = true; experience?.resetBaseline(); AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
+    @objc private func sleep() { sleeping = true; experience?.resetBaseline(preserveNotifications: true); AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
     @objc private func notificationScreenLocked() { screenLocked = true; AppNotificationRouter.shared.updateEnvironment(canPresent: false) }
     @objc private func notificationScreenUnlocked() { screenLocked = false; render() }
-    @objc private func notificationSpaceChanged() { AppNotificationRouter.shared.suspend(); render() }
-    @objc private func showUnreadReminders() { AppNotificationRouter.shared.suspend(); messagePanel.show(router: .shared, language: language) }
+    @objc private func notificationSpaceChanged() { AppNotificationRouter.shared.updateEnvironment(canPresent: false); render() }
+    @objc private func showUnreadReminders() { messagePanel.show(router: .shared, language: language) }
     private func dismissOutsideClick() {
         if notificationBubble.contains(NSEvent.mouseLocation) { return }
-        if notificationBubble.isVisible { AppNotificationRouter.shared.suspend() }
         guard showingDetail || floatingInteraction.shouldShowDetail, !(detailFromFloating ? floatingInteraction.isLockedOpen : detailLocked) else { return }
         let point = NSEvent.mouseLocation
         if detail.frame?.contains(point) == true || floating.frame?.contains(point) == true || statusItem?.button?.window?.frame.contains(point) == true { return }

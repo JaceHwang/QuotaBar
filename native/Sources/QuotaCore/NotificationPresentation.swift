@@ -28,7 +28,6 @@ public struct NotificationPresentationState: Sendable {
     private struct Entry: Sendable { let message: ExperienceNotification; var deferred: Bool; var presented = false; var read = false }
     private var entries: [Entry] = []
     public private(set) var activeID: String?
-    private var quotaBaseline: QuotaObservation?
     private var stopped = false
     public init() {}
     public mutating func enqueue(_ m: ExperienceNotification, canPresent: Bool, now: Date) {
@@ -56,39 +55,15 @@ public struct NotificationPresentationState: Sendable {
         if let i = entries.firstIndex(where: { $0.message.id == id }) { entries[i].read = read || entries[i].read; entries[i].deferred = true }
         if activeID == id { activeID = nil }
     }
-    // All bubble kinds are held until a fresh full read proves a quota change.
+    // Presentation ends only through explicit dismissal or lifecycle cancellation.
     public mutating func setInteracting(_ value: Bool, now: Date) {}
     @discardableResult public mutating func tick(now: Date) -> Bool { prune(now); return false }
-    @discardableResult public mutating func observeQuota(_ observation: QuotaObservation, now: Date) -> Bool {
-        guard !stopped, observation.source == .fullRead,
-              now.timeIntervalSince(observation.receivedAt) >= -5,
-              now.timeIntervalSince(observation.receivedAt) <= 120,
-              observation.quota.primary.usedPercent.isFinite,
-              observation.quota.primary.usedPercent >= 0, observation.quota.primary.usedPercent <= 100,
-              observation.quota.secondary.map({ $0.usedPercent.isFinite && $0.usedPercent >= 0 && $0.usedPercent <= 100 }) ?? true else { return false }
-        let previous = quotaBaseline
-        if let previous, previous.epoch == observation.epoch {
-            guard observation.sequence > previous.sequence, observation.receivedAt >= previous.receivedAt else { return false }
-        }
-        let changed = previous.map { old in
-            old.epoch == observation.epoch &&
-            (old.quota.primary.usedPercent != observation.quota.primary.usedPercent ||
-             (old.quota.secondary != nil && observation.quota.secondary != nil && old.quota.secondary?.usedPercent != observation.quota.secondary?.usedPercent))
-        } ?? false
-        // Missing optional periods are unknown, not zero. Preserve only their comparison baseline.
-        var quota = observation.quota
-        if quota.secondary == nil, let previous, previous.epoch == observation.epoch {
-            quota = AllowanceSnapshot(usedPercent: quota.primary.usedPercent, remainingPercent: quota.primary.remainingPercent, resetsAt: quota.primary.resetsAt, receivedAt: quota.receivedAt, windowDurationMins: quota.primary.windowDurationMins, planType: quota.planType, secondary: previous.quota.secondary)
-        }
-        quotaBaseline = QuotaObservation(epoch: observation.epoch, sequence: observation.sequence, receivedAt: observation.receivedAt, quota: quota, source: .fullRead)
-        guard changed, let id = activeID else { return false }
-        dismiss(id: id, read: false); return true
-    }
+    @discardableResult public mutating func observeQuota(_ observation: QuotaObservation, now: Date) -> Bool { false }
     public mutating func suspend() { if let id = activeID { dismiss(id: id, read: false) } }
     public mutating func forget(id: String) { if activeID == id { suspend() }; entries.removeAll { $0.message.id == id } }
-    public mutating func cancel(epoch: String) {
-        if entries.contains(where: { $0.message.id == activeID && $0.message.epoch == epoch }) { suspend() }
-        entries.removeAll { $0.message.epoch == epoch }
+    public mutating func cancel(epoch: String, preserving id: String? = nil) {
+        if entries.contains(where: { $0.message.id == activeID && $0.message.epoch == epoch && $0.message.id != id }) { suspend() }
+        entries.removeAll { $0.message.epoch == epoch && $0.message.id != id }
     }
     public mutating func unread(now: Date) -> [NotificationUnreadItem] {
         prune(now)

@@ -42,7 +42,7 @@ internal sealed class QuotaExperienceController {
             warningEngine.ConfigureLowThresholds(HasRule(NotificationCategory.QuotaLow)?owner.Notifications.PolicyPreferences.ConfiguredLowThresholds:[]);
         }
         engine.Configure(p); if(!engine.Preferences.Celebration) owner.CancelCelebration(); }
-    public void ResetBaseline() { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.ResetBaseline(); warningEngine.ResetBaseline(); lastObservation=null; owner.CancelCelebration(); }
+    public void ResetBaseline(bool preserveNotifications=false) { owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch,preservingActive:preserveNotifications); engine.ResetBaseline(); warningEngine.ResetBaseline(); lastObservation=null; owner.CancelCelebration(); }
     public void ClearAccount() {
         owner.Notifications.CancelAuthenticationEpoch(engine.State.Epoch); engine.RotateEpoch(); owner.Notifications.CurrentMessageEpoch=engine.State.Epoch; warningEngine=new(); sequence=0; lastObservation=null; owner.CancelCelebration(); Persist();
     }

@@ -4,7 +4,86 @@ import QuotaCore
 @testable import CodexQuota
 
 @MainActor final class NotificationRoutingTests: XCTestCase {
-    func testRealPreviewSurvivesFormerTimeoutUntilQuotaChanges() throws {
+    func testResetDropsQueuedSameAccountMessageAndLogoutClearsActiveBubble() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "PersistentEpoch.\(UUID())")!); defer { router.stop() }
+        var visible = false, displayed: [String] = []
+        router.presentBubble = { displayed.append($0.id); visible = true; return true }; router.hideBubble = { visible = false }; router.updateEnvironment(canPresent: true)
+        let active = ExperienceNotification(id: "active-epoch", kind: .recovery, epoch: "a", title: "A", body: "", createdAt: Date())
+        let queued = ExperienceNotification(id: "queued-epoch", kind: .recovery, epoch: "a", title: "B", body: "", createdAt: Date())
+        router.enqueue(active, valid: { true }, failed: {}); router.enqueue(queued, valid: { true }, failed: {})
+        router.cancelAuthenticationEpoch("a", preservingActive: true); XCTAssertTrue(visible)
+        router.dismiss(id: active.id, read: true); XCTAssertFalse(visible); XCTAssertEqual(displayed, [active.id])
+        router.enqueue(ExperienceNotification(id: "next-epoch", kind: .recovery, epoch: "a", title: "C", body: "", createdAt: Date()), valid: { true }, failed: {})
+        XCTAssertTrue(visible); router.cancelAuthenticationEpoch("a"); XCTAssertFalse(visible)
+    }
+    func testResetPreservesActiveBubbleButCancelsPendingSystemDelivery() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "PersistentReset.\(UUID())")!); defer { router.stop() }
+        router.configure(NotificationPresentationPreferences(mode: .both)); router.currentMessageEpoch = "a"
+        var visible = false, callback: ((Bool) -> Void)?, receipts = 0, failures = 0
+        router.presentBubble = { _ in visible = true; return true }; router.hideBubble = { visible = false }
+        router.sendSystem = { _, done in callback = done }; router.updateEnvironment(canPresent: true)
+        let message = ExperienceNotification(id: "active-reset", kind: .recovery, epoch: "a", title: "Reminder", body: "", createdAt: Date())
+        router.enqueue(message, valid: { true }, failed: { failures += 1 }, shown: { receipts += 1 })
+        XCTAssertTrue(visible); XCTAssertNotNil(callback); XCTAssertEqual(receipts, 1)
+        router.cancelAuthenticationEpoch("a", preservingActive: true); XCTAssertTrue(visible)
+        callback?(false); XCTAssertEqual(receipts, 1); XCTAssertEqual(failures, 0)
+        router.dismiss(id: message.id, read: true); XCTAssertFalse(visible)
+    }
+    func testStaleActiveBubbleOpensCurrentDetails() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "PersistentAction.\(UUID())")!); defer { router.stop() }
+        var valid = true, opened = 0
+        router.currentMessageEpoch = "a"; router.openDetails = { opened += 1 }; router.presentBubble = { _ in true }; router.updateEnvironment(canPresent: true)
+        let message = ExperienceNotification(id: "stale-action", kind: .recovery, epoch: "a", title: "Reminder", body: "", createdAt: Date())
+        router.enqueue(message, valid: { valid }, failed: {}); valid = false
+        router.activate(id: message.id); XCTAssertEqual(opened, 1)
+    }
+    func testPreviewCanReopenAfterAcknowledgement() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "RepeatedPreview.\(UUID())")!); defer { router.stop() }
+        router.presentBubble = { _ in true }; router.updateEnvironment(canPresent: true)
+        let first = ExperienceNotification(id: "preview-first", kind: .test, epoch: nil, title: "Preview", body: "", createdAt: Date())
+        let second = ExperienceNotification(id: "preview-second", kind: .test, epoch: nil, title: "Preview", body: "", createdAt: Date())
+        XCTAssertTrue(router.preview(first)); router.dismiss(id: first.id, read: true)
+        XCTAssertTrue(router.preview(second))
+    }
+    func testPreviewCannotReplaceAnUnacknowledgedBubble() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "PersistentPreview.\(UUID())")!); defer { router.stop() }
+        var shown: [String] = []; router.presentBubble = { shown.append($0.id); return true }; router.updateEnvironment(canPresent: true)
+        let active = ExperienceNotification(id: "existing", kind: .recovery, epoch: "a", title: "Reminder", body: "", createdAt: Date())
+        let preview = ExperienceNotification(id: "preview", kind: .test, epoch: nil, title: "Preview", body: "", createdAt: Date())
+        router.enqueue(active, valid: { true }, failed: {})
+        XCTAssertFalse(router.preview(preview)); XCTAssertEqual(shown, ["existing"])
+    }
+    func testShownMessageKeepsVisibleAfterItBecomesStaleAndAcknowledges() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "PersistentStale.\(UUID())")!); defer { router.stop() }
+        var visible = false, valid = true
+        router.presentBubble = { _ in visible = true; return true }; router.hideBubble = { visible = false }
+        router.updateEnvironment(canPresent: true)
+        let message = ExperienceNotification(id: "stale", kind: .recovery, epoch: "a", title: "Reminder", body: "", createdAt: Date())
+        router.enqueue(message, valid: { valid }, failed: {})
+        XCTAssertTrue(visible); valid = false; router.tick(); XCTAssertTrue(visible)
+        router.dismiss(id: message.id, read: true); XCTAssertFalse(visible)
+    }
+    func testPresentedBubbleSurvivesQuotaChangeAndTemporaryEnvironmentLoss() {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "Persistent.\(UUID())")!); defer { router.stop() }
+        var visible = false, shown = 0
+        router.presentBubble = { _ in visible = true; shown += 1; return true }
+        router.hideBubble = { visible = false }
+        router.updateEnvironment(canPresent: true)
+        func observation(_ used: Double, _ sequence: Int) -> QuotaObservation {
+            let now = Date()
+            return QuotaObservation(epoch: "a", sequence: sequence, receivedAt: now, quota: AllowanceSnapshot(usedPercent: used, remainingPercent: Int(100-used), resetsAt: now.addingTimeInterval(3600), receivedAt: now))
+        }
+        router.observeQuota(observation(20, 1))
+        let message = ExperienceNotification(id: "held-persistent", kind: .test, epoch: nil, title: "Example", body: "", createdAt: Date())
+        XCTAssertTrue(router.preview(message)); XCTAssertTrue(visible)
+        router.observeQuota(observation(21, 2)); XCTAssertTrue(visible, "A quota change must not dismiss a shown bubble")
+        router.updateEnvironment(canPresent: false); XCTAssertFalse(visible)
+        router.updateEnvironment(canPresent: true); XCTAssertTrue(visible, "A temporarily hidden bubble must return")
+        XCTAssertEqual(shown, 2)
+        router.dismiss(id: message.id, read: true); XCTAssertFalse(visible)
+        router.updateEnvironment(canPresent: false); router.updateEnvironment(canPresent: true); XCTAssertFalse(visible)
+    }
+    func testRealPreviewSurvivesFormerTimeoutAndQuotaChanges() throws {
         let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "HeldWindow.\(UUID())")!)
         let bubble = CharacterNotificationBubble(); defer { router.stop(); bubble.dismiss() }
         let work = try XCTUnwrap(NSScreen.main).visibleFrame
@@ -19,9 +98,9 @@ import QuotaCore
         RunLoop.main.run(until: Date().addingTimeInterval(12))
         XCTAssertTrue(bubble.panel.isVisible)
         router.observeQuota(observation(20, 2)); XCTAssertTrue(bubble.panel.isVisible)
-        router.observeQuota(observation(21, 3)); XCTAssertFalse(bubble.panel.isVisible)
+        router.observeQuota(observation(21, 3)); XCTAssertTrue(bubble.panel.isVisible)
     }
-    func testQuotaChangeHidesAllBubbleKindsButSameReadKeepsThem() {
+    func testQuotaChangeKeepsAllBubbleKinds() {
         for kind in [ExperienceNotificationKind.recovery, .bank, .update, .test] {
             let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "Held.\(UUID())")!); defer { router.stop() }
             var hidden = 0
@@ -34,7 +113,7 @@ import QuotaCore
             router.observeQuota(observation(20, 1))
             router.enqueue(ExperienceNotification(id: "held", kind: kind, epoch: "a", title: "Held", body: "", createdAt: Date()), valid: { true }, failed: {})
             router.observeQuota(observation(20, 2)); router.tick(); XCTAssertEqual(hidden, 0)
-            router.observeQuota(observation(21, 3)); XCTAssertEqual(hidden, 1)
+            router.observeQuota(observation(21, 3)); XCTAssertEqual(hidden, 0)
         }
     }
     func testBubbleDoesNotRequestSystemPermissionAndHiddenDoesNotMarkShown() {
