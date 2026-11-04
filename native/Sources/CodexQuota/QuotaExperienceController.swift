@@ -52,7 +52,7 @@ import QuotaCore
         do { try store.save(engine.state); try warningStore.save(warningEngine.state); storageReady = true; return true }
         catch { storageReady = false; setNotificationStatus(("Could not save reminder state; no alert sent", "无法保存提醒状态，本次未发提醒", "無法儲存提醒狀態，本次未發提醒")); return false }
     }
-    func resetBaseline() { router.cancelAuthenticationEpoch(engine.state.epoch); engine.resetBaseline(); warningEngine.resetBaseline(); lastObservation = nil; onCancelCelebration?() }
+    func resetBaseline(preserveNotifications: Bool = false) { router.cancelAuthenticationEpoch(engine.state.epoch, preservingActive: preserveNotifications); engine.resetBaseline(); warningEngine.resetBaseline(); lastObservation = nil; onCancelCelebration?() }
     func accountCleared() {
         router.cancelAuthenticationEpoch(engine.state.epoch); engine.rotateEpoch(); router.currentMessageEpoch = engine.state.epoch; warningEngine = QuotaWarningEngine(); sequence = 0; lastObservation = nil
         onCancelCelebration?(); persist()

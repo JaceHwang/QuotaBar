@@ -27,14 +27,14 @@ static class NotificationPresentationTests {
             Check(!held.ObserveQuota(O(21,3,now.AddSeconds(70),ObservationSource.Notification),now.AddSeconds(70)),"partial notification ignored");
             Check(!held.ObserveQuota(O(21,1,now),now.AddSeconds(80)),"late sequence ignored");
             Check(!held.ObserveQuota(O(21,3,now),now.AddSeconds(180)),"stale observation ignored");
-            Check(held.ObserveQuota(O(20.1,10,now.AddSeconds(120)),now.AddSeconds(120))&&held.ActiveId==null,"raw quota change dismisses");
+            Check(!held.ObserveQuota(O(20.1,10,now.AddSeconds(120)),now.AddSeconds(120))&&held.ActiveId=="held","raw quota change keeps the shown bubble");
         }
         var optional=new NotificationPresentationState();
         QuotaObservation S(double? secondary,long sequence,string epoch="a")=>new(epoch,sequence,now,new(new(20,80,now,300),secondary is { } used?new(used,50,now,10080):null,null,null,null,now));
         optional.ObserveQuota(S(40,1),now); optional.Enqueue(M("secondary"),true,now); optional.Next(true,now); optional.Shown("secondary",now);
         Check(!optional.ObserveQuota(S(null,2),now),"missing secondary is unknown");
         Check(!optional.ObserveQuota(S(101,3),now)&&optional.ActiveId=="secondary","invalid secondary ignored");
-        Check(optional.ObserveQuota(S(41,4),now),"known secondary comparison survives omission and invalid response");
+        Check(!optional.ObserveQuota(S(41,4),now)&&optional.ActiveId=="secondary","secondary change keeps shown bubble"); optional.Dismiss("secondary",true);
         optional.Enqueue(M("epoch-update",ExperienceNotificationKind.Update),true,now); optional.Next(true,now);
         Check(!optional.ObserveQuota(S(90,1,"b"),now)&&optional.ActiveId=="epoch-update","new epoch establishes baseline");
         optional.Stop(); Check(!optional.ObserveQuota(S(91,2,"b"),now),"stopped observation ignored");

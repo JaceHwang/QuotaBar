@@ -979,3 +979,17 @@ Dock修复f35ffd2交付：本地完整197Core+157AppKit/.NET/Windows三工程通
 ### 2026-11-02 v1.6.0正式发布完成
 
 PR64修复合并9744fd4，README/doc/8张原生功能图通过PR65合并ebb242f；Release Please PR63生成统一1.6.0并合并0a81d85164d5a9129eb3e88db87825d559ce4d88，tag准确。版本PR41424652479及正式tag主分支CI41426220314双端成功。Mac正式发布41426290322、Windows正式发布41427011881均成功，公开10资产；本地重新完整下载并核对10摘要、校验清单、来源与tag，Mac签名/完整源码/DMG/隔离真实启动退出和Windows完整payload/PE/runtime/109源码/原生记录/ZIP CRC通过。feed部署41427481470成功，公开两平台均1.6.0；公开下载HTTP200，旧1.5.0资产ID/大小/digest未变。发布前Windows实机反馈与本轮正式包原生CI分开记录，未宣称用户正式1.6.0设备复验。完整证据见docs/releases/v1.6.0.md。保留原bubble-reference工作区和临时保存的候选交付路线图stash，不覆盖旧版资产或用户数据。
+
+## 2026-11-04 气泡持续显示直到处理
+
+用户要求气泡一直显示，直到点击“知道了”或“查看详情”，本轮覆盖之前按额度变化收起的决定。基于 origin/main 的 1.6.0 源码，在独立分支实现 macOS/Windows：额度变化、外部点击不再关闭；锁屏、休眠、菜单和其他暂不可展示状态暂时隐藏并在可展示时恢复；新预览不能覆盖已显示提醒；过期的同账号提醒打开当前详情。明确取消提醒、退出登录或关闭应用仍按会话安全规则清理；临时故障或休眠只保留已显示气泡，同时取消旧会话待发送的通知。预览不变更真实提醒记录。
+
+验证进展：macOS 路由回归已复现原先额度变化与隐藏后不恢复的问题，修改后通过；新增失效动作、预览覆盖、会话取消回归通过。Windows Core 行为测试 15/15 通过，Windows 应用及 UI 测试工程已跨编译通过；Windows 原生 UI 和用户设备尚未验证。完整最新治理检查、macOS 候选构建安装及实际交互验证待执行；尚未公开发布。
+
+完整治理 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./governance check all` 通过：macOS 199 Core + 164 AppKit 测试、Windows Core 15/15、安装和签名夹具及 Windows 应用/安装器/UI 测试工程跨编译通过；Windows 原生界面及实机未执行。随后新增重复预览回归单测单独通过。独立审查提出的过期动作、预览覆盖、临时故障及待发送投递安全问题已修改并有 macOS 回归；等待中的过期提醒仍保留消息历史，未承诺补发失效提醒。
+
+开发候选 `candidate-20261104-142848` 基于未提交工作树构建（provenance 标记 dirty，版本号仍为 1.6.0），签名、源码摘要、隔离启动退出及 DMG CRC 验证通过。仓库事务安装器安装至 `~/Applications/QuotaBar.app`，确认候选可执行文件摘要一致；发现 `/Applications/QuotaBar.app` 的正式版仍在运行，已正常退出它并显式启动用户目录候选，PID 24082、ready、has_quota=true。真实示例预览在关闭设置窗口后仍显示，等待超过 16 秒仍显示；点击“知道了”关闭，重新预览后点击“查看详情”，诊断确认 detail_visible=true。原 `/Applications/QuotaBar.app` 正式版保留；之后如果从该路径启动，会回到旧行为，不能将候选视为公开发行或替换该正式安装。未验证锁屏/休眠实际恢复、Windows 用户设备或长时间真实提醒；无真实手机测试推送。当前未提交、未推送或发布。
+
+用户授权提交并推送本次气泡修改；本次范围为代码分支交付，不包括合并或公开发布。Windows 原生 CI 与设备验收以实际结果另行记录；本机候选和 `/Applications` 正式版仍为不同安装。
+
+提交前重新运行完整治理检查通过：macOS 199 Core + 165 AppKit、Windows Core 15/15，Windows 应用、安装器和 UI 测试工程编译通过；Windows 原生执行和用户设备验收仍未完成。

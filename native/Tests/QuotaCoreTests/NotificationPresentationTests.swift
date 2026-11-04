@@ -50,7 +50,7 @@ final class NotificationPresentationTests: XCTestCase {
         state.stop(); state.enqueue(message("stopped"), canPresent: true, now: now)
         XCTAssertTrue(state.unread(now: now).isEmpty)
     }
-    func testEveryKindStaysUntilConfirmedQuotaChange() {
+    func testEveryKindStaysDespiteQuotaChange() {
         for kind in [ExperienceNotificationKind.recovery, .bank, .update, .test] {
             var state = NotificationPresentationState()
             func observation(_ used: Double, _ sequence: Int, _ date: Date, source: ObservationSource = .fullRead) -> QuotaObservation {
@@ -68,8 +68,8 @@ final class NotificationPresentationTests: XCTestCase {
             XCTAssertFalse(state.observeQuota(observation(21, 3, now.addingTimeInterval(70), source: .notification), now: now.addingTimeInterval(70)))
             XCTAssertFalse(state.observeQuota(observation(21, 1, now), now: now.addingTimeInterval(80)))
             XCTAssertFalse(state.observeQuota(observation(21, 3, now), now: now.addingTimeInterval(180)))
-            XCTAssertTrue(state.observeQuota(observation(20.1, 10, now.addingTimeInterval(120)), now: now.addingTimeInterval(120)))
-            XCTAssertNil(state.activeID)
+            XCTAssertFalse(state.observeQuota(observation(20.1, 10, now.addingTimeInterval(120)), now: now.addingTimeInterval(120)))
+            XCTAssertEqual(state.activeID, "held")
         }
     }
     func testSecondaryMissingAndNewEpochDoNotFakeQuotaChange() {
@@ -81,7 +81,8 @@ final class NotificationPresentationTests: XCTestCase {
         _ = state.observeQuota(observation(40, 1), now: now)
         state.enqueue(message("held"), canPresent: true, now: now); _ = state.next(canPresent: true, now: now); state.shown(id: "held", now: now)
         XCTAssertFalse(state.observeQuota(observation(nil, 2), now: now))
-        XCTAssertTrue(state.observeQuota(observation(41, 3), now: now))
+        XCTAssertFalse(state.observeQuota(observation(41, 3), now: now))
+        XCTAssertEqual(state.activeID, "held"); state.dismiss(id: "held", read: true)
         state.enqueue(message("next", .update), canPresent: true, now: now); _ = state.next(canPresent: true, now: now)
         XCTAssertFalse(state.observeQuota(observation(90, 1, epoch: "b"), now: now))
         XCTAssertEqual(state.activeID, "next")

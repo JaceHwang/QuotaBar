@@ -27,7 +27,6 @@ public sealed class NotificationPresentationState {
     }
     readonly List<Entry> entries=[];
     public string? ActiveId { get; private set; }
-    QuotaObservation? quotaBaseline;
     bool stopped;
     public void Enqueue(ExperienceNotification m,bool canPresent,DateTimeOffset now) {
         if(stopped||entries.Any(e=>e.Message.Id==m.Id)) return;
@@ -44,18 +43,10 @@ public sealed class NotificationPresentationState {
     public void Dismiss(string id,bool read) { var e=entries.FirstOrDefault(e=>e.Message.Id==id); if(e!=null) { e.Read|=read; e.Deferred=true; } if(ActiveId==id) { ActiveId=null; } }
     public void SetInteracting(bool value,DateTimeOffset now) { }
     public bool Tick(DateTimeOffset now) { Prune(now); return false; }
-    public bool ObserveQuota(QuotaObservation observation,DateTimeOffset now) {
-        if(stopped||observation.Source!=ObservationSource.FullRead||(now-observation.ReceivedAt).TotalSeconds is < -5 or >120||!double.IsFinite(observation.Quota.Primary.UsedPercent)||observation.Quota.Primary.UsedPercent is <0 or >100||observation.Quota.Secondary is { } secondary&&(!double.IsFinite(secondary.UsedPercent)||secondary.UsedPercent is <0 or >100)) return false;
-        var previous=quotaBaseline;
-        if(previous?.Epoch==observation.Epoch&&(observation.Sequence<=previous.Sequence||observation.ReceivedAt<previous.ReceivedAt)) return false;
-        var changed=previous?.Epoch==observation.Epoch&&(previous.Quota.Primary.UsedPercent!=observation.Quota.Primary.UsedPercent||(previous.Quota.Secondary is { } old&&observation.Quota.Secondary is { } current&&old.UsedPercent!=current.UsedPercent));
-        quotaBaseline=observation with { Quota=observation.Quota with { Secondary=observation.Quota.Secondary??(previous?.Epoch==observation.Epoch?previous.Quota.Secondary:null) } };
-        if(!changed||ActiveId is not { } id) return false;
-        Dismiss(id,false); return true;
-    }
+    public bool ObserveQuota(QuotaObservation observation,DateTimeOffset now) => false;
     public void Suspend() { if(ActiveId is { } id) Dismiss(id,false); }
     public void Forget(string id) { if(ActiveId==id) Suspend(); entries.RemoveAll(e=>e.Message.Id==id); }
-    public void Cancel(string epoch) { if(entries.Any(e=>e.Message.Id==ActiveId&&e.Message.Epoch==epoch)) Suspend(); entries.RemoveAll(e=>e.Message.Epoch==epoch); }
+    public void Cancel(string epoch,string? preserving=null) { if(entries.Any(e=>e.Message.Id==ActiveId&&e.Message.Epoch==epoch&&e.Message.Id!=preserving)) Suspend(); entries.RemoveAll(e=>e.Message.Epoch==epoch&&e.Message.Id!=preserving); }
     public IReadOnlyList<NotificationUnreadItem> Unread(DateTimeOffset now) { Prune(now); return entries.Where(e=>!e.Read).Reverse().Select(e=>new NotificationUnreadItem(e.Message,!e.Message.Valid(now))).ToArray(); }
     public void Stop() { Suspend(); entries.Clear(); stopped=true; }
     void Prune(DateTimeOffset now) { entries.RemoveAll(e=>e.Message.Id!=ActiveId&&now-e.Message.CreatedAt>TimeSpan.FromHours(24)); }
