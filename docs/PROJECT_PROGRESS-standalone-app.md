@@ -993,3 +993,5 @@ PR64修复合并9744fd4，README/doc/8张原生功能图通过PR65合并ebb242f�
 用户授权提交并推送本次气泡修改；本次范围为代码分支交付，不包括合并或公开发布。Windows 原生 CI 与设备验收以实际结果另行记录；本机候选和 `/Applications` 正式版仍为不同安装。
 
 提交前重新运行完整治理检查通过：macOS 199 Core + 165 AppKit、Windows Core 15/15，Windows 应用、安装器和 UI 测试工程编译通过；Windows 原生执行和用户设备验收仍未完成。
+
+已将气泡修复提交 `0db2f6ad62754286ddbb819f55dc023f72adfabf` 推送至 `codex/fix/persistent-notification-bubbles`，创建 [草稿 PR 67](https://github.com/JaceHwang/QuotaBar/pull/67)。提交及推送钩子检查通过；远端 CI 已启动，结果待确认。未合并或公开发布。下一动作：跟踪 PR 的双平台 CI，并独立安排 Windows 设备和 macOS 锁屏/休眠验收。
