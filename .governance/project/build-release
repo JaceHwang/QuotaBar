@@ -2,7 +2,12 @@
 set -eu
 platform=${1:-}
 tag=${2:-}
-printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || exit 64
+printf '%s\n' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta\.[1-9][0-9]*)?$' || exit 64
+[ "${#tag}" -le 129 ] || exit 64
+numeric=${tag#v}; numeric=${numeric%%-beta.*}
+old_ifs=$IFS; IFS=.; set -- $numeric; IFS=$old_ifs
+[ "$1" -le 65534 ] && [ "$2" -le 65534 ] && [ "$3" -le 65534 ] || exit 64
+case "$tag" in *-beta.*) number=${tag##*-beta.}; [ "$number" -le 2147483647 ] || exit 64 ;; esac
 case "$platform" in
   macos-arm64) bash scripts/package-macos-standalone-release.sh "$tag" ;;
   windows-x64) "${PYTHON_BIN:-python3}" scripts/package-windows-standalone-release.py "$tag" ;;

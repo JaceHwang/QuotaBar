@@ -2,6 +2,14 @@
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../QuotaBar.Core/QuotaBar.Core.csproj" />
+    <ProjectReference Include="../QuotaBar.IdentityFixture/QuotaBar.IdentityFixture.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../QuotaBar.IdentityMismatch/QuotaBar.IdentityMismatch.csproj" ReferenceOutputAssembly="false" />
     <None Include="../../contracts/**/*.json" Link="contracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="CopyIdentityFixture" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)fixtures" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/../QuotaBar.IdentityFixture/bin/$(Configuration)/net10.0/QuotaBar.dll" DestinationFolder="$(OutDir)fixtures" />
+    <MakeDir Directories="$(OutDir)fixtures/mismatch" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/../QuotaBar.IdentityMismatch/bin/$(Configuration)/net10.0/QuotaBar.dll" DestinationFolder="$(OutDir)fixtures/mismatch" />
+  </Target>
 </Project>

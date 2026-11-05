@@ -4,9 +4,9 @@ namespace QuotaBar.Windows;
 internal sealed class ApplicationUpdateService {
     readonly System.Collections.Concurrent.ConcurrentDictionary<CancellationToken,UpdateReadyHandoff> pending=new();
     public ApplicationUpdateOperation Operation { get; }
-    public ApplicationUpdateService(string currentVersion,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? execute=null) {
-        Operation=new(execute??((version,emit,cancel)=>Perform(version,currentVersion,emit,cancel,pending)),new System.Windows.Threading.DispatcherSynchronizationContext(System.Windows.Application.Current.Dispatcher),commit:token=> {
-            if(pending.TryGetValue(token,out var handoff)) { handoff.Commit(); if(pending.TryRemove(token,out _)) handoff.Dispose(); }
+    public ApplicationUpdateService(string currentVersion,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? execute=null,Func<bool>? allowBeta=null) {
+        Operation=new(execute??((version,emit,cancel)=>Perform(version,currentVersion,emit,cancel,pending,allowBeta?.Invoke()==true)),new System.Windows.Threading.DispatcherSynchronizationContext(System.Windows.Application.Current.Dispatcher),commit:token=> {
+            if(pending.TryGetValue(token,out var handoff)) { if(handoff.IsBeta && allowBeta?.Invoke()!=true) throw new IOException("Beta consent was revoked"); handoff.Commit(); if(pending.TryRemove(token,out _)) handoff.Dispose(); }
         },abandon:token=> { if(pending.TryRemove(token,out var handoff)) handoff.Dispose(); });
         if(execute is null && string.Equals(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),UpdateLocations.Target,StringComparison.OrdinalIgnoreCase)) {
             if(UpdateInstallJob.ConsumeResult(UpdateLocations.Cache,UpdateLocations.Target) is { } result) Operation.ReportResult(result);
@@ -17,10 +17,10 @@ internal sealed class ApplicationUpdateService {
         await Task.Delay(3000);
         if(Operation.Progress.Phase==ApplicationUpdatePhase.Idle && UpdateInstallJob.ConsumeResult(UpdateLocations.Cache,UpdateLocations.Target) is { } result) Operation.ReportResult(result);
     }
-    static async Task Perform(string version,string currentVersion,Action<ApplicationUpdateProgress> emit,CancellationToken cancel,System.Collections.Concurrent.ConcurrentDictionary<CancellationToken,UpdateReadyHandoff> pending) {
+    static async Task Perform(string version,string currentVersion,Action<ApplicationUpdateProgress> emit,CancellationToken cancel,System.Collections.Concurrent.ConcurrentDictionary<CancellationToken,UpdateReadyHandoff> pending,bool allowBeta) {
         if(!string.Equals(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),UpdateLocations.Target,StringComparison.OrdinalIgnoreCase)) throw new IOException("Install QuotaBar in the standard per-user directory first");
         using var transport=new UpdateHttpTransport();
-        var download=await new UpdateDownloadClient(transport).Download(version,"windows-x64",currentVersion,UpdateLocations.Cache,(n,total)=>emit(new(ApplicationUpdatePhase.Downloading,n,total,null)),cancel);
+        var download=await new UpdateDownloadClient(transport).Download(version,"windows-x64",currentVersion,UpdateLocations.Cache,(n,total)=>emit(new(ApplicationUpdatePhase.Downloading,n,total,null)),cancel,allowBeta);
         var handedOff=false; Process? helper=null;
         try {
             emit(new(ApplicationUpdatePhase.Verifying,0,0,null)); UpdateStaging.VerifyPackage(download,Path.Combine(download.Directory,"expanded"),cancel); cancel.ThrowIfCancellationRequested();
@@ -47,6 +47,7 @@ internal sealed class ApplicationUpdateService {
 }
 
 internal sealed class UpdateReadyHandoff(System.Diagnostics.Process helper,UpdateInstallJob job,string directory) : IDisposable {
+    public bool IsBeta=>ProductVersion.Parse(job.Release.Version).IsBeta;
     bool committed;
     int disposed;
     public void Commit() { if(helper.HasExited) throw new IOException("Update helper exited"); job.Receipt("handoff",directory); committed=true; }

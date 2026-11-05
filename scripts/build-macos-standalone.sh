@@ -31,10 +31,14 @@ install -m 644 "$package_root/Sources/CodexQuota/Resources/AppIcon.icns" "$app/C
 curl --fail --location --silent --show-error https://raw.githubusercontent.com/openai/codex/rust-v0.144.1/LICENSE -o "$app/Contents/Resources/CODEX-LICENSE"
 curl --fail --location --silent --show-error https://raw.githubusercontent.com/openai/codex/rust-v0.144.1/NOTICE -o "$app/Contents/Resources/CODEX-NOTICE"
 python3 - "$app" "$version" "$runtime_version" "$repo_root" <<'PY'
-import hashlib,json,pathlib,plistlib,subprocess,sys
+import hashlib,json,pathlib,plistlib,re,subprocess,sys
 app=pathlib.Path(sys.argv[1])
+match=re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-beta\.([1-9][0-9]*))?',sys.argv[2])
+if not match or any(int(n)>65534 for n in match.groups()[:3]) or (match.group(4) and int(match.group(4))>2147483647):
+ raise ValueError('Invalid product version')
+numeric='.'.join(match.groups()[:3])
 with (app/'Contents/Info.plist').open('wb') as f:
- plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'QuotaBar','CFBundleDisplayName':'QuotaBar','CFBundleIconFile':'AppIcon','CFBundleExecutable':'CodexQuota','CFBundlePackageType':'APPL','CFBundleShortVersionString':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True},f)
+ plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'QuotaBar','CFBundleDisplayName':'QuotaBar','CFBundleIconFile':'AppIcon','CFBundleExecutable':'CodexQuota','CFBundlePackageType':'APPL','CFBundleShortVersionString':numeric,'CUSFullVersion':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True},f)
 import os
 release_tag=os.environ.get('CUS_RELEASE_TAG')
 provenance={'kind':'release' if release_tag else 'local-development-candidate','sourceCommit':subprocess.check_output(['git','-C',sys.argv[4],'rev-parse','HEAD'],text=True).strip(),'workingTreeDirty':bool(subprocess.check_output(['git','-C',sys.argv[4],'status','--porcelain','--untracked-files=no'],text=True).strip()),'version':sys.argv[2],'runtimeVersion':sys.argv[3],'runtimeSource':'https://github.com/openai/codex/releases/tag/rust-v0.144.1','runtimeUnsignedSha256':hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest(),'releaseTag':release_tag}

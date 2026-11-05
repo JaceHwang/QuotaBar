@@ -11,7 +11,13 @@
   "packages": {
     ".": {
       "component": "codex-usage-sidebar",
-      "prerelease-type": "beta"
+      "prerelease-type": "beta.1",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "version.txt"
+        }
+      ]
     }
   }
 }

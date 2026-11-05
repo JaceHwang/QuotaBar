@@ -8,6 +8,9 @@ internal sealed class SettingsWindow : Window {
     TextBlock? updateStatus,updateNotes;
     StackPanel? updateActions;
     Button? updateCheck,installButton,cancelInstallButton;
+    CheckBox? betaToggle;
+    TextBlock? betaState;
+    bool synchronizingBeta;
     public void ShowAbout() { selectedPage="updates"; Build(); }
     TextBlock status=Ui.Text("");
     TextBlock accountName=Ui.Text("");
@@ -28,7 +31,7 @@ internal sealed class SettingsWindow : Window {
         if(updateStatus is null) return;
         var copy=owner.Copy; var updates=owner.Updates;
         var targetVersion=ApplicationUpdateOperation.CanCancel(updates.Installer.Operation.Progress.Phase)||updates.Installer.Operation.Progress.Phase==ApplicationUpdatePhase.HandingOff?updates.Installer.Operation.TargetVersion:updates.Available?.Version;
-        updateStatus.Text=copy.Text("Current version","当前版本","目前版本")+" "+updates.DisplayVersion+(targetVersion is { } releaseVersion?" · "+copy.Text("Available","可用更新","可用更新")+" "+releaseVersion:"")+"\n"+updates.Status;
+        updateStatus.Text=copy.Text("Current version","当前版本","目前版本")+" "+updates.DisplayVersion+(targetVersion is { } releaseVersion?" · "+copy.Text("Available","可用更新","可用更新")+" "+(UpdateController.IsBetaVersion(releaseVersion)?copy.Text("Beta","内测版","內測版"):copy.Text("Stable","正式版","正式版"))+" "+releaseVersion:"")+"\n"+updates.Status;
         var notes=updates.Available?.ReleaseNotes;
         if(string.IsNullOrWhiteSpace(notes)) notes=updates.Available?.NotificationSummary;
         if(updateNotes is not null) { updateNotes.Text=notes??""; updateNotes.Visibility=string.IsNullOrWhiteSpace(notes)?Visibility.Collapsed:Visibility.Visible; }
@@ -40,6 +43,8 @@ internal sealed class SettingsWindow : Window {
         if(updateActions is not null) foreach(var button in updateActions.Children.OfType<Button>().Skip(1)) button.IsEnabled=!busy;
         if(updateCheck is not null) updateCheck.IsEnabled=!updates.Checking&&!busy;
         if(updateProgress is not null) { updateProgress.Visibility=updates.Checking||busy?Visibility.Visible:Visibility.Collapsed; updateProgress.IsIndeterminate=state.Phase!=ApplicationUpdatePhase.Downloading; updateProgress.Value=state.Total>0?100d*state.Received/state.Total:0; }
+        if(betaToggle is not null) { synchronizingBeta=true; try { betaToggle.IsChecked=updates.BetaEnabled; betaToggle.IsEnabled=!updates.BetaBusy; } finally { synchronizingBeta=false; } }
+        if(betaState is not null) betaState.Text=updates.BetaError??(!updates.BetaEnabled && UpdateController.IsBetaVersion(updates.Version)?copy.Text("Disabled. The installed beta remains until a newer stable update is available.","已关闭。当前内测版会保留，等待更新的正式版。","已關閉。目前內測版會保留，等待更新的正式版。"):updates.BetaEnabled?copy.Text("Enabled","已开启","已開啟"):copy.Text("Disabled","已关闭","已關閉"));
     }
     public void Build() {
         mobile?.HideSecret();
@@ -124,12 +129,30 @@ internal sealed class SettingsWindow : Window {
         updateStatus=Ui.Text("",12,fg); updateStatus.TextWrapping=TextWrapping.Wrap; updateStatus.Margin=new Thickness(0,0,12,0); updateStatus.VerticalAlignment=VerticalAlignment.Center; statusRow.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); updateCheck.VerticalAlignment=VerticalAlignment.Center; SettingsVisual.Primary(updateCheck); Grid.SetColumn(updateCheck,1); statusRow.Children.Add(updateCheck); panel.Children.Add(statusRow);
         updateProgress=new ProgressBar { IsIndeterminate=true,Height=3,Margin=new Thickness(0,8,0,8),Visibility=Visibility.Collapsed }; panel.Children.Add(updateProgress);
         updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); updateActions.Children.Add(Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
+        var betaPanel=new StackPanel();
+        betaToggle=SettingsVisual.Toggle(c.Text("Beta experience","内测体验","內測體驗"),owner.Updates.BetaEnabled,fg,async on=> {
+            if(synchronizingBeta) return;
+            synchronizingBeta=true; try { if(betaToggle is not null) betaToggle.IsChecked=owner.Updates.BetaEnabled; } finally { synchronizingBeta=false; }
+            await owner.Updates.SetBetaAsync(on,ConfirmBeta); UpdateUpdateStatus();
+        });
+        betaToggle.Tag="settings.betaExperience";
+        var betaRow=new Grid(); betaRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto }); betaRow.ColumnDefinitions.Add(new());
+        var shield=new System.Windows.Shapes.Path { Data=Geometry.Parse("M 9,1 L 16,4 L 16,9 C 16,13 13,16 9,18 C 5,16 2,13 2,9 L 2,4 Z M 5,9 L 8,12 L 13,7"),Stroke=SystemParameters.HighContrast?SystemColors.HighlightBrush:Brushes.DodgerBlue,StrokeThickness=1.6,Width=18,Height=18,Stretch=Stretch.Uniform,Margin=new Thickness(0,0,10,0),VerticalAlignment=VerticalAlignment.Center,IsHitTestVisible=false };
+        betaRow.Children.Add(shield); Grid.SetColumn(betaToggle,1); betaRow.Children.Add(betaToggle); betaPanel.Children.Add(betaRow);
+        var betaHint=Ui.Text(c.Text("Beta releases may be unstable. Installation requires your confirmation.","内测版本可能不稳定，安装需手动确认。","內測版本可能不穩定，安裝需手動確認。"),12,SettingsVisual.Muted(dark)); betaHint.TextWrapping=TextWrapping.Wrap; betaPanel.Children.Add(betaHint);
+        betaState=Ui.Text("",11,SettingsVisual.Muted(dark)); betaState.TextWrapping=TextWrapping.Wrap; betaState.Margin=new Thickness(0,5,0,0); betaPanel.Children.Add(betaState);
+        var betaCard=SettingsVisual.Card(betaPanel,dark); betaCard.Background=SystemParameters.HighContrast?SystemColors.WindowBrush:new SolidColorBrush(dark?Color.FromRgb(31,39,54):Color.FromRgb(239,245,255)); betaCard.BorderBrush=SystemParameters.HighContrast?SystemColors.HighlightBrush:new SolidColorBrush(Color.FromRgb(166,194,246)); page.Children.Add(betaCard);
         var links=new StackPanel(); links.Children.Add(Heading(c.Text("Related links","相关链接","相關連結"),fg));
         Link("GitHub", "github.com/JaceHwang/QuotaBar","https://github.com/JaceHwang/QuotaBar");
         Link(c.Text("Report an issue","问题反馈","問題回報"),c.Text("Share suggestions and problems","欢迎提出建议与问题","歡迎提出建議與問題"),"https://github.com/JaceHwang/QuotaBar/issues");
         var website=Ui.Button(c.Text("Official website · Coming soon","官方网站 · 敬请期待","官方網站 · 敬請期待"),()=>{}); website.Tag="settings-website"; website.IsEnabled=false; website.ToolTip=c.Text("Coming soon","待上线","待上線"); ToolTipService.SetShowOnDisabled(website,true); website.HorizontalContentAlignment=HorizontalAlignment.Left; website.Margin=new Thickness(0,8,0,0); links.Children.Add(website); page.Children.Add(SettingsVisual.Card(links,dark));
         var footer=Ui.Text(c.Text("Runs independently · Account and settings stored locally","独立运行 · 账户与设置保存在本机","獨立運作 · 帳號與設定儲存在本機"),12,SettingsVisual.Muted(dark)); footer.TextAlignment=TextAlignment.Center; page.Children.Add(footer); return page;
         void Link(string title,string subtitle,string url) { var button=Ui.Button(title+"  ↗",()=>Platform.OpenUrl(url)); button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Margin=new Thickness(0,8,0,0); links.Children.Add(button); var hint=Ui.Text(subtitle,12,SettingsVisual.Muted(dark)); hint.Margin=new Thickness(8,2,0,8); hint.TextWrapping=TextWrapping.Wrap; links.Children.Add(hint); }
+        bool ConfirmBeta(int step) {
+            var title=step==1?c.Text("Enable beta experience (1 / 2)","开启内测体验（1 / 2）","開啟內測體驗（1 / 2）"):c.Text("Confirm beta experience (2 / 2)","确认开启内测体验（2 / 2）","確認開啟內測體驗（2 / 2）");
+            var message=step==1?c.Text("Beta releases may be unstable and contain unfinished changes. Continue?","内测版本可能不稳定，并包含尚未完成的改动。是否继续？","內測版本可能不穩定，並包含尚未完成的變更。是否繼續？"):c.Text("You may receive beta updates. Installation still requires your action. Enable?","开启后可收到内测更新，安装仍需手动操作。确认开启？","開啟後可收到內測更新，安裝仍需手動操作。確認開啟？");
+            return MessageBox.Show(this,message,title,MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)==MessageBoxResult.Yes;
+        }
     }
     static TextBlock Heading(string text,Brush foreground) { var title=Ui.Text(text,15,foreground); title.FontWeight=FontWeights.SemiBold; title.Margin=new Thickness(0,0,0,10); return title; }
 }

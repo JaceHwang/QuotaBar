@@ -16,6 +16,8 @@ def main():
     args=p.parse_args(); package=args.package.resolve()
     manifest=json.loads((package/"package.json").read_text(encoding="utf-8")); provenance=json.loads((package/"PROVENANCE.json").read_text(encoding="utf-8"))
     assert (manifest["schema"],manifest["product"],manifest["platform"],manifest["runtimeVersion"])==(1,"QuotaBar","windows-x64","0.144.1")
+    identity=json.loads((package/"PRODUCT-VERSION.json").read_text(encoding="utf-8"))
+    assert identity["version"]==manifest["version"] and identity["numericVersion"]==manifest["version"].split("-beta.")[0]
     expected=manifest["files"]
     actual={str(f.relative_to(package)).replace("\\","/") for f in package.rglob("*") if f.is_file() and f.name!="package.json"}
     assert actual==set(expected),"Manifest must cover exact payload"

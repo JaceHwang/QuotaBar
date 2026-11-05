@@ -152,7 +152,12 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDele
         let legacyBark = defaults.data(forKey: "bark.preferences").flatMap { try? JSONDecoder().decode(BarkPreferences.self, from: $0) } ?? BarkPreferences()
         notificationRouter.loadPolicy(store: NotificationPolicyStore(url: root.appendingPathComponent("notification-policy.json")), legacy: hasLegacySettings ? LegacyNotificationPreferences(mode: legacyPresentation.mode, recovery: legacyExperience.recovery, celebration: legacyExperience.celebration, bank: legacyExperience.bank, updatesReminders: defaults.bool(forKey: "updates.reminders"), barkEnabled: legacyBark.enabled, pausedUntil: legacyPresentation.pausedUntil) : nil)
         if updates == nil {
-            updates = QuotaUpdateController(version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0") { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
+            let numeric = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+            let full = Bundle.main.object(forInfoDictionaryKey: "CUSFullVersion") as? String
+            let proof = Bundle.main.url(forResource: "PROVENANCE", withExtension: "json").flatMap { try? Data(contentsOf: $0) }
+            let resolved = proof.flatMap { try? ProductIdentity.resolve(numeric: numeric, full: full, provenance: $0) }
+            let version = Bundle.main.bundleURL.pathExtension == "app" ? (resolved?.version ?? "—") : numeric
+            updates = QuotaUpdateController(version: version, channelStore: UpdateChannelStore(url: root.appendingPathComponent("update-channel.json"))) { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en }
         }
         if experience == nil {
             let experience = QuotaExperienceController(root: root, language: { [weak self] in self?.language ?? .english })
@@ -488,10 +493,10 @@ final class StandaloneCoordinator: NSObject, NSApplicationDelegate, NSWindowDele
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Manage quota moods, notifications and celebrations.", "管理额度相关的表情、提醒和互动效果。", "管理額度相關的表情、提醒和互動效果。"), secondary: true), in: experiences)
         if let experience { QuotaSettingsStyle.fill(experience.makeSettingsView(), in: experiences) }
         let bundleVersion = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String : nil
-        let about = AboutSettingsView(version: bundleVersion ?? updates?.currentVersion ?? "—", updates: updates?.makeSettingsView(), text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
+        let about = AboutSettingsView(version: updates?.currentVersion ?? bundleVersion ?? "—", updates: updates?.makeSettingsView(), text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
         let mobile = BarkSettingsView(controller: bark, enableMobile: { AppNotificationRouter.shared.setChannelEnabled(.mobile, enabled: $0) }, text: { [weak self] en, zh, tw in self?.text(en, zh, tw) ?? en })
         let pages = [QuotaSettingsPage(title: text("Account", "账户", "帳號"), symbol: "person", content: account), QuotaSettingsPage(title: text("Display", "显示", "顯示"), symbol: "display", content: display), QuotaSettingsPage(title: text("Reminder settings", "提醒设置", "提醒設定"), symbol: "bell", content: experiences, navigationTitle: text("Reminders", "提醒", "提醒")), QuotaSettingsPage(title: text("Mobile push", "手机推送", "手機推播"), symbol: "iphone", content: mobile), QuotaSettingsPage(title: text("About app", "关于应用", "關於應用程式"), symbol: "info.circle", content: about)]
-        let shell = QuotaSettingsShellView(pages: pages, version: bundleVersion ?? updates?.currentVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
+        let shell = QuotaSettingsShellView(pages: pages, version: updates?.currentVersion ?? bundleVersion ?? "—", updateTitle: text("Check for updates", "检查更新", "檢查更新"))
         shell.onCheckUpdates = { [weak self] in self?.updates?.check(manual: true) }
         settingsShell = shell
         mobile.onLayoutChange = { [weak shell] in shell?.refreshDocumentSize() }

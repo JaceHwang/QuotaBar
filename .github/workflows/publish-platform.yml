@@ -32,13 +32,17 @@ jobs:
       - name: Validate release inputs
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.[1-9][0-9]*)?$ ]]
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta\.[1-9][0-9]*)?$ ]]
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
       - name: Check out exact release tag
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
+      - name: Verify release channel
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease | python scripts/validate-release-channel.py "$RELEASE_TAG"
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         if: inputs.platform == 'windows-x64'
         with:
@@ -79,4 +83,7 @@ jobs:
           body="$RUNNER_TEMP/release-body.md"
           gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" --json body --jq .body >"$body"
           ./governance release status "$body" "$release_platform" available
-          gh release edit "$release_tag" --repo "$GITHUB_REPOSITORY" --notes-file "$body" --draft=false
+          case "$release_tag" in
+            *-beta.*) gh release edit "$release_tag" --repo "$GITHUB_REPOSITORY" --notes-file "$body" --draft=false --prerelease --latest=false ;;
+            *) gh release edit "$release_tag" --repo "$GITHUB_REPOSITORY" --notes-file "$body" --draft=false ;;
+          esac

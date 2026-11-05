@@ -258,7 +258,7 @@ import QuotaCore
             guard permission.authorizationStatus == .authorized || permission.authorizationStatus == .provisional else { done(false); return }
             let content = UNMutableNotificationContent(); content.title = m.title; content.body = m.body
             content.userInfo = ["token": m.deliveryToken ?? "", "id": m.id, "kind": String(describing: m.kind), "epoch": m.epoch ?? ""]
-            if m.kind == .update { let v = m.id.replacingOccurrences(of: "quotabar-update-", with: ""); if (try? UpdateFeed.versionParts(v)) != nil { content.userInfo["version"] = v } }
+            if m.kind == .update { let v = m.id.replacingOccurrences(of: "quotabar-update-", with: ""); if (try? ProductVersion(v)) != nil { content.userInfo["version"] = v } }
             do {
                 try await center.add(UNNotificationRequest(identifier: m.id + "." + (m.deliveryToken ?? ""), content: content, trigger: nil))
                 guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, channelAllowed(m, .system) else { center.removeDeliveredNotifications(withIdentifiers: [m.id + "." + (m.deliveryToken ?? "")]); return }
@@ -368,7 +368,7 @@ import QuotaCore
                 if delivery.message.kind == .update { self?.dismiss(id: id, read: true, token: token); self?.openUpdates?() }
                 else { self?.activate(id: id, token: token) }
             }
-            else if let version, (try? UpdateFeed.versionParts(version)) != nil { self?.openUpdates?() }
+            else if let version, (try? ProductVersion(version)) != nil { self?.openUpdates?() }
         }
         completionHandler()
     }

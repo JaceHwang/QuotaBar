@@ -5,6 +5,148 @@ import XCTest
 
 @MainActor
 final class QuotaUpdateViewTests: XCTestCase {
+    func testBetaSwitchNeedsBothConfirmationsAndPersistsOnlyAfterConsent() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = UpdateChannelStore(url: root.appendingPathComponent("channel.json"))
+        var answers = [false], steps: [Int] = []
+        let controller = QuotaUpdateController(version: "1.6.0", channelStore: store, confirmBeta: { step in steps.append(step); return answers.removeFirst() }, text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        let view = controller.makeSettingsView()
+        let toggle = try XCTUnwrap(descendants(view).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.accessibilityLabel() == "内测体验" })
+        XCTAssertEqual(toggle.state, .off); XCTAssertFalse(store.load())
+        toggle.state = .on; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        XCTAssertEqual(steps, [1]); XCTAssertEqual(toggle.state, .off); XCTAssertFalse(store.load())
+        answers = [true, false]; steps = []
+        toggle.state = .on; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        XCTAssertEqual(steps, [1, 2]); XCTAssertEqual(toggle.state, .off); XCTAssertFalse(store.load())
+        answers = [true, true]; steps = []
+        toggle.state = .on; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        XCTAssertEqual(steps, [1, 2]); XCTAssertEqual(toggle.state, .on); XCTAssertTrue(store.load())
+        toggle.state = .off; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        for _ in 0..<100 { if !store.load() { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.load()); XCTAssertEqual(toggle.state, .off)
+    }
+    func testBetaEnableSaveFailureLeavesSwitchOff() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); defer { try? FileManager.default.removeItem(at: root) }
+        let blocked = root.appendingPathComponent("blocked"); try Data("file".utf8).write(to: blocked)
+        let store = UpdateChannelStore(url: blocked.appendingPathComponent("channel.json"))
+        let controller = QuotaUpdateController(version: "1.6.0", channelStore: store, confirmBeta: { _ in true }, text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        let view = controller.makeSettingsView()
+        let toggle = try XCTUnwrap(descendants(view).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.accessibilityLabel() == "内测体验" })
+        toggle.state = .on; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        XCTAssertEqual(toggle.state, .off); XCTAssertFalse(store.load()); XCTAssertTrue(controller.statusText.contains("无法保存"))
+    }
+    func testBetaDisableSaveFailureRemainsVisibleAfterAutomaticCheckAndClearsOnRetry() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("settings"), backup = root.appendingPathComponent("backup")
+        let store = UpdateChannelStore(url: folder.appendingPathComponent("channel.json")); try store.save(enabled: true)
+        let suite = "BetaSaveFailure-\(UUID().uuidString)", defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [BetaFeedProtocol.self]
+        let controller = QuotaUpdateController(defaults: defaults, version: "1.6.0", transport: URLSession(configuration: config), channelStore: store, text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        let view = controller.makeSettingsView()
+        let toggle = try XCTUnwrap(descendants(view).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.accessibilityLabel() == "内测体验" })
+        try FileManager.default.moveItem(at: folder, to: backup); try Data("blocked".utf8).write(to: folder)
+        toggle.state = .off; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(toggle.state, .on)
+        XCTAssertTrue(descendants(view).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("未能保存，重启后内测仍会开启") })
+        try FileManager.default.removeItem(at: folder); try FileManager.default.moveItem(at: backup, to: folder)
+        toggle.state = .off; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        for _ in 0..<100 { if !store.load() { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.load()); XCTAssertEqual(toggle.state, .off)
+        XCTAssertFalse(descendants(view).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("未能保存") })
+    }
+    func testDisablingBetaDoesNotCancelAnInProgressStableUpdate() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = UpdateChannelStore(url: root.appendingPathComponent("channel.json")); try store.save(enabled: true)
+        let controller = QuotaUpdateController(version: "1.6.0", updateExecute: { _, emit in
+            emit(ApplicationUpdateProgress(.downloading)); try await Task.sleep(for: .seconds(30))
+        }, channelStore: store, text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        let view = controller.makeSettingsView()
+        let toggle = try XCTUnwrap(descendants(view).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.accessibilityLabel() == "内测体验" })
+        controller.installer.start(version: "1.7.0")
+        for _ in 0..<100 { if controller.installer.progress.phase == .downloading { break }; try await Task.sleep(for: .milliseconds(10)) }
+        toggle.state = .off; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        for _ in 0..<100 { if !store.load() { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(store.load()); XCTAssertEqual(controller.installer.progress.phase, .downloading)
+    }
+    func testInstalledBetaShowsItsChannelAndDoesNotSuggestAutomaticDowngrade() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let controller = QuotaUpdateController(version: "1.8.0-beta.2", channelStore: UpdateChannelStore(url: root.appendingPathComponent("channel.json")), text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        let labels = descendants(controller.makeSettingsView()).compactMap { $0 as? NSTextField }.map(\.stringValue)
+        XCTAssertTrue(labels.contains { $0.contains("1.8.0-beta.2") && $0.contains("内测版") })
+        XCTAssertTrue(labels.contains { $0.contains("正式版") && $0.contains("更新") })
+    }
+    func testBetaCardDescriptionUsesAvailableWidthInBothThemes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let controller = QuotaUpdateController(version: "1.6.0", channelStore: UpdateChannelStore(url: root.appendingPathComponent("channel.json")), text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 490, height: 480), styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false; window.appearance = NSAppearance(named: appearance)
+            let view = controller.makeSettingsView(); view.frame = NSRect(x: 20, y: 20, width: 450, height: 440); window.contentView?.addSubview(view)
+            window.orderFront(nil); view.layoutSubtreeIfNeeded()
+            let hint = try XCTUnwrap(descendants(view).compactMap { $0 as? NSTextField }.first { $0.stringValue.contains("内测版本可能不稳定") })
+            XCTAssertGreaterThan(hint.bounds.width, 200, "The description must not collapse into a narrow column")
+            window.close()
+        }
+    }
+    func testDisablingBetaCancelsLateUpdateAndPreventsHandoff() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let suite = "BetaRace-\(UUID().uuidString)", defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(true, forKey: "updates.autoDisabled"); defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UpdateChannelStore(url: root.appendingPathComponent("channel.json")); try store.save(enabled: true)
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [BetaFeedProtocol.self]
+        let controller = QuotaUpdateController(defaults: defaults, version: "1.6.0", updateExecute: { _, emit in
+            emit(ApplicationUpdateProgress(.downloading)); try? await Task.sleep(for: .milliseconds(150))
+        }, transport: URLSession(configuration: config), channelStore: store, text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        var ready = 0; controller.installer.onReady = { ready += 1 }
+        controller.check(manual: true)
+        for _ in 0..<100 { if !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(controller.available?.version, "1.8.0-beta.1")
+        let view = controller.makeSettingsView()
+        let toggle = try XCTUnwrap(descendants(view).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.accessibilityLabel() == "内测体验" })
+        controller.installUpdate()
+        for _ in 0..<100 { if controller.installer.progress.phase == .downloading { break }; try await Task.sleep(for: .milliseconds(10)) }
+        toggle.state = .off; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        for _ in 0..<100 { if !store.load() { break }; try await Task.sleep(for: .milliseconds(10)) }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertFalse(store.load()); XCTAssertNil(controller.available); XCTAssertEqual(ready, 0)
+        XCTAssertEqual(controller.installer.progress.phase, .cancelled)
+    }
+    func testLateBetaFeedCannotReappearAfterOptOut() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let suite = "BetaFeedRace-\(UUID().uuidString)", defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(true, forKey: "updates.autoDisabled"); defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UpdateChannelStore(url: root.appendingPathComponent("channel.json")); try store.save(enabled: true)
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [DelayedBetaFeedProtocol.self]
+        let controller = QuotaUpdateController(defaults: defaults, version: "1.6.0", transport: URLSession(configuration: config), channelStore: store, text: { _, zh, _ in zh })
+        defer { controller.stop() }
+        let view = controller.makeSettingsView()
+        let toggle = try XCTUnwrap(descendants(view).compactMap { $0 as? QuotaSettingsSwitch }.first { $0.accessibilityLabel() == "内测体验" })
+        let before = DelayedBetaFeedProtocol.requests.value
+        controller.check(manual: true)
+        for _ in 0..<100 { if DelayedBetaFeedProtocol.requests.value > before { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertGreaterThan(DelayedBetaFeedProtocol.requests.value, before)
+        toggle.state = .off; NSApp.sendAction(try XCTUnwrap(toggle.action), to: toggle.target, from: toggle)
+        for _ in 0..<100 { if !store.load() && !controller.isChecking { break }; try await Task.sleep(for: .milliseconds(10)) }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertFalse(store.load()); XCTAssertNil(controller.available)
+    }
     func testExplicitInstallControlsAndProgressInAllLanguages() async throws {
         for language in 0..<3 {
             for phase in [ApplicationUpdatePhase.downloading, .verifying, .preparing, .failed] {
@@ -216,6 +358,32 @@ private final class AvailableFeedProtocol: URLProtocol, @unchecked Sendable {
         let data = Data("{\"schemaVersion\":1,\"stable\":{\"macos-arm64\":{\"version\":\"0.8.0\",\"minOS\":\"14.0\",\"summary\":\"改善更新提醒\",\"releaseNotes\":\"更新内容\\n• 改善更新提醒\\n• 修复额度刷新\",\"releaseNotesURL\":\"https://github.com/JaceHwang/codex-usage-sidebar/releases/tag/v0.8.0\"}}}".utf8)
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+private final class BetaFeedProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let data = Data("{\"schemaVersion\":1,\"stable\":{\"macos-arm64\":{\"version\":\"1.7.0\",\"minOS\":\"14.0\",\"releaseNotesURL\":\"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0\"}},\"beta\":{\"macos-arm64\":{\"version\":\"1.8.0-beta.1\",\"minOS\":\"14.0\",\"releaseNotesURL\":\"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.8.0-beta.1\"}}}".utf8)
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+private final class DelayedBetaFeedProtocol: URLProtocol, @unchecked Sendable {
+    static let requests = RequestCounter()
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.requests.increment()
+        let data = Data("{\"schemaVersion\":1,\"stable\":{},\"beta\":{\"macos-arm64\":{\"version\":\"1.8.0-beta.1\",\"minOS\":\"14.0\",\"releaseNotesURL\":\"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.8.0-beta.1\"}}}".utf8)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { [self] in
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        }
     }
     override func stopLoading() {}
 }

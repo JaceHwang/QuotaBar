@@ -6,12 +6,17 @@ import XCTest
 private actor FixtureUpdateTransport: UpdateTransport {
     let release: Data, tag: Data, proof: Data
     let corrupt: Bool, late: Bool
-    init(corrupt: Bool = false, late: Bool = false, wrongSource: Bool = false) throws {
+    init(corrupt: Bool = false, late: Bool = false, wrongSource: Bool = false, version: String = "2.0.0") throws {
         self.corrupt = corrupt; self.late = late
         let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../contracts/in-app-updates/release-cases.json").standardizedFileURL
         let rows = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [[String: Any]]
         var r = rows[1]["release"] as! [String: Any]
-        proof = try JSONSerialization.data(withJSONObject: ["kind": "release", "workingTreeDirty": false, "version": "2.0.0", "releaseTag": "v2.0.0", "sourceCommit": String(repeating: wrongSource ? "c" : "b", count: 40)])
+        if version != "2.0.0" {
+            r["prerelease"] = true
+            let json = String(data: try JSONSerialization.data(withJSONObject: r), encoding: .utf8)!.replacingOccurrences(of: "2.0.0", with: version)
+            r = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        }
+        proof = try JSONSerialization.data(withJSONObject: ["kind": "release", "workingTreeDirty": false, "version": version, "releaseTag": "v" + version, "sourceCommit": String(repeating: wrongSource ? "c" : "b", count: 40)])
         var assets = r["assets"] as! [[String: Any]]
         for index in [0, 1] {
             let bytes = index == 0 ? Data("package".utf8) : proof
@@ -29,6 +34,13 @@ private actor FixtureUpdateTransport: UpdateTransport {
     }
 }
 final class UpdateDownloadTests: XCTestCase {
+    func testBetaDownloadRequiresConsentAndVerifiesMatchingProvenance() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
+        let client = UpdateDownloadClient(transport: try FixtureUpdateTransport(version: "2.0.0-beta.1"))
+        do { _ = try await client.download(version: "2.0.0-beta.1", platform: "macos-arm64", currentVersion: "1.9.0", cache: root); XCTFail("Beta allowed without consent") } catch {}
+        let value = try await client.download(version: "2.0.0-beta.1", platform: "macos-arm64", currentVersion: "1.9.0", cache: root, allowBeta: true)
+        XCTAssertEqual(value.release.version, "2.0.0-beta.1")
+    }
     func testTrustedDownloadVerifiesBytesAndProvenanceBeforeReturning() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: root) }
         let client = UpdateDownloadClient(transport: try FixtureUpdateTransport())

@@ -15,26 +15,27 @@ public struct TrustedUpdateRelease: Sendable, Equatable, Codable {
     public static let repository = "JaceHwang/QuotaBar"
     public static let maxDownloadBytes: Int64 = 512 * 1024 * 1024
     public static func apiURL(version: String) throws -> URL {
-        _ = try UpdateFeed.versionParts(version)
+        _ = try ProductVersion(version)
         return URL(string: "https://api.github.com/repos/\(repository)/releases/tags/v\(version)")!
     }
     public static func tagURL(version: String) throws -> URL {
-        _ = try UpdateFeed.versionParts(version)
+        _ = try ProductVersion(version)
         return URL(string: "https://api.github.com/repos/\(repository)/git/ref/tags/v\(version)")!
     }
     public static func allowedDownloadRedirect(_ url: URL) -> Bool {
         url.scheme?.lowercased() == "https" && url.user == nil && url.password == nil && (url.port == nil || url.port == 443) && url.fragment == nil && ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].contains(url.host?.lowercased() ?? "")
     }
-    public static func parse(releaseJSON: Data, tagJSON: Data, version: String, platform: String, currentVersion: String) throws -> TrustedUpdateRelease {
+    public static func parse(releaseJSON: Data, tagJSON: Data, version: String, platform: String, currentVersion: String, allowBeta: Bool = false) throws -> TrustedUpdateRelease {
         func reject() -> CocoaError { CocoaError(.fileReadCorruptFile) }
+        let target = try ProductVersion(version)
         guard releaseJSON.count <= 2 * 1024 * 1024, tagJSON.count <= 1024 * 1024,
-              try UpdateFeed.versionParts(currentVersion).lexicographicallyPrecedes(UpdateFeed.versionParts(version)) else { throw reject() }
+              (!target.isBeta || allowBeta), try ProductVersion(currentVersion) < target else { throw reject() }
         struct Asset: Decodable { let name: String; let state: String; let size: Int64; let digest: String?; let browser_download_url: String }
         struct Release: Decodable { let tag_name: String; let html_url: String; let draft: Bool; let prerelease: Bool; let assets: [Asset] }
         struct Ref: Decodable { struct Object: Decodable { let type: String; let sha: String }; let object: Object }
         let release = try JSONDecoder().decode(Release.self, from: releaseJSON)
         let tag = try JSONDecoder().decode(Ref.self, from: tagJSON)
-        guard release.tag_name == "v" + version, !release.draft, !release.prerelease,
+        guard release.tag_name == "v" + version, !release.draft, release.prerelease == target.isBeta,
               release.html_url == "https://github.com/\(repository)/releases/tag/v\(version)",
               release.assets.count <= 1000, Set(release.assets.map { $0.name.lowercased() }).count == release.assets.count,
               tag.object.type == "commit", hex(tag.object.sha, count: 40) else { throw reject() }

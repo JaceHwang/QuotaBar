@@ -1,6 +1,15 @@
 import XCTest
 @testable import QuotaCore
 final class ApplicationUpdateTransactionTests: XCTestCase {
+    func testBetaHandoffRequiresCurrentConsent() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); defer { try? FileManager.default.removeItem(at: root) }
+        let asset = UpdateAsset(name: "a", url: URL(string: "https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0-beta.1/a")!, size: 1, sha256: String(repeating: "a", count: 64))
+        let release = TrustedUpdateRelease(version: "2.0.0-beta.1", platform: "macos-arm64", sourceCommit: String(repeating: "b", count: 40), package: asset, provenance: asset)
+        let job = UpdateInstallJob(operationID: UUID().uuidString, target: "/test/QuotaBar.app", parentPID: 123, nonce: String(repeating: "a", count: 64), expiresAt: Date().addingTimeInterval(600), release: release)
+        XCTAssertThrowsError(try job.validate(directory: root, expectedTarget: job.target, now: Date()))
+        XCTAssertNoThrow(try job.validate(directory: root, expectedTarget: job.target, now: Date(), allowBeta: true))
+    }
     func testAtomicReplacementRollbackAndInterruptedRecovery() throws {
         let fm = FileManager.default, root = fm.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent(UUID().uuidString)
         try fm.createDirectory(at: root, withIntermediateDirectories: true); defer { try? fm.removeItem(at: root) }

@@ -198,7 +198,8 @@ internal sealed class Coordinator : IDisposable {
         detailFromFloating=false; trayDetail=true; Render(); Refresh();
     }
     internal bool ShowUpdateReminder(string version,string? summary=null,string reminderGeneration="initial") {
-        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration,Category:Notifications.PolicyActive?NotificationCategory.UpdateAvailable:null)); return true;
+        var channel=UpdateController.IsBetaVersion(version)?Copy.Text("Beta","内测版","內測版"):Copy.Text("Stable","正式版","正式版");
+        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+channel+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration,Category:Notifications.PolicyActive?NotificationCategory.UpdateAvailable:null)); return true;
     }
     public void ShowUpdateSettings() { ShowSettings(); settings?.ShowAbout(); }
     public void ShowSettings() {
