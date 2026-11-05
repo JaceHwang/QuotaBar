@@ -19,5 +19,6 @@
         }
       ]
     }
-  }
+  },
+  "pull-request-title-pattern": "chore: release ${version}"
 }

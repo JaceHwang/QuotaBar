@@ -28,6 +28,7 @@ class ReleaseTagRoutingTests(unittest.TestCase):
         config=json.loads((ROOT/'.governance/release/beta.json').read_text())
         self.assertEqual(config['versioning'],'prerelease')
         self.assertTrue(config['prerelease'])
+        self.assertEqual(config['pull-request-title-pattern'],'chore: release ${version}')
         self.assertEqual(config['packages']['.']['prerelease-type'],'beta.1')
     def test_github_release_flag_must_match_tag_channel(self):
         script = ROOT / 'scripts/validate-release-channel.py'
