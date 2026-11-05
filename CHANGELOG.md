@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0-beta.1](https://github.com/JaceHwang/QuotaBar/compare/v1.6.0...v1.7.0-beta.1) (2026-11-05)
+
+
+### Features
+
+* add opt-in beta updates and unified message list ([eea0e51](https://github.com/JaceHwang/QuotaBar/commit/eea0e512356103f0054772cb9344de3b42322424))
+
+
+### Bug Fixes
+
+* generate governance-compatible beta release titles ([e330721](https://github.com/JaceHwang/QuotaBar/commit/e330721abaa0f44d3dfb17d01fc1059ce6763bf1))
+* keep notification bubbles until acknowledged ([0db2f6a](https://github.com/JaceHwang/QuotaBar/commit/0db2f6ad62754286ddbb819f55dc023f72adfabf))
+
 ## [1.6.0](https://github.com/JaceHwang/QuotaBar/compare/v1.5.0...v1.6.0) (2026-11-02)
 
 
