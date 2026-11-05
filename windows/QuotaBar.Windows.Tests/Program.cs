@@ -28,6 +28,7 @@ internal static class Program {
         NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
         NotificationMatrixTests.TestMessageCenterRouting(app);
         MessageCenterNativeTests.Run(app);
+        BetaExperienceNativeTests.Run(app);
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
         NotificationMatrixTests.TestDynamicBankProducer(app);
@@ -86,11 +87,15 @@ internal static class Program {
                 Check(displayed==2&&transport.Sends==2,"mobile off does not block desktop");
             } finally { Directory.Delete(barkRoot,true); }
             using(var heldRouter=new AppNotificationRouter(new System.Windows.Forms.NotifyIcon(),_=>true,_=>{},_=>{})) {
-                var hidden=0; heldRouter.PresentBubble=_=>true; heldRouter.HideBubble=()=>hidden++; heldRouter.UpdateEnvironment(true);
+                int hidden=0, displayed=0; heldRouter.PresentBubble=_=> { displayed++; return true; }; heldRouter.HideBubble=()=>hidden++; heldRouter.UpdateEnvironment(true);
                 QuotaObservation O(double used,long sequence) { var at=DateTimeOffset.UtcNow; return new("a",sequence,at,new(new(used,80,at.AddHours(1),300),null,null,null,null,at)); }
                 heldRouter.ObserveQuota(O(20,1)); heldRouter.Enqueue(new("held",ExperienceNotificationKind.Test,"a","Held","",DateTimeOffset.UtcNow));
                 heldRouter.ObserveQuota(O(20,2)); Check(hidden==0,"same quota keeps actual router bubble");
-                heldRouter.ObserveQuota(O(21,3)); Check(hidden==1,"quota change hides actual router bubble");
+                heldRouter.ObserveQuota(O(21,3)); Check(hidden==0,"quota change keeps actual router bubble");
+                Check(!heldRouter.Preview(new("preview",ExperienceNotificationKind.Test,null,"Preview","",DateTimeOffset.UtcNow)),"preview cannot replace active bubble");
+                heldRouter.UpdateEnvironment(false); Check(hidden==1,"temporarily hide bubble"); heldRouter.UpdateEnvironment(true); Check(displayed==2,"restore same bubble");
+                heldRouter.CancelAuthenticationEpoch("a",preservingActive:true); Check(heldRouter.HasActiveBubble,"transient reset keeps active bubble");
+                heldRouter.Dismiss("held",true); Check(!heldRouter.HasActiveBubble,"explicit acknowledgement closes bubble");
             }
             using(var bubble = new CharacterNotificationBubble()) {
                 bubble.Build(new ExperienceNotification("reference", ExperienceNotificationKind.Recovery, "a", "额度已恢复", "5 小时剩余 100% · 7 天剩余 36%", DateTimeOffset.UtcNow),false,new Copy("zh-CN"));

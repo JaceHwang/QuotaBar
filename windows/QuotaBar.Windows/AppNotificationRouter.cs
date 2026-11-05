@@ -12,6 +12,7 @@ internal sealed class AppNotificationRouter : IDisposable {
     readonly HashSet<string> previews=[];
     readonly HashSet<string> consumed=[];
     readonly HashSet<string> failedDeliveries=[];
+    readonly HashSet<string> suspendedDeliveryTokens=[];
     readonly DispatcherTimer nativeTimeout=new() { Interval=TimeSpan.FromSeconds(15) };
     readonly DispatcherTimer bubbleTimer=new() { Interval=TimeSpan.FromSeconds(1) };
     readonly Func<ExperienceNotification,bool> valid;
@@ -119,6 +120,7 @@ internal sealed class AppNotificationRouter : IDisposable {
         if(PolicyPreferences.EnabledChannels.Contains(NotificationChannel.Mobile)&&Mobile is {} mobile) _=mobile.Test(title,body);
     }
     bool ChannelAllowed(ExperienceNotification m,NotificationChannel channel) {
+        if(channel!=NotificationChannel.Bubble && m.DeliveryToken is { } token && suspendedDeliveryTokens.Contains(token)) return false;
         if(m.Category is null && PolicyActive && m.Kind==ExperienceNotificationKind.Test) return PolicyPreferences.EnabledChannels.Contains(channel)&&(channel!=NotificationChannel.Bubble||!(PolicyPreferences.BubblePausedUntil>DateTimeOffset.UtcNow));
         if(m.Category is not {} category) return channel switch { NotificationChannel.Bubble=>preferences.UsesBubble&&!preferences.Paused(DateTimeOffset.UtcNow),NotificationChannel.System=>preferences.UsesSystem,_=>true };
         return snapshots.TryGetValue(new(m.Id,m.ReminderGeneration),out var snapshot)&&snapshot.Eligible(channel)&&NotificationPolicy.Decision(category,channel,PolicyPreferences,DateTimeOffset.UtcNow,m.ReminderThreshold??m.Warning?.Threshold??m.BankEvents?.FirstOrDefault()?.Stage)==NotificationDecision.Allowed;
@@ -154,9 +156,15 @@ internal sealed class AppNotificationRouter : IDisposable {
         foreach(var m in retry) { CancelMessage(m.Id,false); if(valid(m)&&m.Valid(DateTimeOffset.UtcNow)) Enqueue(m); }
     }
     void MarkFailed(ExperienceNotification m) { if(!receipted.Contains(m.Id)) failedDeliveries.Add(m.Id); Failed?.Invoke(); }
-    public void UpdateEnvironment(bool visible) { canPresent=visible; if(!visible) Suspend(); else Dispatch(); }
+    bool bubbleTemporarilyHidden;
+    public void UpdateEnvironment(bool visible) {
+        canPresent=visible;
+        if(!visible) { if(state.ActiveId!=null&&!bubbleTemporarilyHidden) { bubbleTemporarilyHidden=true; HideBubble?.Invoke(); } }
+        else if(bubbleTemporarilyHidden&&state.ActiveId is { } id&&messages.TryGetValue(id,out var message)) { if(PresentBubble?.Invoke(message)==true) bubbleTemporarilyHidden=false; }
+        else { if(state.ActiveId==null) bubbleTemporarilyHidden=false; Dispatch(); }
+    }
     public bool Preview(ExperienceNotification message) {
-        if(!canPresent||stopped) return false;
+        if(!canPresent||stopped||state.ActiveId!=null) return false;
         Suspend(); foreach(var item in state.Unread(DateTimeOffset.UtcNow)) state.Dismiss(item.Message.Id,false);
         previews.Add(message.Id); Enqueue(message,true); return state.ActiveId==message.Id;
     }
@@ -181,11 +189,10 @@ internal sealed class AppNotificationRouter : IDisposable {
         while(state.Next(true,DateTimeOffset.UtcNow) is { } message) {
             if((!valid(message)||!ChannelAllowed(message,NotificationChannel.Bubble))&&!previews.Contains(message.Id)) { state.Dismiss(message.Id,false); continue; }
             if(PresentBubble?.Invoke(message)!=true) { state.Suspend(); break; }
-            state.Shown(message.Id,DateTimeOffset.UtcNow); RecordChannel(message,NotificationChannel.Bubble); Receipt(message); bubbleTimer.Start(); break;
+            bubbleTemporarilyHidden=false; state.Shown(message.Id,DateTimeOffset.UtcNow); RecordChannel(message,NotificationChannel.Bubble); Receipt(message); bubbleTimer.Start(); break;
         }
     }
     void Tick() {
-        if(state.ActiveId is { } id&&(!messages.TryGetValue(id,out var m)||!valid(m)&&!previews.Contains(id))) { state.Dismiss(id,false); HideBubble?.Invoke(); }
         if(state.Tick(DateTimeOffset.UtcNow)) { previews.Clear(); HideBubble?.Invoke(); UnreadChanged?.Invoke(); }
         if(state.ActiveId==null) { bubbleTimer.Stop(); Dispatch(); }
     }
@@ -194,15 +201,19 @@ internal sealed class AppNotificationRouter : IDisposable {
         previews.Clear(); bubbleTimer.Stop(); HideBubble?.Invoke(); UnreadChanged?.Invoke(); Dispatch();
     }
     public void SetInteracting(bool value)=>state.SetInteracting(value,DateTimeOffset.UtcNow);
-    public void Suspend() { previews.Clear(); state.Suspend(); bubbleTimer.Stop(); HideBubble?.Invoke(); }
+    public void Suspend() { previews.Clear(); state.Suspend(); bubbleTemporarilyHidden=false; bubbleTimer.Stop(); HideBubble?.Invoke(); }
     public void Dismiss(string id,bool read,string? token=null) {
         if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return;
         if(read) { if(messages.TryGetValue(id,out var message)) SaveLiveRead(message);consumed.Add(id); }
-        var active=state.ActiveId==id; state.Dismiss(id,read); previews.Remove(id); if(active) { bubbleTimer.Stop(); HideBubble?.Invoke(); } MessageChanged(); Dispatch();
+        var active=state.ActiveId==id; state.Dismiss(id,read); previews.Remove(id); if(active) { bubbleTemporarilyHidden=false; bubbleTimer.Stop(); HideBubble?.Invoke(); } MessageChanged(); Dispatch();
     }
     public Action? SystemUpdateRequested;
     public void ActivateLatest(string id,string? token=null) { if(consumed.Contains(id)||!messages.TryGetValue(id,out var m)||token!=null&&token!=m.DeliveryToken) return; if(m.Kind==ExperienceNotificationKind.Update) { if(valid(m)) { Dismiss(id,true,token); SystemUpdateRequested?.Invoke(); } return; } Dismiss(id,true); clicked(m); }
-    public void Activate(string id,string? token=null) { if(consumed.Contains(id)) return; if(token!=null&&(!messages.TryGetValue(id,out var d)||d.DeliveryToken!=token)) return; if(messages.TryGetValue(id,out var message)&&(valid(message)||previews.Contains(id))) { SaveLiveRead(message);consumed.Add(id); Receipt(message); Suspend(); state.Dismiss(id,true); MessageChanged(); clicked(message); } else Dismiss(id,true); }
+    public void Activate(string id,string? token=null) {
+        if(consumed.Contains(id)||!messages.TryGetValue(id,out var message)||token!=null&&message.DeliveryToken!=token) return;
+        if(valid(message)||previews.Contains(id)) { SaveLiveRead(message); consumed.Add(id); Receipt(message); Suspend(); state.Dismiss(id,true); MessageChanged(); clicked(message); }
+        else { var current=state.ActiveId==id&&(message.Kind==ExperienceNotificationKind.Update||message.Epoch!=null&&message.Epoch==CurrentMessageEpoch); Dismiss(id,true,token); if(current) { if(message.Kind==ExperienceNotificationKind.Update) SystemUpdateRequested?.Invoke(); else MessageDetailsRequested?.Invoke(); } }
+    }
     void DispatchSystem() {
         if(stopped||nativeTimeout.IsEnabled) return;
         while(systemQueue.Next(DateTimeOffset.UtcNow) is { } next) {
@@ -220,14 +231,16 @@ internal sealed class AppNotificationRouter : IDisposable {
         if(cancelMobile) Mobile?.Cancel(id);
         var active=state.ActiveId==id; state.Forget(id); systemQueue.CancelId(id); messages.Remove(id); receipted.Remove(id); previews.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id);
         if(nativeActive?.Id==id) { nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); }
-        if(active) { HideBubble?.Invoke(); bubbleTimer.Stop(); } UnreadChanged?.Invoke();
+        if(active) { bubbleTemporarilyHidden=false; HideBubble?.Invoke(); bubbleTimer.Stop(); } UnreadChanged?.Invoke();
     }
-    public void CancelAuthenticationEpoch(string epoch) {
-        Mobile?.CancelAuthenticationEpoch(epoch);
-        systemQueue.Cancel(epoch); var active=state.ActiveId;
-        state.Cancel(epoch); foreach(var id in messages.Values.Where(m=>m.Epoch==epoch).Select(m=>m.Id).ToArray()) { messages.Remove(id); receipted.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id); }
-        if(nativeActive?.Epoch==epoch) nativeActive=null;
-        if(active!=state.ActiveId) { HideBubble?.Invoke(); bubbleTimer.Stop(); }
+    public void CancelAuthenticationEpoch(string epoch,bool preservingActive=false) {
+        Mobile?.CancelAuthenticationEpoch(epoch); systemQueue.Cancel(epoch);
+        var active=state.ActiveId; var kept=preservingActive&&active!=null&&messages.TryGetValue(active,out var current)&&current.Epoch==epoch?active:null;
+        if(kept!=null&&messages[kept].DeliveryToken is { } token) suspendedDeliveryTokens.Add(token);
+        state.Cancel(epoch,kept);
+        foreach(var id in messages.Values.Where(m=>m.Epoch==epoch&&m.Id!=kept).Select(m=>m.Id).ToArray()) { messages.Remove(id); receipted.Remove(id); consumed.Remove(id); failedDeliveries.Remove(id); }
+        if(nativeActive?.Epoch==epoch) { nativeActive=null; if(SystemDelivery!=null) nativeTimeout.Stop(); }
+        if(active!=state.ActiveId) { bubbleTemporarilyHidden=false; HideBubble?.Invoke(); bubbleTimer.Stop(); }
         UnreadChanged?.Invoke(); Dispatch();
     }
     public void Dispose() { if(stopped) return; stopped=true; Mobile?.Dispose(); semanticReceipts.Clear(); state.Stop(); nativeTimeout.Stop(); bubbleTimer.Stop(); nativeActive=null; HideBubble?.Invoke(); messages.Clear(); receipted.Clear(); previews.Clear(); consumed.Clear(); failedDeliveries.Clear(); tray.BalloonTipClicked-=Clicked; tray.BalloonTipShown-=Shown; tray.BalloonTipClosed-=Closed; }

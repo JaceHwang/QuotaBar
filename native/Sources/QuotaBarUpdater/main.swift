@@ -59,7 +59,7 @@ do {
     guard CommandLine.arguments.count == 2 else { throw UpdatePackageError.invalidPackage }
     let directory = try UpdateLocations.directory(CommandLine.arguments[1]), job = try UpdateInstallJob.read(directory)
     phase = "job-validation"
-    try job.validate(directory: directory, expectedTarget: UpdateLocations.target.path, now: Date())
+    try job.validate(directory: directory, expectedTarget: UpdateLocations.target.path, now: Date(), allowBeta: UpdateChannelStore(url: UpdateLocations.channelPreferences).load())
     let reservation = try UpdateHandoffReservation(target: UpdateLocations.target)
     defer { reservation.release() }
     phase = "parent-validation"
@@ -81,6 +81,11 @@ do {
         Thread.sleep(forTimeInterval: 0.05)
     }
     guard job.hasReceipt("handoff", directory: directory) else { try job.receipt("failed", directory: directory); throw UpdatePackageError.invalidPackage }
+    guard try !ProductVersion(job.release.version).isBeta || UpdateChannelStore(url: UpdateLocations.channelPreferences).load() else {
+        try? job.receipt("failed", directory: directory)
+        _ = try? launch(UpdateLocations.target, args: [])
+        throw UpdatePackageError.invalidJobIdentity
+    }
     let transaction = ApplicationUpdateTransaction(target: UpdateLocations.target)
     do {
         try transaction.install(candidate: candidate, operationDirectory: directory, validate: { try MacUpdatePackage.verifyApp($0, release: job.release, provenance: proof) }, health: {

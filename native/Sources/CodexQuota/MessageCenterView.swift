@@ -15,6 +15,15 @@ private final class MessageTableView: NSTableView {
     }
 }
 
+private final class MessageRowView: NSTableRowView {
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard selectionHighlightStyle != .none else { return }
+        NSColor.controlAccentColor.setStroke()
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 3), xRadius: 10, yRadius: 10)
+        path.lineWidth = 1.5; path.stroke()
+    }
+}
+
 @MainActor final class MessageCenterView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     private let router: AppNotificationRouter
     private let copy: ExperienceCopy
@@ -22,7 +31,7 @@ private final class MessageTableView: NSTableView {
     private let logo = QuotaThemeIconView(frame: .zero)
     private let brand = NSTextField(labelWithString: "QuotaBar")
     private let heading = NSTextField(labelWithString: "")
-    private let tabs = NSSegmentedControl(labels: ["", ""], trackingMode: .selectOne, target: nil, action: nil)
+    private let unreadCount = NSTextField(labelWithString: "")
     private let allRead = SettingsAccentButton(frame: .zero)
     private let back = SettingsAccentButton(frame: .zero)
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
@@ -52,8 +61,7 @@ private final class MessageTableView: NSTableView {
         dates.dateStyle = .medium; dates.timeStyle = .short
         heading.stringValue = copy.text("Messages", "消息提醒", "消息提醒"); heading.font = .systemFont(ofSize: 20, weight: .semibold)
         heading.alignment = .center; brand.font = .systemFont(ofSize: 15, weight: .semibold)
-        tabs.target = self; tabs.action = #selector(tabChanged); tabs.selectedSegment = 0; tabs.segmentStyle = .rounded
-        tabs.identifier = .init("messages.tabs"); tabs.setAccessibilityLabel(copy.text("Message tabs", "消息页签", "消息頁籤"))
+        unreadCount.identifier = .init("messages.unreadCount"); unreadCount.font = .systemFont(ofSize: 12); unreadCount.textColor = .secondaryLabelColor
         configure(allRead, title: copy.text("Mark all read", "全部已读", "全部已讀"), id: "messages.allRead", action: #selector(allReadTapped))
         configure(back, title: copy.text("Back to list", "返回列表", "返回列表"), id: "messages.back", action: #selector(backTapped))
         configure(retry, title: copy.text("Retry saving", "重试本地存储", "重試本機儲存"), id: "messages.retry", action: #selector(retryTapped))
@@ -71,7 +79,7 @@ private final class MessageTableView: NSTableView {
         detailScroll.identifier = .init("messages.detailScroll"); detailScroll.borderType = .lineBorder
         divider.boxType = .separator
         empty.font = .systemFont(ofSize: 13); empty.textColor = .secondaryLabelColor; empty.alignment = .center; empty.identifier = .init("messages.empty")
-        for child in [logo, brand, heading, tabs, allRead, back, errorLabel, retry, listScroll, empty, detailScroll, divider, footer] { addSubview(child) }
+        for child in [logo, brand, heading, unreadCount, allRead, back, errorLabel, retry, listScroll, empty, detailScroll, divider, footer] { addSubview(child) }
         observer = router.observeMessages { [weak self] in self?.refresh() }
         refresh(); refreshColors()
     }
@@ -87,16 +95,13 @@ private final class MessageTableView: NSTableView {
     }
     func refresh() {
         guard !rendering else { return }; rendering = true; defer { rendering = false }
-        let history = router.messageHistory
-        rows = tabs.selectedSegment == 0 ? history.filter { $0.readAtMilliseconds == nil } : history
-        tabs.setLabel(copy.text("Unread", "未读提醒", "未讀提醒") + " (\(router.messageUnreadCount))", forSegment: 0)
-        tabs.setLabel(copy.text("History", "历史消息", "歷史訊息"), forSegment: 1)
-        for i in 0...1 { tabs.setWidth(max(130, ceil((tabs.label(forSegment: i)! as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13)]).width) + 30), forSegment: i) }
+        rows = router.messageHistory
+        unreadCount.stringValue = copy.text("Unread", "未读", "未讀") + " (\(router.messageUnreadCount))"
         table.reloadData()
         if let selectedKey, let index = rows.firstIndex(where: { $0.key == selectedKey }) { table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false) }
         else { table.deselectAll(nil) }
         allRead.isEnabled = router.messageUnreadCount > 0 && router.messageStorageError == nil
-        empty.stringValue = tabs.selectedSegment == 0 ? copy.text("No unread messages", "暂无未读提醒", "目前沒有未讀提醒") : copy.text("No message history yet", "暂无历史消息", "目前沒有歷史訊息")
+        empty.stringValue = copy.text("No messages yet", "暂无消息", "目前沒有訊息")
         empty.isHidden = !rows.isEmpty
         let error = router.messageStorageError
         errorLabel.stringValue = error.map { copy.text("Local message storage is unavailable. Changes are not saved.\n", "消息本地存储异常，更改尚未保存。\n", "訊息本機儲存異常，變更尚未儲存。\n") + $0 } ?? ""
@@ -106,6 +111,7 @@ private final class MessageTableView: NSTableView {
         layoutSubtreeIfNeeded()
     }
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { MessageRowView() }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard rows.indices.contains(row) else { return nil }
         let id = NSUserInterfaceItemIdentifier("message.cell")
@@ -118,7 +124,7 @@ private final class MessageTableView: NSTableView {
     private func openSelectedMessage() {
         guard !rendering, rows.indices.contains(table.selectedRow) else { return }
         let record = rows[table.selectedRow]; selectedKey = record.key; showingDetail = true
-        // Filtering this row out must not programmatically select/read its successor.
+        // Refresh restores this selection without marking another row as read.
         _ = router.markMessageRead(record.key); refresh()
     }
     private func addDetail(_ text: String, size: CGFloat = 12, secondary: Bool = false, id: String? = nil) -> NSTextField {
@@ -160,7 +166,6 @@ private final class MessageTableView: NSTableView {
         read.isEnabled = record.readAtMilliseconds == nil && router.messageStorageError == nil
         for button in [latest, read] { detail.addSubview(button); detailParts.append(button) }
     }
-    @objc private func tabChanged() { showingDetail = false; refresh() }
     @objc private func allReadTapped() { _ = router.markAllMessagesRead(); refresh() }
     @objc private func backTapped() { showingDetail = false; needsLayout = true; layoutSubtreeIfNeeded() }
     @objc private func retryTapped() { _ = router.retryMessageStorage(); refresh() }
@@ -171,7 +176,7 @@ private final class MessageTableView: NSTableView {
         logo.frame = NSRect(x: margin, y: 12, width: 28, height: 28); brand.frame = NSRect(x: 52, y: 15, width: 125, height: 24)
         brand.isHidden = width < 600; heading.frame = NSRect(x: width < 600 ? 58 : (width-240)/2, y: 13, width: width < 600 ? max(100,width-80) : 240, height: 28)
         let actionWidth = max(100, ceil(allRead.intrinsicContentSize.width))
-        tabs.frame = NSRect(x: margin, y: 58, width: max(250, tabs.intrinsicContentSize.width), height: 30)
+        unreadCount.frame = NSRect(x: margin, y: 65, width: max(80, width-2*margin-actionWidth-12), height: 20)
         allRead.frame = NSRect(x: width-margin-actionWidth, y: 58, width: actionWidth, height: 30)
         var top: CGFloat = 102
         if !errorLabel.isHidden {
@@ -187,7 +192,8 @@ private final class MessageTableView: NSTableView {
         let leftWidth = compact ? bodyWidth : min(340,max(280,bodyWidth*0.38))
         listScroll.isHidden = compact && detailVisible; detailScroll.isHidden = !detailVisible; divider.isHidden = compact
         listScroll.frame = NSRect(x:margin,y:top,width:leftWidth,height:bodyHeight)
-        table.tableColumns.first?.width = max(100,listScroll.contentSize.width)
+        table.setFrameSize(NSSize(width: listScroll.contentSize.width, height: table.frame.height))
+        table.tableColumns.first?.width = max(100,listScroll.contentSize.width - 8)
         let rightX = compact ? margin : margin+leftWidth+14
         detailScroll.frame = NSRect(x:rightX,y:top,width:compact ? bodyWidth : max(100,width-margin-rightX),height:bodyHeight)
         divider.frame = NSRect(x:margin+leftWidth+6,y:top,width:1,height:bodyHeight)
@@ -220,6 +226,8 @@ private final class MessageTableView: NSTableView {
 }
 
 @MainActor private final class MessageListCell: NSTableCellView {
+    private let card = NSView()
+    private var isUnread = false
     private let dot = NSTextField(labelWithString: "●")
     private let icon = NSImageView()
     private let name = NSTextField(labelWithString: "")
@@ -229,13 +237,29 @@ private final class MessageTableView: NSTableView {
         super.init(frame: frameRect)
         let column = NSStackView(); column.orientation = .vertical; column.alignment = .leading; column.spacing = 4
         for field in [name,summary,stamp] { field.lineBreakMode = .byTruncatingTail; field.maximumNumberOfLines = 1; field.translatesAutoresizingMaskIntoConstraints = false; column.addArrangedSubview(field); field.widthAnchor.constraint(equalTo:column.widthAnchor).isActive = true }
-        name.font = .systemFont(ofSize:13,weight:.semibold); summary.font = .systemFont(ofSize:11); summary.textColor = .secondaryLabelColor
+        name.identifier = .init("messages.row.title"); summary.identifier = .init("messages.row.summary")
+        name.font = .systemFont(ofSize:13); summary.font = .systemFont(ofSize:11); summary.textColor = .secondaryLabelColor
         stamp.font = .systemFont(ofSize:10); stamp.textColor = .secondaryLabelColor; dot.font = .systemFont(ofSize:10); dot.textColor = .systemBlue
-        let row = NSStackView(views:[dot,icon,column]); row.orientation = .horizontal; row.alignment = .centerY; row.spacing = 8; row.translatesAutoresizingMaskIntoConstraints = false; addSubview(row)
-        NSLayoutConstraint.activate([row.leadingAnchor.constraint(equalTo:leadingAnchor,constant:10),row.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-10),row.topAnchor.constraint(equalTo:topAnchor,constant:10),row.bottomAnchor.constraint(equalTo:bottomAnchor,constant:-10),dot.widthAnchor.constraint(equalToConstant:8),icon.widthAnchor.constraint(equalToConstant:22),icon.heightAnchor.constraint(equalToConstant:22)])
+        card.identifier = .init("messages.row.card"); card.wantsLayer = true; card.translatesAutoresizingMaskIntoConstraints = false; addSubview(card)
+        let row = NSStackView(views:[dot,icon,column]); row.orientation = .horizontal; row.alignment = .centerY; row.spacing = 8; row.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(row)
+        NSLayoutConstraint.activate([card.leadingAnchor.constraint(equalTo:leadingAnchor,constant:5),card.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-5),card.topAnchor.constraint(equalTo:topAnchor,constant:4),card.bottomAnchor.constraint(equalTo:bottomAnchor,constant:-4),row.leadingAnchor.constraint(equalTo:card.leadingAnchor,constant:10),row.trailingAnchor.constraint(equalTo:card.trailingAnchor,constant:-10),row.topAnchor.constraint(equalTo:card.topAnchor,constant:6),row.bottomAnchor.constraint(equalTo:card.bottomAnchor,constant:-6),dot.widthAnchor.constraint(equalToConstant:8),icon.widthAnchor.constraint(equalToConstant:22),icon.heightAnchor.constraint(equalToConstant:22)])
     }
     required init?(coder: NSCoder) { nil }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); updateCardAppearance() }
+    override func layout() { super.layout(); updateCardAppearance(); card.layer?.shadowPath = CGPath(roundedRect: card.bounds, cornerWidth: 10, cornerHeight: 10, transform: nil) }
+    private func updateCardAppearance() {
+        guard let layer = card.layer else { return }
+        let dark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        layer.cornerRadius = 10; layer.masksToBounds = false
+        layer.backgroundColor = isUnread ? NSColor(calibratedWhite: dark ? 0.22 : 0.95, alpha: 1).cgColor : NSColor.clear.cgColor
+        layer.shadowColor = NSColor.black.cgColor; layer.shadowOpacity = isUnread ? (dark ? 0.30 : 0.12) : 0
+        layer.shadowRadius = 3; layer.shadowOffset = CGSize(width: 0, height: -1)
+    }
     func render(_ record: MessageCenterRecord, date: String, unread: String, read: String) {
+        isUnread = record.readAtMilliseconds == nil
+        name.font = .systemFont(ofSize: 13, weight: isUnread ? .semibold : .regular)
+        summary.font = .systemFont(ofSize: 11, weight: isUnread ? .semibold : .regular)
+        updateCardAppearance()
         name.stringValue = record.title; summary.stringValue = record.body.replacingOccurrences(of:"\n",with:" "); stamp.stringValue = date
         dot.stringValue = record.readAtMilliseconds == nil ? "●" : ""; dot.setAccessibilityLabel(record.readAtMilliseconds == nil ? unread : read)
         let symbol: String

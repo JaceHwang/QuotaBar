@@ -3,6 +3,14 @@ using QuotaBar.Core;
 internal static class TrustedUpdateReleaseTests {
     public static void Run() {
         using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/in-app-updates/release-cases.json")));
+        var first=doc.RootElement[0]; var beta=first.GetProperty("release").GetRawText().Replace("2.0.0","2.0.0-beta.1").Replace("\"prerelease\": false","\"prerelease\": true").Replace("\"prerelease\":false","\"prerelease\":true");
+        var tag=first.GetProperty("tag").GetRawText();
+        var refused=false; try { TrustedUpdateRelease.Parse(beta,tag,"2.0.0-beta.1","windows-x64","1.9.0"); } catch(FormatException) { refused=true; }
+        if(!refused) throw new Exception("beta accepted without consent");
+        var accepted=TrustedUpdateRelease.Parse(beta,tag,"2.0.0-beta.1","windows-x64","1.9.0",true);
+        if(accepted.Version!="2.0.0-beta.1") throw new Exception("beta permission did not allow matching prerelease");
+        refused=false; try { TrustedUpdateRelease.Parse(beta.Replace("\"prerelease\": true","\"prerelease\": false").Replace("\"prerelease\":true","\"prerelease\":false"),tag,"2.0.0-beta.1","windows-x64","1.9.0",true); } catch(FormatException) { refused=true; }
+        if(!refused) throw new Exception("beta accepted without matching prerelease flag");
         foreach(var row in doc.RootElement.EnumerateArray()) {
             var valid=row.GetProperty("valid").GetBoolean();
             try {

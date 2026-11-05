@@ -6,10 +6,11 @@ using QuotaBar.Core;
 internal static class UpdateDownloadTests {
     sealed class Transport : IUpdateTransport {
         readonly byte[] release,tag,proof; readonly bool corrupt,late;
-        public Transport(bool corrupt=false,bool late=false,bool wrongSource=false) {
+        public Transport(bool corrupt=false,bool late=false,bool wrongSource=false,string version="2.0.0") {
             this.corrupt=corrupt; this.late=late;
             var rows=JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"contracts/in-app-updates/release-cases.json")))!.AsArray(); var row=rows[0]!; var r=row["release"]!.DeepClone(); tag=Encoding.UTF8.GetBytes(row["tag"]!.ToJsonString());
-            proof=Encoding.UTF8.GetBytes(new JsonObject { ["kind"]="release",["workingTreeDirty"]=false,["version"]="2.0.0",["releaseTag"]="v2.0.0",["sourceCommit"]=new string(wrongSource?'c':'b',40) }.ToJsonString());
+            if(version!="2.0.0") { r=JsonNode.Parse(r.ToJsonString().Replace("2.0.0",version))!; r["prerelease"]=true; }
+            proof=Encoding.UTF8.GetBytes(new JsonObject { ["kind"]="release",["workingTreeDirty"]=false,["version"]=version,["releaseTag"]="v"+version,["sourceCommit"]=new string(wrongSource?'c':'b',40) }.ToJsonString());
             foreach(var i in new[]{2,3}) { var bytes=i==2?"package"u8.ToArray():proof; r["assets"]![i]!["size"]=bytes.Length; r["assets"]![i]!["digest"]="sha256:"+Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(); }
             release=Encoding.UTF8.GetBytes(r.ToJsonString());
         }
@@ -60,7 +61,44 @@ internal static class UpdateDownloadTests {
             if(!refused) throw new Exception("Self-consistent forged staged manifest accepted");
         } finally { Directory.Delete(root,true); }
     }
+    static void BetaPackageMustCarryMatchingFullIdentity() {
+        var root=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString()); Directory.CreateDirectory(root);
+        try {
+            var candidate=Path.Combine(root,"input","QuotaBar"); Directory.CreateDirectory(Path.Combine(candidate,"runtime")); Directory.CreateDirectory(Path.Combine(candidate,"setup"));
+            File.WriteAllText(Path.Combine(candidate,"QuotaBar.exe"),"app"); File.WriteAllText(Path.Combine(candidate,"runtime","codex.exe"),"runtime"); File.WriteAllText(Path.Combine(candidate,"setup","QuotaBar.Setup.exe"),"setup");
+            var version="2.0.0-beta.1"; var proof=Path.Combine(root,"proof.json");
+            File.WriteAllText(proof,new JsonObject { ["updateProtocol"]=1,["kind"]="release",["workingTreeDirty"]=false,["version"]=version,["releaseTag"]="v"+version,["sourceCommit"]=new string('b',40) }.ToJsonString());
+            File.Copy(proof,Path.Combine(candidate,"PROVENANCE.json"));
+            UpdateAsset Asset(string path)=>new(Path.GetFileName(path),new Uri("https://github.com/JaceHwang/QuotaBar/releases/download/v"+version+"/"+Path.GetFileName(path)),new FileInfo(path).Length,Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant());
+            void Check(bool shouldAccept,string suffix) {
+                var files=Directory.GetFiles(candidate,"*",SearchOption.AllDirectories).Where(p=>Path.GetFileName(p)!="package.json").ToDictionary(p=>Path.GetRelativePath(candidate,p).Replace('\\','/'),p=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))).ToLowerInvariant());
+                File.WriteAllText(Path.Combine(candidate,"package.json"),System.Text.Json.JsonSerializer.Serialize(new PackageManifest(1,"QuotaBar","windows-x64",version,"0.144.1",files)));
+                var archive=Path.Combine(root,"archive-"+suffix+".zip"); ZipFile.CreateFromDirectory(Path.Combine(root,"input"),archive);
+                var release=new TrustedUpdateRelease(version,"windows-x64",new string('b',40),Asset(archive),Asset(proof)); var download=new DownloadedUpdate(release,root,archive,proof);
+                var accepted=true; try { UpdateStaging.VerifyPackage(download,Path.Combine(root,"extract-"+suffix)); } catch(IOException) { accepted=false; }
+                if(accepted!=shouldAccept) throw new Exception("Beta full identity validation: "+suffix);
+            }
+            Check(false,"missing");
+            File.WriteAllText(Path.Combine(candidate,"PRODUCT-VERSION.json"),"{\"version\":\"2.0.0-beta.1\",\"numericVersion\":\"2.0.0\"}"); Check(false,"missing-assembly");
+            var assembly=Path.Combine(candidate,"QuotaBar.dll"); var fixture=Path.Combine(AppContext.BaseDirectory,"fixtures","QuotaBar.dll");
+            File.WriteAllText(assembly,"not a managed assembly"); Check(false,"invalid-assembly");
+            File.Copy(fixture,assembly,true); Check(true,"valid");
+            File.Copy(typeof(UpdateDownloadTests).Assembly.Location,assembly,true); Check(false,"wrong-assembly");
+            File.Copy(Path.Combine(AppContext.BaseDirectory,"fixtures","mismatch","QuotaBar.dll"),assembly,true); Check(false,"wrong-assembly-version");
+            File.Copy(fixture,assembly,true);
+            File.WriteAllText(Path.Combine(candidate,"PRODUCT-VERSION.json"),"{\"version\":\"2.0.0-beta.2\",\"numericVersion\":\"2.0.0\"}"); Check(false,"mismatch");
+        } finally { Directory.Delete(root,true); }
+    }
     public static async Task Run() {
+        BetaPackageMustCarryMatchingFullIdentity();
+        var betaRoot=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString());
+        try {
+            var beta=new UpdateDownloadClient(new Transport(version:"2.0.0-beta.1")); var refused=false;
+            try { await beta.Download("2.0.0-beta.1","windows-x64","1.9.0",betaRoot); } catch(FormatException) { refused=true; }
+            if(!refused) throw new Exception("Beta downloaded without consent");
+            var downloaded=await beta.Download("2.0.0-beta.1","windows-x64","1.9.0",betaRoot,allowBeta:true);
+            if(downloaded.Release.Version!="2.0.0-beta.1") throw new Exception("Beta download identity mismatch");
+        } finally { if(Directory.Exists(betaRoot)) Directory.Delete(betaRoot,true); }
         PreparedPayloadMustMatchArchive();
         foreach(var value in new[]{"{}","{\"updateProtocol\":2}","{\"updateProtocol\":1}"}) {
             var refused=false; try { UpdateStaging.RequireUpdateProtocol(Encoding.UTF8.GetBytes(value)); } catch(IOException) { refused=true; }

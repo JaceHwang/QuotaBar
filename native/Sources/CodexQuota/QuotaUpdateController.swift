@@ -11,6 +11,15 @@ final class QuotaUpdateController: NSObject {
     private weak var downloadBar: NSProgressIndicator?
     private var notificationCenter: UNUserNotificationCenter?
     private let defaults: UserDefaults
+    private let channelStore: UpdateChannelStore
+    private let confirmBeta: (Int) -> Bool
+    private var betaStored: Bool
+    private var betaEffective: Bool
+    private var channelGeneration = 0
+    private var channelSaving = false
+    private var channelError: String?
+    private weak var betaSwitch: QuotaSettingsSwitch?
+    private weak var betaStatus: NSTextField?
     private let version: String
     private var developmentCandidate: Bool {
         guard let url = Bundle.main.url(forResource: "PROVENANCE", withExtension: "json"),
@@ -51,8 +60,11 @@ final class QuotaUpdateController: NSObject {
         get { defaults.data(forKey: "updates.policy").flatMap { try? JSONDecoder().decode(UpdateReminderPolicy.self, from: $0) } ?? UpdateReminderPolicy() }
         set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "updates.policy") }
     }
-    init(defaults: UserDefaults = .standard, version: String, updateExecute: ApplicationUpdateService.Execute? = nil, transport: URLSession? = nil, now: @escaping () -> Date = Date.init, text: @escaping (String, String, String) -> String) {
+    init(defaults: UserDefaults = .standard, version: String, updateExecute: ApplicationUpdateService.Execute? = nil, transport: URLSession? = nil, now: @escaping () -> Date = Date.init, channelStore: UpdateChannelStore? = nil, confirmBeta: ((Int) -> Bool)? = nil, text: @escaping (String, String, String) -> String) {
         installer = ApplicationUpdateService(currentVersion: version, execute: updateExecute)
+        let store = channelStore ?? UpdateChannelStore(url: UpdateLocations.channelPreferences)
+        self.channelStore = store; betaStored = store.load(); betaEffective = betaStored
+        self.confirmBeta = confirmBeta ?? { step in Self.confirmBetaStep(step, text: text) }
         self.now = now; nextCheck = now().addingTimeInterval(10)
         self.defaults = defaults; self.version = version; self.text = text
         let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 15; config.timeoutIntervalForResource = 20
@@ -80,9 +92,13 @@ final class QuotaUpdateController: NSObject {
         guard manual ? now.timeIntervalSince(lastManual) >= 10 : auto && now >= nextCheck else { return }
         if manual { lastManual = now }
         status = text("Checking…", "正在检查…", "正在檢查…"); refreshView()
+        let channel = channelGeneration
         request = Task { [weak self] in
             guard let self else { return }
-            defer { request = nil; refreshView(); onChange?() }
+            defer {
+                request = nil; refreshView(); onChange?()
+                if channel != channelGeneration && !stopped && auto { nextCheck = .distantPast; check() }
+            }
             do {
                 var query = URLRequest(url: UpdateFeed.endpoint, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
                 if let etag { query.setValue(etag, forHTTPHeaderField: "If-None-Match") }
@@ -98,13 +114,15 @@ final class QuotaUpdateController: NSObject {
                     }
                 }
                 let os = ProcessInfo.processInfo.operatingSystemVersion
-                let release = try UpdateFeed.available(in: data, platform: "macos-arm64", current: version, os: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)")
+                let selection = try UpdateFeed.select(in: data, platform: "macos-arm64", current: version, os: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)", allowBeta: betaEffective)
                 try Task.checkCancellation()
+                guard channel == channelGeneration else { return }
+                let release = selection.release
                 available = release; cache = data
                 if http.statusCode == 200 { etag = http.value(forHTTPHeaderField: "ETag") }
                 defaults.set(self.now(), forKey: "updates.lastSuccess"); failures = 0
                 nextCheck = self.now().addingTimeInterval(86400)
-                status = release == nil ? text("No newer release found", "未发现更新版本", "未發現更新版本") : text("Update available", "有新版本可用", "有新版本可用")
+                status = selection.betaError ? text("Could not check beta updates. Stable updates remain available.", "内测更新检查失败，正式更新仍可用。", "內測更新檢查失敗，正式更新仍可用。") : release == nil ? text("No newer release found", "未发现更新版本", "未發現更新版本") : text("Update available", "有新版本可用", "有新版本可用")
                 notifyIfNeeded()
             } catch {
                 if Task.isCancelled { return }
@@ -143,16 +161,38 @@ final class QuotaUpdateController: NSObject {
         let bar = NSProgressIndicator(); bar.style = .bar; bar.isIndeterminate = false; bar.maxValue = 100; downloadBar = bar; QuotaSettingsStyle.fill(bar, in: group)
         let cancel = QuotaSettingsStyle.button(text("Cancel download", "取消下载", "取消下載"), target: self, action: #selector(cancelInstall)); cancelInstallButton = cancel; group.addArrangedSubview(cancel)
         let notes = QuotaSettingsStyle.label("", size: 12, secondary: true); notesField = notes; QuotaSettingsStyle.fill(notes, in: group)
-        refreshView(); return QuotaSettingsStyle.card(group)
+        let betaGroup = QuotaSettingsStyle.column(4)
+        let toggle = QuotaSettingsSwitch(); toggle.target = self; toggle.action = #selector(betaChanged); toggle.state = betaStored ? .on : .off; betaSwitch = toggle
+        let title = text("Beta experience", "内测体验", "內測體驗")
+        let copy = QuotaSettingsStyle.column(4)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(title, size: 13), in: copy)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Beta releases may be unstable. Installation requires your confirmation.", "内测版本可能不稳定，安装需手动确认。", "內測版本可能不穩定，安裝需手動確認。"), size: 11, secondary: true), in: copy)
+        copy.setContentHuggingPriority(.defaultLow, for: .horizontal); toggle.setContentHuggingPriority(.required, for: .horizontal)
+        toggle.setAccessibilityLabel(title)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "checkmark.shield", accessibilityDescription: nil) ?? NSImage())
+        icon.contentTintColor = .controlAccentColor; icon.setAccessibilityElement(false)
+        let betaRow = NSView(); betaRow.addSubview(icon); betaRow.addSubview(copy); betaRow.addSubview(toggle)
+        icon.translatesAutoresizingMaskIntoConstraints = false; copy.translatesAutoresizingMaskIntoConstraints = false; toggle.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([icon.leadingAnchor.constraint(equalTo: betaRow.leadingAnchor), icon.centerYAnchor.constraint(equalTo: betaRow.centerYAnchor), icon.widthAnchor.constraint(equalToConstant: 18), icon.heightAnchor.constraint(equalToConstant: 18), copy.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10), copy.topAnchor.constraint(equalTo: betaRow.topAnchor), copy.bottomAnchor.constraint(equalTo: betaRow.bottomAnchor), copy.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16), toggle.trailingAnchor.constraint(equalTo: betaRow.trailingAnchor), toggle.centerYAnchor.constraint(equalTo: betaRow.centerYAnchor), betaRow.heightAnchor.constraint(greaterThanOrEqualTo: toggle.heightAnchor)])
+        QuotaSettingsStyle.fill(betaRow, in: betaGroup)
+        let status = QuotaSettingsStyle.label("", size: 11, secondary: true); betaStatus = status; QuotaSettingsStyle.fill(status, in: betaGroup)
+        let stack = QuotaSettingsStyle.column(12)
+        QuotaSettingsStyle.fill(QuotaSettingsStyle.card(group), in: stack)
+        QuotaSettingsStyle.fill(BetaSettingsCard(content: betaGroup), in: stack)
+        refreshView(); return stack
     }
     private func refreshView() {
         let current = text("Current version", "当前版本", "目前版本")
         let visibleVersion = installer.progress.phase.busy ? installer.targetVersion : available?.version
-        let extra = visibleVersion.map { " · " + text("Available", "可用更新", "可用更新") + " " + $0 } ?? ""
+        let extra = visibleVersion.map { value in
+            let channel = (try? ProductVersion(value).isBeta) == true ? text("Beta", "内测版", "內測版") : text("Stable", "正式版", "正式版")
+            return " · " + text("Available", "可用更新", "可用更新") + " " + channel + " " + value
+        } ?? ""
         let candidate = developmentCandidate ? " (" + text("development candidate", "开发候选", "開發候選") + ")" : ""
+        let currentChannel = (try? ProductVersion(version).isBeta) == true ? " (" + text("Beta", "内测版", "內測版") + ")" : ""
         let update = installer.progress
         let updateStatus = update.phase == .idle ? status : installStatus(update)
-        statusField?.stringValue = "\(current) \(version)\(candidate)\(extra)\n\(updateStatus)"
+        statusField?.stringValue = "\(current) \(version)\(currentChannel)\(candidate)\(extra)\n\(updateStatus)"
         notesField?.stringValue = ""
         if let notes = available?.releaseNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             notesField?.stringValue = notes
@@ -169,6 +209,12 @@ final class QuotaUpdateController: NSObject {
         downloadBar?.isIndeterminate = update.phase != .downloading
         if update.phase == .downloading { downloadBar?.doubleValue = update.total > 0 ? Double(update.received) / Double(update.total) * 100 : 0; downloadBar?.stopAnimation(nil) } else if update.phase.busy { downloadBar?.startAnimation(nil) }
         checkButton?.isEnabled = request == nil && !update.phase.busy
+        betaSwitch?.state = betaStored ? .on : .off
+        betaSwitch?.isEnabled = !channelSaving && update.phase != .handingOff && update.phase != .installing
+        if let channelError { betaStatus?.stringValue = channelError }
+        else if !betaStored && (try? ProductVersion(version).isBeta) == true {
+            betaStatus?.stringValue = text("Disabled. The installed beta remains until a newer stable update is available.", "已关闭。当前内测版会保留，等待更新的正式版。", "已關閉。目前內測版會保留，等待更新的正式版。")
+        } else { betaStatus?.stringValue = betaStored ? text("Enabled", "已开启", "已開啟") : text("Disabled", "已关闭", "已關閉") }
         if request == nil { progress?.stopAnimation(nil) } else { progress?.startAnimation(nil) }
     }
     func installStatus(_ update: ApplicationUpdateProgress) -> String {
@@ -185,7 +231,47 @@ final class QuotaUpdateController: NSObject {
         default: return ""
         }
     }
-    @objc func installUpdate() { guard !stopped, let available else { return }; installer.start(version: available.version) }
+    @objc func installUpdate() {
+        guard !stopped, let available, let target = try? ProductVersion(available.version), !target.isBeta || betaEffective else { return }
+        installer.start(version: available.version, allowBeta: betaEffective)
+    }
+    private static func confirmBetaStep(_ step: Int, text: (String, String, String) -> String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = step == 1 ? text("Enable beta experience (1 / 2)", "开启内测体验（1 / 2）", "開啟內測體驗（1 / 2）") : text("Confirm beta experience (2 / 2)", "确认开启内测体验（2 / 2）", "確認開啟內測體驗（2 / 2）")
+        alert.informativeText = step == 1 ? text("Beta releases may be unstable and contain unfinished changes.", "内测版本可能不稳定，并包含尚未完成的改动。", "內測版本可能不穩定，並包含尚未完成的變更。") : text("You may receive beta updates. Installation still requires your action.", "开启后可收到内测更新，安装仍需手动操作。", "開啟後可收到內測更新，安裝仍需手動操作。")
+        alert.addButton(withTitle: text("Cancel", "取消", "取消"))
+        alert.addButton(withTitle: step == 1 ? text("Continue", "继续", "繼續") : text("Confirm enable", "确认开启", "確認開啟"))
+        alert.buttons.first?.keyEquivalent = "\r"; alert.buttons.last?.keyEquivalent = ""
+        return alert.runModal() == .alertSecondButtonReturn
+    }
+    private func invalidateChannelResults() {
+        channelGeneration += 1; request?.cancel(); notifyTask?.cancel(); notifyTask = nil
+        if let release = available, (try? ProductVersion(release.version).isBeta) == true {
+            AppNotificationRouter.shared.cancelMessage(id: "quotabar-update-" + release.version); available = nil
+        }
+        nextCheck = .distantPast
+    }
+    @objc private func betaChanged(_ sender: QuotaSettingsSwitch) {
+        guard !channelSaving, installer.progress.phase != .handingOff, installer.progress.phase != .installing else { refreshView(); return }
+        if sender.state == .on {
+            sender.state = .off
+            guard !betaStored, confirmBeta(1), confirmBeta(2) else { refreshView(); return }
+            do { try channelStore.save(enabled: true); betaStored = true; betaEffective = true; channelError = nil; invalidateChannelResults(); status = text("Beta experience enabled", "内测体验已开启", "內測體驗已開啟") }
+            catch { channelError = text("Could not save beta setting", "无法保存内测设置", "無法儲存內測設定"); status = channelError! }
+            refreshView(); onChange?(); if auto { check() }
+        } else {
+            guard betaStored else { refreshView(); return }
+            let cancelBeta = installer.progress.phase.canCancel && installer.targetVersion.flatMap { try? ProductVersion($0) }?.isBeta == true
+            betaEffective = false; invalidateChannelResults(); if cancelBeta { installer.cancel() }; channelSaving = true; refreshView()
+            Task { [weak self] in
+                guard let self else { return }
+                if cancelBeta { await installer.waitForCleanup() }
+                do { try channelStore.save(enabled: false); betaStored = false; channelError = nil; status = text("Beta experience disabled", "内测体验已关闭", "內測體驗已關閉") }
+                catch { channelError = text("Could not save. Beta remains enabled after restart.", "未能保存，重启后内测仍会开启。", "未能儲存，重新啟動後內測仍會開啟。"); status = channelError! }
+                channelSaving = false; refreshView(); onChange?(); if auto { check() }
+            }
+        }
+    }
     @objc private func cancelInstall() { installer.cancel() }
     @objc private func manualCheck() { check(manual: true) }
     @objc private func autoChanged(_ sender: QuotaSettingsSwitch) { defaults.set(sender.state != .on, forKey: "updates.autoDisabled"); if sender.state == .on { nextCheck = .distantPast; check() } }
@@ -206,7 +292,8 @@ final class QuotaUpdateController: NSObject {
     private func notifyIfNeeded() {
         guard !stopped, reminders, let release = available, policy.shouldNotify(release.version, now: now()) else { return }
         let attempted = policy
-        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now(), reminderGeneration: attempted.snoozeUntil.map { "snooze:\(Int64(($0.timeIntervalSince1970 * 1000).rounded()))" } ?? "initial", category: AppNotificationRouter.shared.policyActive ? .updateAvailable : nil)
+        let channel = (try? ProductVersion(release.version).isBeta) == true ? text("Beta", "内测版", "內測版") : text("Stable", "正式版", "正式版")
+        let message = ExperienceNotification(id: "quotabar-update-\(release.version)", kind: .update, epoch: nil, title: "QuotaBar " + text("update available", "有新版本", "有新版本") + " " + channel + " " + release.version, body: release.notificationSummary ?? text("View release notes", "查看更新说明", "查看更新說明"), createdAt: now(), reminderGeneration: attempted.snoozeUntil.map { "snooze:\(Int64(($0.timeIntervalSince1970 * 1000).rounded()))" } ?? "initial", category: AppNotificationRouter.shared.policyActive ? .updateAvailable : nil)
         AppNotificationRouter.shared.enqueue(message, valid: { [weak self] in
             guard let self else { return false }
             return !stopped && reminders && available == release && policy.skippedVersion != release.version && (policy.snoozeUntil.map { $0 <= now() } ?? true)

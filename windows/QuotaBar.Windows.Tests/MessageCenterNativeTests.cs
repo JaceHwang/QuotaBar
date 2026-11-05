@@ -13,6 +13,7 @@ using QuotaBar.Windows;
 internal static class MessageCenterNativeTests {
  static void Check(bool value,string message) { if(!value) throw new Exception("message center: "+message); }
  static IEnumerable<DependencyObject> Tree(DependencyObject root) { yield return root;foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach(var item in Tree(child)) yield return item; }
+ static IEnumerable<DependencyObject> Visual(DependencyObject root) { yield return root;for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++) foreach(var item in Visual(VisualTreeHelper.GetChild(root,i))) yield return item; }
  static T Find<T>(DependencyObject root,string tag) where T:FrameworkElement=>Tree(root).OfType<T>().Single(v=>Equals(v.Tag,tag));
  static void Pump() { Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle); }
  static void Click(DependencyObject root,string tag) { Find<Button>(root,tag).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));Pump(); }
@@ -26,13 +27,20 @@ internal static class MessageCenterNativeTests {
  static void Close((string Root,System.Windows.Forms.NotifyIcon Tray,AppNotificationRouter Router,MessageCenterWindow Window) s) { s.Window.Close();s.Router.Dispose();s.Tray.Dispose();if(Directory.Exists(s.Root)) Directory.Delete(s.Root,true); }
  public static void Run(Application app) {
   var s=Create();try {
-   var list=Find<ListBox>(s.Window,"messages.list");var tabs=Find<TabControl>(s.Window,"messages.tabs");
+   var list=Find<ListBox>(s.Window,"messages.list");
+   Check(!Tree(s.Window).OfType<TabControl>().Any(t=>Equals(t.Tag,"messages.tabs")),"unread and history share one list");
+   s.Window.UpdateLayout();Pump();
+   var first=(ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0);
+   var unreadCard=Visual(first).OfType<Border>().Single(b=>b.Name=="MessageCard");
+   var unreadTitle=Visual(first).OfType<TextBlock>().Single(t=>t.Name=="MessageTitle");
+   Check(unreadCard.Effect!=null&&unreadTitle.FontWeight==FontWeights.SemiBold,"unread has shadow and bold title");
    Check(list.Items.Count==3&&list.SelectedIndex==-1&&s.Router.MessageUnreadCount==3,"opening window never auto reads first row");
-   tabs.SelectedIndex=1;Pump();Check(s.Router.MessageUnreadCount==3,"tab selection does not read");tabs.SelectedIndex=0;Pump();
    var clicked=s.Router.MessageHistory[1].Key;list.SelectedIndex=1;Pump();
-   Check(s.Router.MessageUnreadCount==2&&list.Items.Count==2&&list.SelectedIndex==-1&&s.Window.SelectedKey==clicked,"opening detail reads exactly clicked row, not successor");
+   Check(s.Router.MessageUnreadCount==2&&list.Items.Count==3&&list.SelectedIndex==1&&s.Window.SelectedKey==clicked,"opening detail reads exactly clicked row, not successor");
    Pump();Check(s.Router.MessageHistory.Count(r=>r.ReadAtMilliseconds!=null)==1,"read/filter event cannot cascade");
-   tabs.SelectedIndex=1;Pump();Check(list.Items.Count==3&&s.Router.MessageUnreadCount==2,"history includes read rows");
+   s.Window.UpdateLayout();Pump();
+   var opened=(ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(1);
+   Check(Visual(opened).OfType<Border>().Single(b=>b.Name=="MessageCard").Effect==null&&Visual(opened).OfType<TextBlock>().Single(t=>t.Name=="MessageTitle").FontWeight==FontWeights.Normal,"read row returns to normal style");
    s.Window.Width=720;Pump();list.SelectedIndex=0;Pump();
    Check(Find<FrameworkElement>(s.Window,"messages.listPane").Visibility==Visibility.Collapsed&&Find<ScrollViewer>(s.Window,"messages.detailScroll").Visibility==Visibility.Visible,"narrow user selection opens detail");
    Click(s.Window,"messages.back");Check(Find<FrameworkElement>(s.Window,"messages.listPane").Visibility==Visibility.Visible,"back restores list");
@@ -41,19 +49,19 @@ internal static class MessageCenterNativeTests {
    s.Window.Width=920;Pump();var selected=s.Window.SelectedKey;s.Router.CurrentMessageEpoch="another";Pump();
    Check(Tree(s.Window).OfType<TextBlock>().Any(t=>t.Text.Contains("历史会话")),"earlier epoch is a historical snapshot");
    var p=NotificationPolicyPreferences.AllSelected() with { EnabledChannels=[NotificationChannel.Bubble] };s.Router.ConfigurePolicy(p);s.Router.Enqueue(new("arrived",ExperienceNotificationKind.Recovery,"another","新消息","snapshot",DateTimeOffset.UtcNow,Category:NotificationCategory.QuotaRecovered));Pump();
-   Check(tabs.SelectedIndex==1&&s.Window.SelectedKey==selected,"new arrival retains tab and detail");
+   Check(s.Window.SelectedKey==selected,"new arrival retains selected detail");
    Click(s.Window,"messages.allRead");Check(s.Router.MessageUnreadCount==0&&list.Items.Count==4&&!Find<Button>(s.Window,"messages.allRead").IsEnabled,"all read preserves history");
    Check(new MessageCenterStore(Path.Combine(s.Root,"message-center.json")).UnreadCount==0,"read status survives restart");
   } finally { Close(s); }
-  var empty=Create(count:0);try { Check(Find<ListBox>(empty.Window,"messages.list").Items.Count==0&&!Find<Button>(empty.Window,"messages.allRead").IsEnabled,"empty state");Find<TabControl>(empty.Window,"messages.tabs").SelectedIndex=1;Pump();Check(Find<TextBlock>(empty.Window,"messages.empty").Visibility==Visibility.Visible,"history empty state"); } finally { Close(empty); }
-  TestCategories();TestStorageFailure();TestWriteFailure();TestLongAndLarge();RenderVariants();Console.WriteLine("PASS Windows message center auto-read/no-cascade, persistence, storage recovery, responsive and multilingual density renders");
+  var empty=Create(count:0);try { Check(Find<ListBox>(empty.Window,"messages.list").Items.Count==0&&!Find<Button>(empty.Window,"messages.allRead").IsEnabled,"empty state");Check(Find<TextBlock>(empty.Window,"messages.empty").Visibility==Visibility.Visible,"history empty state"); } finally { Close(empty); }
+  TestCategories();TestStorageFailure();TestWriteFailure();TestLongAndLarge();TestDeepListSelectionKeepsViewport();RenderVariants();Console.WriteLine("PASS Windows message center auto-read/no-cascade, persistence, storage recovery, responsive and multilingual density renders");
  }
  static void TestCategories() {
   var s=Create(count:0);try {
    var cases=new[]{(NotificationCategory.QuotaExhausted,"额度耗尽"),(NotificationCategory.QuotaRecovered,"额度恢复"),(NotificationCategory.QuotaLow,"额度偏低"),(NotificationCategory.BankExpiring72h,"Bank 到期提醒"),(NotificationCategory.UpdateAvailable,"软件有新版本")};
    foreach(var (category,title) in cases) {
     var row=Row((int)category,new Copy("zh-CN"),DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) with { Category=category,Title="通用标题" };Check(s.Router.MessageStore!.Append(row),"category fixture saved");
-    s.Window.Refresh();Find<TabControl>(s.Window,"messages.tabs").SelectedIndex=1;Pump();
+    s.Window.Refresh();
     Find<ListBox>(s.Window,"messages.list").SelectedIndex=s.Router.MessageHistory.ToList().FindIndex(r=>r.Key==row.Key);Pump();
     Check(Tree(s.Window).OfType<TextBlock>().Any(t=>Equals(t.Tag,"messages.detail.category")&&t.Text=="类别："+title),"explicit detail category "+category);
    }
@@ -80,18 +88,27 @@ internal static class MessageCenterNativeTests {
  static void TestLongAndLarge() {
   var s=Create();try {
    var record=Row(100,new Copy("zh-CN"),DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+200000) with { Body=string.Concat(Enumerable.Repeat("完整历史消息正文。",600)) };
-   s.Router.MessageStore!.Append(record);s.Window.Refresh();Find<TabControl>(s.Window,"messages.tabs").SelectedIndex=1;Pump();Find<ListBox>(s.Window,"messages.list").SelectedIndex=0;Pump();
+   s.Router.MessageStore!.Append(record);s.Window.Refresh();Find<ListBox>(s.Window,"messages.list").SelectedIndex=0;Pump();
    Check(Find<ScrollViewer>(s.Window,"messages.detailScroll").ScrollableHeight>0&&Find<TextBlock>(s.Window,"messages.detail.body").ActualHeight>200,"long detail is scrollable and wraps");
   } finally { Close(s); }
   var big=Create(count:10000);try { var list=Find<ListBox>(big.Window,"messages.list");Check(list.Items.Count==10000&&list.ItemContainerGenerator.ContainerFromIndex(9999)==null,"native virtualization does not materialize10k controls"); } finally { Close(big); }
+ }
+ static void TestDeepListSelectionKeepsViewport() {
+  var s=Create(count:1000);try {
+   var list=Find<ListBox>(s.Window,"messages.list");s.Window.UpdateLayout();Pump();
+   list.ScrollIntoView(list.Items[800]);Pump();list.SelectedIndex=800;Pump();s.Window.UpdateLayout();Pump();
+   var scroller=Visual(list).OfType<ScrollViewer>().First();
+   Check(list.SelectedIndex==800&&scroller.VerticalOffset>0,"reading an older message keeps the selected row visible");
+   Check(list.ItemContainerGenerator.ContainerFromIndex(800)!=null,"selected older row stays realized");
+  } finally { Close(s); }
  }
  static void RenderVariants() {
   var output=Environment.GetEnvironmentVariable("QUOTABAR_TEST_ARTIFACTS");if(output==null) return;Directory.CreateDirectory(output);
   foreach(var language in new[]{"zh-CN","zh-TW","en"}) foreach(var dark in new[]{false,true}) {
    var s=Create(language,dark);try {
-    Find<TabControl>(s.Window,"messages.tabs").SelectedIndex=1;Pump();Find<ListBox>(s.Window,"messages.list").SelectedIndex=0;Pump();
+    Find<ListBox>(s.Window,"messages.list").SelectedIndex=0;Pump();
     var content=(FrameworkElement)s.Window.Content;
-    foreach(var tag in new[]{"messages.allRead","messages.tabs"}) { var control=Find<FrameworkElement>(s.Window,tag);var at=control.TransformToAncestor(content).Transform(new Point());Check(at.X>=-1&&at.X+control.ActualWidth<=content.ActualWidth+1,"translated toolbar fits "+language); }
+    foreach(var tag in new[]{"messages.allRead","messages.unreadCount"}) { var control=Find<FrameworkElement>(s.Window,tag);var at=control.TransformToAncestor(content).Transform(new Point());Check(at.X>=-1&&at.X+control.ActualWidth<=content.ActualWidth+1,"translated toolbar fits "+language); }
     foreach(var scale in new[]{1.25,1.5,2d}) {
      var bitmap=new RenderTargetBitmap((int)Math.Ceiling(s.Window.ActualWidth*scale),(int)Math.Ceiling(s.Window.ActualHeight*scale),96*scale,96*scale,PixelFormats.Pbgra32);bitmap.Render(s.Window);
      var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var file=File.Create(Path.Combine(output,$"message-center-{language}-{dark}-{scale}.png"));encoder.Save(file);

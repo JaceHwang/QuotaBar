@@ -47,18 +47,29 @@ public enum MacUpdatePackage {
     }
     public static func verifyApp(_ app: URL, release: TrustedUpdateRelease, provenance: URL) throws {
         _ = try treeBytes(app)
-        struct Info: Decodable { let CFBundleIdentifier: String; let CFBundleExecutable: String; let CFBundleShortVersionString: String; let LSMinimumSystemVersion: String; let CUSStandalone: Bool }
+        struct Info: Decodable { let CFBundleIdentifier: String; let CFBundleExecutable: String; let CFBundleShortVersionString: String; let CUSFullVersion: String?; let LSMinimumSystemVersion: String; let CUSStandalone: Bool }
         let contents = app.appendingPathComponent("Contents")
         let info: Info
         do { info = try PropertyListDecoder().decode(Info.self, from: Data(contentsOf: contents.appendingPathComponent("Info.plist"))) }
         catch { throw UpdatePackageError.invalidIdentity }
         let os = ProcessInfo.processInfo.operatingSystemVersion
-        guard release.platform == "macos-arm64", info.CFBundleIdentifier == "com.jace.codex-quota", info.CFBundleExecutable == "CodexQuota", info.CFBundleShortVersionString == release.version, info.CUSStandalone,
+        let version = try ProductVersion(release.version)
+        guard release.platform == "macos-arm64", info.CFBundleIdentifier == "com.jace.codex-quota", info.CFBundleExecutable == "CodexQuota", info.CFBundleShortVersionString == version.numericVersion,
+              (info.CUSFullVersion == release.version || (info.CUSFullVersion == nil && !version.isBeta)), info.CUSStandalone,
               try !UpdateFeed.versionParts("\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)", os: true).lexicographicallyPrecedes(UpdateFeed.versionParts(info.LSMinimumSystemVersion, os: true)) else { throw UpdatePackageError.invalidIdentity }
         let data = try Data(contentsOf: provenance); try UpdateFileIntegrity.provenance(data, release: release)
         struct Proof: Decodable { let runtimeVersion: String; let applicationSignedSha256: String; let runtimeSignedSha256: String; let updaterSignedSha256: String; let sourceSnapshotSha256: String; let updateProtocol: Int }
+        struct EmbeddedProof: Decodable { let runtimeVersion: String; let runtimeSignedSha256: String; let updaterSignedSha256: String; let sourceSnapshotSha256: String; let updateProtocol: Int }
         let proof = try JSONDecoder().decode(Proof.self, from: data)
         guard proof.runtimeVersion == "codex-cli 0.144.1", proof.updateProtocol == 1 else { throw UpdatePackageError.invalidPackage }
+        let embeddedURL = contents.appendingPathComponent("Resources/PROVENANCE.json")
+        guard (try embeddedURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max) <= 1_048_576 else { throw UpdatePackageError.invalidPackage }
+        let embeddedData = try Data(contentsOf: embeddedURL)
+        try UpdateFileIntegrity.provenance(embeddedData, release: release)
+        let embedded = try JSONDecoder().decode(EmbeddedProof.self, from: embeddedData)
+        guard embedded.runtimeVersion == proof.runtimeVersion, embedded.runtimeSignedSha256 == proof.runtimeSignedSha256,
+              embedded.updaterSignedSha256 == proof.updaterSignedSha256, embedded.sourceSnapshotSha256 == proof.sourceSnapshotSha256,
+              embedded.updateProtocol == proof.updateProtocol else { throw UpdatePackageError.invalidPackage }
         for (path, hash) in [("MacOS/CodexQuota", proof.applicationSignedSha256), ("Helpers/codex", proof.runtimeSignedSha256), ("Helpers/QuotaBarUpdater", proof.updaterSignedSha256), ("Resources/SOURCE-SNAPSHOT.json", proof.sourceSnapshotSha256)] {
             guard TrustedUpdateRelease.hex(hash, count: 64), try UpdateFileIntegrity.sha256(contents.appendingPathComponent(path)) == hash else { throw UpdatePackageError.invalidPackage }
         }

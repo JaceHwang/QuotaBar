@@ -11,7 +11,7 @@ internal sealed class MessageCenterWindow : Window {
  readonly Grid body=new();
  readonly Grid listPane=new() { Tag="messages.listPane" };
  readonly ListBox list=new() { Tag="messages.list",IsSynchronizedWithCurrentItem=false,HorizontalContentAlignment=HorizontalAlignment.Stretch };
- readonly TabControl tabs=new() { Tag="messages.tabs",Height=36,HorizontalAlignment=HorizontalAlignment.Left };
+ readonly TextBlock unreadCount=new() { Tag="messages.unreadCount",VerticalAlignment=VerticalAlignment.Center };
  readonly ScrollViewer detail=new() { Tag="messages.detailScroll",VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
  readonly TextBlock empty=new() { Tag="messages.empty",Margin=new Thickness(18),TextWrapping=TextWrapping.Wrap };
  readonly TextBlock error=new() { Tag="messages.storageError",TextWrapping=TextWrapping.Wrap };
@@ -21,9 +21,11 @@ internal sealed class MessageCenterWindow : Window {
  bool refreshing,showingDetail;
  MessageCenterKey? renderedKey;
  public MessageCenterKey? SelectedKey { get; private set; }
- sealed record Row(MessageCenterRecord Record,string Date,string Dot,string Symbol,string AccessibleName) {
+ sealed record Row(MessageCenterRecord Record,string Date,string Dot,string Symbol,string AccessibleName,Brush CardBackground) {
   public string Title=>Record.Title;
   public string Summary=>Record.Body.Replace('\n',' ');
+  public bool IsUnread=>Record.ReadAtMilliseconds==null;
+  public FontWeight RowWeight=>IsUnread?FontWeights.SemiBold:FontWeights.Normal;
  }
  public MessageCenterWindow(AppNotificationRouter router,Copy copy,bool dark) {
   this.router=router;this.copy=copy;this.dark=dark;
@@ -37,20 +39,39 @@ internal sealed class MessageCenterWindow : Window {
   brand.Children.Add(Ui.ApplicationLogo());var brandName=Ui.Text("QuotaBar",15,Foreground);brandName.Margin=new Thickness(8,0,0,0);brand.Children.Add(brandName);header.Children.Add(brand);
   var heading=Ui.Text(Title,19,Foreground);heading.FontWeight=FontWeights.SemiBold;heading.HorizontalAlignment=HorizontalAlignment.Center;header.Children.Add(heading);root.Children.Add(header);
   var toolbar=new Grid { Margin=new Thickness(0,0,0,12) };toolbar.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) });toolbar.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
-  tabs.Items.Add(new TabItem { Header=copy.Text("Unread reminders","未读提醒","未讀提醒") });tabs.Items.Add(new TabItem { Header=copy.Text("History","历史消息","歷史訊息") });tabs.SelectedIndex=0;
-  toolbar.Children.Add(tabs);allRead=Button(copy.Text("Mark all read","全部已读","全部已讀"),"messages.allRead",()=>router.MarkAllMessagesRead());Grid.SetColumn(allRead,1);toolbar.Children.Add(allRead);Grid.SetRow(toolbar,1);root.Children.Add(toolbar);
+  unreadCount.Foreground=SettingsVisual.Muted(dark); toolbar.Children.Add(unreadCount);allRead=Button(copy.Text("Mark all read","全部已读","全部已讀"),"messages.allRead",()=>router.MarkAllMessagesRead());Grid.SetColumn(allRead,1);toolbar.Children.Add(allRead);Grid.SetRow(toolbar,1);root.Children.Add(toolbar);
   error.Foreground=Foreground;errorPane.Children.Add(error);retry=Button(copy.Text("Retry storage","重试存储","重試儲存"),"messages.retry",()=>router.RetryMessageStorage());errorPane.Children.Add(retry);Grid.SetRow(errorPane,2);root.Children.Add(errorPane);
   back=Button(copy.Text("Back to list","返回列表","返回清單"),"messages.back",()=> { showingDetail=false;LayoutPanes(); });back.Margin=new Thickness(0,0,0,8);Grid.SetRow(back,3);root.Children.Add(back);
   body.ColumnDefinitions.Add(new() { Width=new GridLength(0.38,GridUnitType.Star) });body.ColumnDefinitions.Add(new() { Width=new GridLength(12) });body.ColumnDefinitions.Add(new() { Width=new GridLength(0.62,GridUnitType.Star) });
   list.Background=Ui.Surface(dark);list.Foreground=Foreground;list.BorderBrush=SettingsVisual.Muted(dark);list.BorderThickness=new Thickness(0.5);
   VirtualizingPanel.SetIsVirtualizing(list,true);VirtualizingPanel.SetVirtualizationMode(list,VirtualizationMode.Recycling);ScrollViewer.SetCanContentScroll(list,true);ScrollViewer.SetHorizontalScrollBarVisibility(list,ScrollBarVisibility.Disabled);
   list.ItemTemplate=(DataTemplate)XamlReader.Parse("""
-<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><Grid Height="82" Margin="6,0"><Grid.ColumnDefinitions><ColumnDefinition Width="10"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Dot}" Foreground="#3084E0" VerticalAlignment="Center" FontSize="10"/><TextBlock Grid.Column="1" Text="{Binding Symbol}" FontSize="18" VerticalAlignment="Center"/><StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,4,0"><TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding Summary}" FontSize="11" Opacity="0.75" TextTrimming="CharacterEllipsis" Margin="0,4,0,4"/><TextBlock Text="{Binding Date}" FontSize="10" Opacity="0.75"/></StackPanel></Grid></DataTemplate>
+<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border Name="MessageCard" Margin="5,4" CornerRadius="10" Background="{Binding CardBackground}">
+    <Border.Style><Style TargetType="Border">
+      <Setter Property="BorderThickness" Value="1.5"/><Setter Property="BorderBrush" Value="Transparent"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding IsUnread}" Value="True"><Setter Property="Effect"><Setter.Value><DropShadowEffect Color="Black" Opacity="0.16" BlurRadius="6" ShadowDepth="1"/></Setter.Value></Setter></DataTrigger>
+        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></DataTrigger>
+      </Style.Triggers>
+    </Style></Border.Style>
+    <Grid Height="74" Margin="8,0"><Grid.ColumnDefinitions><ColumnDefinition Width="10"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="{Binding Dot}" Foreground="#3084E0" VerticalAlignment="Center" FontSize="10"/>
+      <TextBlock Grid.Column="1" Text="{Binding Symbol}" FontSize="18" VerticalAlignment="Center"/>
+      <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,4,0">
+        <TextBlock Name="MessageTitle" Text="{Binding Title}" FontSize="13" FontWeight="{Binding RowWeight}" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Text="{Binding Summary}" FontSize="11" FontWeight="{Binding RowWeight}" Opacity="0.75" TextTrimming="CharacterEllipsis" Margin="0,4,0,4"/>
+        <TextBlock Text="{Binding Date}" FontSize="10" Opacity="0.75"/>
+      </StackPanel>
+    </Grid>
+  </Border>
+</DataTemplate>
 """);
-  var style=new Style(typeof(ListBoxItem));style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Stretch));style.Setters.Add(new Setter(AutomationProperties.NameProperty,new Binding("AccessibleName")));list.ItemContainerStyle=style;
+  var style=new Style(typeof(ListBoxItem));style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Stretch));style.Setters.Add(new Setter(AutomationProperties.NameProperty,new Binding("AccessibleName")));
+  style.Setters.Add(new Setter(Control.TemplateProperty,(ControlTemplate)XamlReader.Parse("""<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" TargetType="ListBoxItem"><Border Background="Transparent"><ContentPresenter HorizontalAlignment="Stretch"/></Border></ControlTemplate>""")));
+  list.ItemContainerStyle=style;
   listPane.Children.Add(list);empty.Foreground=SettingsVisual.Muted(dark);empty.IsHitTestVisible=false;listPane.Children.Add(empty);body.Children.Add(listPane);Grid.SetColumn(detail,2);body.Children.Add(detail);Grid.SetRow(body,4);root.Children.Add(body);
   footer.Foreground=SettingsVisual.Muted(dark);footer.Margin=new Thickness(0,12,0,0);Grid.SetRow(footer,5);root.Children.Add(footer);
-  tabs.SelectionChanged+=(_,e)=> { if(!ReferenceEquals(e.Source,tabs)||refreshing) return;showingDetail=false;Refresh(); };
   list.SelectionChanged+=(_,_)=> { if(!refreshing&&list.SelectedItem is Row row) Open(row); };
   list.KeyDown+=(_,e)=> { if(e.Key==Key.Enter&&list.SelectedItem is Row row) { Open(row);e.Handled=true; } };
   list.PreviewMouseLeftButtonDown+=(_,e)=> { if(e.OriginalSource is DependencyObject target) { var item=ItemsControl.ContainerFromElement(list,target) as ListBoxItem;if(item?.IsSelected==true&&item.Content is Row row) { Open(row);e.Handled=true; } } };
@@ -62,11 +83,13 @@ internal sealed class MessageCenterWindow : Window {
  public void Refresh() {
   if(refreshing) return;refreshing=true;
   try {
-   ((TabItem)tabs.Items[0]).Header=copy.Text("Unread reminders","未读提醒","未讀提醒")+" ("+router.MessageUnreadCount+")";
-   var records=router.MessageHistory;var visible=tabs.SelectedIndex==0?records.Where(r=>r.ReadAtMilliseconds==null):records;
-   var rows=visible.Select(r=>new Row(r,r.CreatedAt.ToLocalTime().ToString("g"),r.ReadAtMilliseconds==null?"●":"",r.Category switch { NotificationCategory.QuotaRecovered=>"↻",NotificationCategory.UpdateAvailable=>"↑",NotificationCategory.BankExpiring72h or NotificationCategory.BankExpiring24h=>"◷",_=>"!" },(r.ReadAtMilliseconds==null?copy.Text("Unread","未读","未讀"):copy.Text("Read","已读","已讀"))+": "+r.Title)).ToArray();
+   unreadCount.Text=copy.Text("Unread","未读","未讀")+" ("+router.MessageUnreadCount+")";
+   var records=router.MessageHistory;
+   Brush unreadSurface=SystemParameters.HighContrast?SystemColors.ControlBrush:new SolidColorBrush(dark?Color.FromRgb(56,57,60):Color.FromRgb(243,243,243));
+   var rows=records.Select(r=>new Row(r,r.CreatedAt.ToLocalTime().ToString("g"),r.ReadAtMilliseconds==null?"●":"",r.Category switch { NotificationCategory.QuotaRecovered=>"↻",NotificationCategory.UpdateAvailable=>"↑",NotificationCategory.BankExpiring72h or NotificationCategory.BankExpiring24h=>"◷",_=>"!" },(r.ReadAtMilliseconds==null?copy.Text("Unread","未读","未讀"):copy.Text("Read","已读","已讀"))+": "+r.Title,r.ReadAtMilliseconds==null?unreadSurface:Brushes.Transparent)).ToArray();
    list.ItemsSource=rows;list.SelectedItem=rows.FirstOrDefault(r=>r.Record.Key==SelectedKey);
-   empty.Text=tabs.SelectedIndex==0?copy.Text("No unread reminders","暂无未读提醒","目前沒有未讀提醒"):copy.Text("No messages yet","暂无历史消息","目前沒有歷史訊息");empty.Visibility=rows.Length==0?Visibility.Visible:Visibility.Collapsed;
+   if(list.SelectedItem is { } selected) list.ScrollIntoView(selected);
+   empty.Text=copy.Text("No messages yet","暂无消息","目前沒有訊息");empty.Visibility=rows.Length==0?Visibility.Visible:Visibility.Collapsed;
    var failed=router.MessageStorageError!=null;errorPane.Visibility=failed?Visibility.Visible:Visibility.Collapsed;error.Visibility=failed?Visibility.Visible:Visibility.Collapsed;
    error.Text=copy.Text("Message storage unavailable. Original file preserved; new messages may be temporary. ","消息存储不可用，原文件已保留，新消息可能尚未保存。","訊息儲存無法使用，原檔案已保留，新訊息可能尚未儲存。")+router.MessageStorageError;
    allRead.IsEnabled=!failed&&router.MessageUnreadCount>0;

@@ -12,12 +12,13 @@ public struct UpdateInstallJob: Codable, Sendable {
     public init(operationID: String, target: String, parentPID: Int32, nonce: String, expiresAt: Date, release: TrustedUpdateRelease) {
         schema = 1; self.operationID = operationID; self.target = target; self.parentPID = parentPID; self.nonce = nonce; self.expiresAt = expiresAt; self.release = release
     }
-    public func validate(directory: URL, expectedTarget: String, now: Date) throws {
+    public func validate(directory: URL, expectedTarget: String, now: Date, allowBeta: Bool = false) throws {
         guard URL(fileURLWithPath: target).standardizedFileURL.path == URL(fileURLWithPath: expectedTarget).standardizedFileURL.path else { throw UpdatePackageError.invalidJobTarget }
         guard now < expiresAt, expiresAt.timeIntervalSince(now) <= 601 else { throw UpdatePackageError.expiredJob }
         guard !FileManager.default.fileExists(atPath: directory.appendingPathComponent("consumed").path) else { throw UpdatePackageError.consumedJob }
         guard schema == 1, UUID(uuidString: operationID) != nil, parentPID > 1, TrustedUpdateRelease.hex(nonce, count: 64), TrustedUpdateRelease.hex(release.sourceCommit, count: 40) else { throw UpdatePackageError.invalidJobIdentity }
-        _ = try UpdateFeed.versionParts(release.version)
+        let version = try ProductVersion(release.version)
+        guard !version.isBeta || allowBeta else { throw UpdatePackageError.invalidJobIdentity }
         _ = try MacUpdatePackage.treeBytes(directory)
     }
     public static func consumeResult(in cache: URL, expectedTarget: String) -> ApplicationUpdatePhase? {
@@ -54,6 +55,7 @@ private struct UpdateReceipt: Codable { let schema: Int; let operationID: String
 public enum UpdateLocations {
     public static var target: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/QuotaBar.app") }
     public static var cache: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/com.jace.codex-quota/Updates") }
+    public static var channelPreferences: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexUsageSidebar/update-channel.json") }
     public static func directory(_ path: String) throws -> URL {
         let url = URL(fileURLWithPath: path).standardizedFileURL
         guard url.deletingLastPathComponent().path == cache.path, UUID(uuidString: url.lastPathComponent) != nil,

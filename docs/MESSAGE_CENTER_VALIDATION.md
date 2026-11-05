@@ -1,5 +1,7 @@
 # Local message center validation
 
+> 本文后续历史记录描述原有双页签版本。2026-11-04 的统一列表改造及当前平台验证状态见 [独立应用进度](PROJECT_PROGRESS-standalone-app.md)。
+
 ## Scope and behavior
 
 Approved C list/detail design replaces the unread entry on both platforms with a local unread/history archive. Opening one detail saves that message as read, removes only that unread row and preserves the detail. Tabs and programmatic selection restoration do not read messages. History contains all real snapshots across restarts and login epochs; preview/test events are excluded and history never re-enters delivery queues. No retention truncation is applied.

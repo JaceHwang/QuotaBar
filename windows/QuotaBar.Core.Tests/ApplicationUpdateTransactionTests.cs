@@ -12,6 +12,9 @@ internal static class ApplicationUpdateTransactionTests {
             var release=new TrustedUpdateRelease("2.0.0","windows-x64",new string('b',40),asset,asset);
             var job=new UpdateInstallJob(1,Guid.NewGuid().ToString("N"),Path.Combine(root,"QuotaBar"),123,new string('a',64),DateTimeOffset.UtcNow.AddMinutes(10),release);
             void Refused(Action action) { try { action(); } catch(IOException) { return; } throw new Exception("Invalid update job accepted"); }
+            var betaJob=job with { Release=release with { Version="2.0.0-beta.1" } };
+            Refused(()=>betaJob.Validate(root,betaJob.Target,DateTimeOffset.UtcNow));
+            betaJob.Validate(root,betaJob.Target,DateTimeOffset.UtcNow,true);
             Refused(()=>job.Validate(root,"wrong",DateTimeOffset.UtcNow));
             Refused(()=>job.Validate(root,job.Target,DateTimeOffset.UtcNow.AddMinutes(11)));
             job.Validate(root,job.Target,DateTimeOffset.UtcNow);

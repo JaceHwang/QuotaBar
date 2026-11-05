@@ -13,6 +13,62 @@ if(args.Contains("--windows-reliability-readiness")) { await WindowsReliabilityT
 WindowsReliabilityTests.Settings();
 await WindowsReliabilityTests.Readiness();
 var tests = new (string Name, Action Run)[] {
+    ("beta consent requires both confirmations and disables without touching other preferences", () => {
+        var dir=Path.Combine(Path.GetTempPath(),"quotabar-consent-"+Guid.NewGuid()); Directory.CreateDirectory(dir);
+        try {
+            var store=new UpdateChannelStore(Path.Combine(dir,"channel.json")); var consent=new BetaConsent(store);
+            var steps=new List<int>();
+            Check(!consent.Persisted && !consent.Effective,"disabled by default");
+            Check(!consent.Enable(step=> { steps.Add(step);return step==1; }) && steps.SequenceEqual(new[]{1,2}) && !store.Load(),"second cancellation leaves disabled");
+            steps.Clear(); Check(consent.Enable(step=> { steps.Add(step);return true; }) && steps.SequenceEqual(new[]{1,2}) && store.Load(),"both confirmations save enabled");
+            consent.Suspend(); Check(consent.Persisted && !consent.Effective,"suspended before durable disable"); consent.FinishDisable();
+            Check(!store.Load() && !consent.Persisted && !consent.Effective,"disabled persists");
+        } finally { Directory.Delete(dir,true); }
+    }),
+    ("full beta identity cannot become legacy stable", () => {
+        string Proof(string v)=>"{\"kind\":\"release\",\"workingTreeDirty\":false,\"version\":\""+v+"\",\"releaseTag\":\"v"+v+"\",\"sourceCommit\":\""+new string('b',40)+"\"}";
+        Check(ProductIdentity.Resolve("1.8.0","1.8.0-beta.1",Proof("1.8.0-beta.1")).Version=="1.8.0-beta.1","beta identity");
+        Check(ProductIdentity.Resolve("1.8.0",null,Proof("1.8.0")).Version=="1.8.0","legacy stable identity");
+        Throws(()=>ProductIdentity.Resolve("1.8.0",null,Proof("1.8.0-beta.1")));
+        Throws(()=>ProductIdentity.Resolve("1.8.0","1.8.0-beta.2",Proof("1.8.0-beta.1")));
+        Throws(()=>ProductIdentity.Resolve("1.8.0",null,"{}"));
+        Throws(()=>ProductIdentity.Resolve("1.8.0","1.8.0-beta.1","{\"kind\":\"release\",\"workingTreeDirty\":false,\"version\":\"1.8.0-beta.1\",\"releaseTag\":\"v1.8.0-beta.1\"}"));
+        var candidate=ProductIdentity.Resolve("1.8.0","1.8.0-beta.1","{\"kind\":\"local-development-candidate\",\"workingTreeDirty\":true,\"version\":\"1.8.0-beta.1\",\"releaseTag\":null}");
+        Check(candidate.Development && candidate.Version=="1.8.0-beta.1","beta candidate remains clearly identified");
+        Throws(()=>ProductIdentity.Resolve("1.8.0",null,"{\"kind\":\"local-development-candidate\",\"workingTreeDirty\":true}"));
+    }),
+    ("beta consent defaults off persists and quarantines corruption", () => {
+        var dir=Path.Combine(Path.GetTempPath(),"quotabar-beta-"+Guid.NewGuid()); Directory.CreateDirectory(dir);
+        try {
+            var path=Path.Combine(dir,"update-channel.json"); var other=Path.Combine(dir,"preferences.json"); File.WriteAllText(other,"keep");
+            var store=new UpdateChannelStore(path); Check(!store.Load(),"fresh consent off"); store.Save(true);
+            Check(new UpdateChannelStore(path).Load(),"consent survives restart");
+            File.WriteAllText(path,"{\"schema\":1,\"betaEnabled\":\"yes\"}"); Check(!store.Load(),"corrupt consent off");
+            Check(File.ReadAllText(other)=="keep" && Directory.GetFiles(dir,"update-channel.json.corrupt-*").Length==1,"corruption retained and unrelated settings untouched");
+            var blocked=Path.Combine(dir,"blocked"); File.WriteAllText(blocked,"not a directory");
+            var failed=false; try { new UpdateChannelStore(Path.Combine(blocked,"channel.json")).Save(true); } catch(IOException) { failed=true; }
+            Check(failed,"save failure propagates");
+        } finally { Directory.Delete(dir,true); }
+    }),
+    ("beta opt-in selects newest permitted version and isolates malformed beta", () => {
+        var json="""{"schemaVersion":1,"stable":{"windows-x64":{"version":"1.7.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0"}},"beta":{"windows-x64":{"version":"1.8.0-beta.11","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.8.0-beta.11"}}}""";
+        var off=UpdateFeed.Select(json,"windows-x64","1.6.0","10.0",false); Check(off.Release?.Version=="1.7.0"&&!off.BetaError,"opt out stable");
+        var on=UpdateFeed.Select(json,"windows-x64","1.8.0-beta.2","10.0",true); Check(on.Release?.Version=="1.8.0-beta.11"&&!on.BetaError,"opt in beta order");
+        var bad=json.Replace("1.8.0-beta.11","1.8.0-beta.0"); var fallback=UpdateFeed.Select(bad,"windows-x64","1.6.0","10.0",true);
+        Check(fallback.Release?.Version=="1.7.0"&&fallback.BetaError,"invalid beta isolated");
+        Check(!UpdateFeed.Select(bad,"windows-x64","1.6.0","10.0",false).BetaError,"disabled beta ignored");
+        var invalidStable=json.Replace("\"minOS\":\"10.0\"", "\"minOS\":\"broken\"",StringComparison.Ordinal);
+        Throws(()=>UpdateFeed.Select(invalidStable,"windows-x64","1.7.0","10.0",true));
+        var invalidOldBeta=json.Replace("\"version\":\"1.8.0-beta.11\"","\"summary\":42,\"version\":\"1.8.0-beta.11\"");
+        Check(UpdateFeed.Select(invalidOldBeta,"windows-x64","1.9.0","10.0",true).BetaError,"invalid beta is reported even when older");
+        Check(ProductVersion.Parse("1.7.0-beta.2").CompareTo(ProductVersion.Parse("1.7.0-beta.11"))<0,"numeric beta ordering");
+        Check(ProductVersion.Parse("1.7.0-beta.11").CompareTo(ProductVersion.Parse("1.7.0"))<0,"stable follows beta");
+        foreach(var invalid in new[]{"1.0.0-beta.0","1.0.0-beta.01","65535.0.0","1.0.0-rc.1","1.0.0-beta.2147483648","1.0.0+meta"}) Throws(()=>ProductVersion.Parse(invalid));
+    }),
+    ("stable release upgrades installed beta of same numeric version", () => {
+        var json="""{"schemaVersion":1,"stable":{"windows-x64":{"version":"1.7.0","minOS":"10.0","releaseNotesURL":"https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0"}}}""";
+        Check(UpdateFeed.Available(json,"windows-x64","1.7.0-beta.11","10.0")?.Version=="1.7.0","stable version supersedes beta");
+    }),
     ("floating background transparency defaults, clamps and persists", () => {
         Check(new Preferences().FloatingBackgroundTransparency==20,"default20");
         foreach(var (input,expected) in new[]{(-4d,0d),(110d,100d),(65d,65d),(double.NaN,20d)}) Check((new Preferences { FloatingBackgroundTransparency=input }).Validated().FloatingBackgroundTransparency==expected,"validated background percentage");

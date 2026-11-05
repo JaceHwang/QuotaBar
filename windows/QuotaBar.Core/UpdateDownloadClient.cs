@@ -10,7 +10,7 @@ public interface IUpdateTransport {
 }
 public sealed record DownloadedUpdate(TrustedUpdateRelease Release,string Directory,string Archive,string Provenance);
 public sealed class UpdateDownloadClient(IUpdateTransport transport) {
-    public async Task<DownloadedUpdate> Download(string version,string platform,string currentVersion,string cache,Action<long,long>? progress=null,CancellationToken cancel=default) {
+    public async Task<DownloadedUpdate> Download(string version,string platform,string currentVersion,string cache,Action<long,long>? progress=null,CancellationToken cancel=default,bool allowBeta=false) {
         var metadata=await transport.Metadata(TrustedUpdateRelease.ApiUrl(version),2*1024*1024,cancel);
         var tag=await transport.Metadata(TrustedUpdateRelease.TagUrl(version),1024*1024,cancel);
         for(var i=0;i<2;i++) {
@@ -19,7 +19,7 @@ public sealed class UpdateDownloadClient(IUpdateTransport transport) {
             if(obj.GetProperty("type").GetString()!="tag" || !TrustedUpdateRelease.Hex(sha,40)) throw new FormatException("Invalid tag");
             tag=await transport.Metadata(new Uri($"https://api.github.com/repos/{TrustedUpdateRelease.Repository}/git/tags/{sha}"),1024*1024,cancel);
         }
-        var release=TrustedUpdateRelease.Parse(new UTF8Encoding(false,true).GetString(metadata),new UTF8Encoding(false,true).GetString(tag),version,platform,currentVersion);
+        var release=TrustedUpdateRelease.Parse(new UTF8Encoding(false,true).GetString(metadata),new UTF8Encoding(false,true).GetString(tag),version,platform,currentVersion,allowBeta);
         cancel.ThrowIfCancellationRequested();
         if(Directory.Exists(cache) && (File.GetAttributes(cache)&FileAttributes.ReparsePoint)!=0) throw new IOException("Linked update cache");
         Directory.CreateDirectory(cache); var directory=Path.Combine(cache,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);

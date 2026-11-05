@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build a self-contained Windows candidate on Windows or a cross-build host."""
-import argparse, datetime, hashlib, json, os, pathlib, shutil, subprocess, urllib.request, zipfile
+import argparse, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNTIME_VERSION = "0.144.1"
@@ -38,6 +38,8 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     package = output / "QuotaBar"
     version = (ROOT / "version.txt").read_text().strip()
+    match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-beta\.([1-9][0-9]*))?', version)
+    if not match or len(version) > 128 or any(int(n)>65534 for n in match.groups()[:3]) or (match.group(4) and int(match.group(4))>2147483647): raise RuntimeError("Invalid product version")
     if args.release_tag:
         if args.release_tag != "v" + version: raise RuntimeError("Release tag/version mismatch")
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -73,9 +75,10 @@ def main():
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip())
     if source_snapshot() != source: raise RuntimeError("Build inputs changed during packaging; rebuild from stable source")
-    provenance = {"updateProtocol": 1, "kind": "release" if args.release_tag else "local-development-candidate", "sourceCommit": commit, "workingTreeDirty": dirty, "sources": source, "runtimeSource": RUNTIME_URL, "runtimeArchiveSHA256": RUNTIME_SHA256, "runtimeVersion": RUNTIME_VERSION, "signature": "unsigned-release" if args.release_tag else "unsigned-development-candidate", "deviceValidated": False}
+    provenance = {"updateProtocol": 1, "kind": "release" if args.release_tag else "local-development-candidate", "version": version, "sourceCommit": commit, "workingTreeDirty": dirty, "sources": source, "runtimeSource": RUNTIME_URL, "runtimeArchiveSHA256": RUNTIME_SHA256, "runtimeVersion": RUNTIME_VERSION, "signature": "unsigned-release" if args.release_tag else "unsigned-development-candidate", "deviceValidated": False}
     if args.release_tag: provenance.update(releaseTag=args.release_tag, version=version)
     (package / "PROVENANCE.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
+    (package / "PRODUCT-VERSION.json").write_text(json.dumps({"version": version, "numericVersion": '.'.join(match.groups()[:3])}, indent=2) + "\n", encoding="utf-8")
     files = {str(p.relative_to(package)).replace(os.sep, "/"): digest(p) for p in sorted(package.rglob("*")) if p.is_file()}
     (package / "package.json").write_text(json.dumps({"schema": 1, "product": "QuotaBar", "platform": "windows-x64", "version": version, "runtimeVersion": RUNTIME_VERSION, "files": files}, indent=2) + "\n", encoding="utf-8")
     bundle = output / ("QuotaBar-" + version + ("-windows-x64.zip" if args.release_tag else "-windows-x64-candidate.zip"))

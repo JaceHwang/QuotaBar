@@ -6,6 +6,10 @@ package=pathlib.Path(sys.argv[1]).resolve(); local=pathlib.Path(os.environ['LOCA
 if target.exists(): raise RuntimeError('Existing install must not be replaced by tests')
 if (local/'QuotaBar/CodexHome/auth.json').exists(): raise RuntimeError('Use a clean test account without real credentials')
 setup=package/'setup/QuotaBar.Setup.exe'
+channel=local/'QuotaBar/update-channel.json'
+if channel.exists(): raise RuntimeError('Use a clean test account without update channel preferences')
+base_version=json.loads((package/'package.json').read_text())['version']
+numeric=base_version.split('-')[0]
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def wait(path,process,seconds=20):
     end=time.monotonic()+seconds
@@ -14,7 +18,7 @@ def wait(path,process,seconds=20):
         if process.poll() is not None: raise AssertionError('Helper exited before receipt')
         time.sleep(.05)
     raise AssertionError('Missing helper receipt')
-for mode in ['receipt-failure','cancel','happy','rollback','corrupt','expired']:
+for mode in os.environ.get('QUOTABAR_UPDATE_TEST_MODES','receipt-failure,cancel,happy,rollback,corrupt,expired,beta-happy,beta-denied,beta-revoked').split(','):
     directory=local/'QuotaBar/Updates'/uuid.uuid4().hex; directory.mkdir(parents=True)
     parent=None; helper=None; log=None
     try:
@@ -22,16 +26,20 @@ for mode in ['receipt-failure','cancel','happy','rollback','corrupt','expired']:
         marker=local/'QuotaBar/update-preserved.txt'; marker.write_text('keep')
         candidate=directory/'expanded/QuotaBar'; shutil.copytree(package,candidate)
         if mode=='rollback': shutil.copy2(package/'setup/QuotaBar.Setup.exe',candidate/'QuotaBar.exe') # exits immediately from active install
-        proof=json.loads((candidate/'PROVENANCE.json').read_text()); proof.update(kind='release',workingTreeDirty=False,version='2.0.0',releaseTag='v2.0.0',sourceCommit='b'*40,updateProtocol=1)
+        beta=mode.startswith('beta-'); version=numeric+'-beta.1' if beta else numeric
+        (candidate/'PRODUCT-VERSION.json').write_text(json.dumps(dict(version=version,numericVersion=numeric)))
+        (candidate/'update-fixture.txt').write_text('new package')
+        proof=json.loads((candidate/'PROVENANCE.json').read_text()); proof.update(kind='release',workingTreeDirty=False,version=version,releaseTag='v'+version,sourceCommit='b'*40,updateProtocol=1)
         (candidate/'PROVENANCE.json').write_text(json.dumps(proof))
-        manifest=json.loads((candidate/'package.json').read_text()); manifest['version']='2.0.0'; manifest['files']={p.relative_to(candidate).as_posix():digest(p) for p in candidate.rglob('*') if p.is_file() and p.name!='package.json'}
+        manifest=json.loads((candidate/'package.json').read_text()); manifest['version']=version; manifest['files']={p.relative_to(candidate).as_posix():digest(p) for p in candidate.rglob('*') if p.is_file() and p.name!='package.json'}
         (candidate/'package.json').write_text(json.dumps(manifest)); proof_path=directory/'proof.json'; shutil.copy2(candidate/'PROVENANCE.json',proof_path)
         archive=directory/'archive.zip'
         with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
             for p in candidate.rglob('*'):
                 if p.is_file(): z.write(p,'QuotaBar/'+p.relative_to(candidate).as_posix())
-        def asset(p): return dict(name=p.name,url='https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0/'+p.name,size=p.stat().st_size,sha256=digest(p))
-        release=dict(version='2.0.0',platform='windows-x64',sourceCommit='b'*40,package=asset(archive),provenance=asset(proof_path))
+        def asset(p): return dict(name=p.name,url='https://github.com/JaceHwang/QuotaBar/releases/download/v'+version+'/'+p.name,size=p.stat().st_size,sha256=digest(p))
+        release=dict(version=version,platform='windows-x64',sourceCommit='b'*40,package=asset(archive),provenance=asset(proof_path))
+        if beta and mode!='beta-denied': channel.write_text(json.dumps(dict(schema=1,betaEnabled=True)))
         parent=subprocess.Popen([str(target/'QuotaBar.exe')]); time.sleep(2)
         job=dict(schema=1,operationID=uuid.uuid4().hex,target=str(target),parentPID=parent.pid,nonce='a'*64,expiresAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(time.time()+(-1 if mode=='expired' else 600))),release=release)
         (directory/'job.json').write_text(json.dumps(job)); shutil.copytree(target/'setup',directory/'current-setup')
@@ -39,17 +47,28 @@ for mode in ['receipt-failure','cancel','happy','rollback','corrupt','expired']:
         if mode=='receipt-failure': (directory/'succeeded.json').mkdir()
         log=(directory/'helper.log').open('w+b')
         helper=subprocess.Popen([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],stdout=log,stderr=subprocess.STDOUT)
-        if mode in ('corrupt','expired'):
+        if mode in ('corrupt','expired','beta-denied'):
             helper.wait(timeout=30); assert helper.returncode!=0 and not (directory/'ready.json').exists(); assert parent.poll() is None
         else:
             wait(directory/'ready.json',helper)
+            if mode=='beta-revoked': channel.write_text(json.dumps(dict(schema=1,betaEnabled=False)))
             if mode!='cancel': (directory/'handoff.json').write_text(json.dumps(dict(schema=1,operationID=job['operationID'],nonce=job['nonce'],kind='handoff')))
             subprocess.run([str(target/'QuotaBar.exe'),'--quit'],check=True,timeout=10); parent.wait(timeout=15)
-            helper.wait(timeout=90); log.flush(); log.seek(0); out=log.read(); err=b''; expected='failed' if mode=='cancel' else 'rolledBack' if mode=='rollback' else 'succeeded'
+            helper.wait(timeout=90); log.flush(); log.seek(0); out=log.read(); err=b''; expected='failed' if mode in ('cancel','beta-revoked') else 'rolledBack' if mode=='rollback' else 'succeeded'
             if mode=='receipt-failure':
                 assert helper.returncode==0 and not (directory/'rolledBack.json').exists(),(out,err)
             else: assert (directory/(expected+'.json')).is_file(),(out,err)
-            version=json.loads((target/'package.json').read_text())['version']; assert version==('2.0.0' if mode in ('happy','receipt-failure') else json.loads((package/'package.json').read_text())['version']),(mode,version)
+            installed=json.loads((target/'package.json').read_text())['version']; assert installed==(version if mode in ('happy','receipt-failure','beta-happy') else base_version),(mode,installed)
+            assert (target/'update-fixture.txt').exists()==(mode in ('happy','receipt-failure','beta-happy')),(mode,'incorrect payload')
+            if mode=='beta-revoked':
+                check="$p=Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $env:QUOTABAR_E2E_TARGET }; if ($p) { exit 0 } else { exit 1 }"
+                env=dict(os.environ,QUOTABAR_E2E_TARGET=str(target/'QuotaBar.exe'))
+                end=time.monotonic()+10; running=False
+                while time.monotonic()<end:
+                    running=subprocess.run(['powershell','-NoProfile','-NonInteractive','-Command',check],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+                    if running: break
+                    time.sleep(.1)
+                assert running, 'revoked beta after handoff did not restart the original app'
             replay=subprocess.run([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],capture_output=True,timeout=30); assert replay.returncode!=0
         assert marker.read_text()=='keep'; print('PASS Windows native helper '+mode,flush=True)
     finally:
@@ -60,3 +79,4 @@ for mode in ['receipt-failure','cancel','happy','rollback','corrupt','expired']:
         if log: log.close()
         shutil.rmtree(directory,ignore_errors=True)
         (local/'QuotaBar/update-preserved.txt').unlink(missing_ok=True)
+        channel.unlink(missing_ok=True)

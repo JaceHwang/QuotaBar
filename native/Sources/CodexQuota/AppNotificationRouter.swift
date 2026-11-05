@@ -62,7 +62,7 @@ import QuotaCore
         let saved = messageStore?.markRead(key, atMilliseconds: Int64(Date().timeIntervalSince1970 * 1000)) ?? false
         if saved, let live = deliveries[key.id]?.message, live.reminderGeneration == key.generation, live.epoch == key.epoch {
             consumed.insert(key.id); let active = state.activeID == key.id; state.dismiss(id: key.id, read: true)
-            if active { hideBubble?(); timer?.invalidate(); timer = nil }
+            if active { bubbleTemporarilyHidden = false; hideBubble?(); timer?.invalidate(); timer = nil }
         }
         messageChanged(); return saved
     }
@@ -117,7 +117,7 @@ import QuotaCore
             if !channelAllowed(m, .bubble) {
                 let active = state.activeID == m.id
                 state.dismiss(id: m.id, read: false)
-                if active { hideBubble?(); timer?.invalidate(); timer = nil }
+                if active { bubbleTemporarilyHidden = false; hideBubble?(); timer?.invalidate(); timer = nil }
             }
             if !channelAllowed(m, .system) {
                 let ids = [m.id + "." + (m.deliveryToken ?? "")]
@@ -128,6 +128,7 @@ import QuotaCore
         bark?.cancelInvalid(); onPolicyChange?(); dispatch()
     }
     private func channelAllowed(_ m: ExperienceNotification, _ channel: NotificationChannel) -> Bool {
+        if channel != .bubble, let token = m.deliveryToken, suspendedDeliveryTokens.contains(token) { return false }
         guard let category = m.category else {
             if policyActive && m.kind == .test { return policyPreferences.enabledChannels.contains(channel) && (channel != .bubble || !(policyPreferences.bubblePausedUntil.map { $0 > Date() } ?? false)) }
             switch channel { case .bubble: return preferences.mode.usesBubble && !preferences.paused(now: Date()); case .system: return preferences.mode.usesSystem; case .mobile: return true }
@@ -156,7 +157,9 @@ import QuotaCore
     private var consumed: Set<String> = []
     private var failedDeliveries: Set<String> = []
     private var cancelledTokens: Set<String> = []
+    private var suspendedDeliveryTokens: Set<String> = []
     private var canPresent = false
+    private var bubbleTemporarilyHidden = false
     private var timer: Timer?
     private var stopped = false
     var presentBubble: ((ExperienceNotification) -> Bool)?
@@ -214,7 +217,7 @@ import QuotaCore
         if policyPreferences.enabledChannels.contains(.mobile) { bark?.sendTest(title: title, body: body) }
     }
     @discardableResult func preview(_ message: ExperienceNotification) -> Bool {
-        guard canPresent, !stopped else { return false }
+        guard canPresent, !stopped, state.activeID == nil else { return false }
         suspend()
         for item in state.unread(now: Date()) { state.dismiss(id: item.message.id, read: false) }
         previews.insert(message.id)
@@ -255,7 +258,7 @@ import QuotaCore
             guard permission.authorizationStatus == .authorized || permission.authorizationStatus == .provisional else { done(false); return }
             let content = UNMutableNotificationContent(); content.title = m.title; content.body = m.body
             content.userInfo = ["token": m.deliveryToken ?? "", "id": m.id, "kind": String(describing: m.kind), "epoch": m.epoch ?? ""]
-            if m.kind == .update { let v = m.id.replacingOccurrences(of: "quotabar-update-", with: ""); if (try? UpdateFeed.versionParts(v)) != nil { content.userInfo["version"] = v } }
+            if m.kind == .update { let v = m.id.replacingOccurrences(of: "quotabar-update-", with: ""); if (try? ProductVersion(v)) != nil { content.userInfo["version"] = v } }
             do {
                 try await center.add(UNNotificationRequest(identifier: m.id + "." + (m.deliveryToken ?? ""), content: content, trigger: nil))
                 guard !stopped, deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, channelAllowed(m, .system) else { center.removeDeliveredNotifications(withIdentifiers: [m.id + "." + (m.deliveryToken ?? "")]); return }
@@ -269,13 +272,20 @@ import QuotaCore
     }
     func updateEnvironment(canPresent: Bool) {
         self.canPresent = canPresent
-        if !canPresent { suspend() } else { dispatch() }
+        if !canPresent {
+            if state.activeID != nil && !bubbleTemporarilyHidden {
+                bubbleTemporarilyHidden = true; hideBubble?()
+            }
+        } else if bubbleTemporarilyHidden, let id = state.activeID, let message = deliveries[id]?.message {
+            if presentBubble?(message) == true { bubbleTemporarilyHidden = false }
+        } else { if state.activeID == nil { bubbleTemporarilyHidden = false }; dispatch() }
     }
     private func dispatch() {
         guard !stopped, canPresent else { return }
         while let m = state.next(canPresent: true, now: Date()) {
             guard deliveries[m.id]?.message.deliveryToken == m.deliveryToken, deliveries[m.id]?.valid() == true, (channelAllowed(m, .bubble) || previews.contains(m.id)) else { state.dismiss(id: m.id, read: false); continue }
             guard presentBubble?(m) == true else { state.suspend(); break }
+            bubbleTemporarilyHidden = false
             state.shown(id: m.id, now: Date()); recordChannel(m, .bubble); receipt(m.id, token: m.deliveryToken)
             timer?.invalidate()
             timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
@@ -284,7 +294,6 @@ import QuotaCore
         }
     }
     func tick() {
-        if let id = state.activeID, deliveries[id]?.valid() != true { state.dismiss(id: id, read: false); hideBubble?() }
         if state.tick(now: Date()) { previews = []; hideBubble?(); onUnreadChange?() }
         if state.activeID == nil { timer?.invalidate(); timer = nil; dispatch() }
     }
@@ -298,10 +307,10 @@ import QuotaCore
         if read { if let message = deliveries[id]?.message { saveLiveRead(message) }; consumed.insert(id) }
         let active = state.activeID == id
         state.dismiss(id: id, read: read); previews.remove(id)
-        if active { hideBubble?(); timer?.invalidate(); timer = nil }
+        if active { bubbleTemporarilyHidden = false; hideBubble?(); timer?.invalidate(); timer = nil }
         messageChanged(); dispatch()
     }
-    func suspend() { previews = []; state.suspend(); timer?.invalidate(); timer = nil; hideBubble?() }
+    func suspend() { previews = []; state.suspend(); bubbleTemporarilyHidden = false; timer?.invalidate(); timer = nil; hideBubble?() }
     var openUpdates: (() -> Void)?
     func activateLatest(id: String, token: String? = nil) {
         guard !consumed.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken else { return }
@@ -310,7 +319,12 @@ import QuotaCore
     }
     func activate(id: String, token: String? = nil) {
         guard !consumed.contains(id), let d = deliveries[id], token == nil || token == d.message.deliveryToken else { return }
-        guard d.valid() else { dismiss(id: id, read: true, token: token); return }
+        guard d.valid() else {
+            let isCurrent = state.activeID == id && (d.message.kind == .update || (d.message.epoch != nil && d.message.epoch == currentMessageEpoch))
+            dismiss(id: id, read: true, token: token)
+            if isCurrent { if d.message.kind == .update { openUpdates?() } else { openDetails?() } }
+            return
+        }
         saveLiveRead(d.message); consumed.insert(id)
         receipt(id); suspend(); state.dismiss(id: id, read: true); messageChanged()
         if let action = d.action { action() }
@@ -324,20 +338,22 @@ import QuotaCore
         let identifiers = [id, id + "." + (deliveries[id]?.message.deliveryToken ?? "")]
         consumed.remove(id); failedDeliveries.remove(id); state.forget(id: id); deliveries.removeValue(forKey: id); received.remove(id); previews.remove(id)
         center?.removeDeliveredNotifications(withIdentifiers: identifiers); center?.removePendingNotificationRequests(withIdentifiers: identifiers)
-        if active { hideBubble?(); timer?.invalidate(); timer = nil }
+        if active { bubbleTemporarilyHidden = false; hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?()
     }
-    func cancelAuthenticationEpoch(_ epoch: String) {
+    func cancelAuthenticationEpoch(_ epoch: String, preservingActive: Bool = false) {
         bark?.cancel(epoch: epoch)
         let ids = deliveries.values.filter { $0.message.epoch == epoch }.map { $0.message.id }
-        let active = ids.contains(state.activeID ?? "")
+        let active = ids.contains(state.activeID ?? "") ? state.activeID : nil
+        let kept = preservingActive ? active : nil
         let identifiers = ids.flatMap { [$0, $0 + "." + (deliveries[$0]?.message.deliveryToken ?? "")] }
-        for id in ids { if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; consumed.remove(id) }
-        state.cancel(epoch: epoch)
-        for id in ids { deliveries.removeValue(forKey: id); received.remove(id); failedDeliveries.remove(id) }
+        if let kept, let token = deliveries[kept]?.message.deliveryToken { suspendedDeliveryTokens.insert(token) }
+        for id in ids where id != kept { if let token = deliveries[id]?.message.deliveryToken { cancelledTokens.insert(token) }; consumed.remove(id) }
+        state.cancel(epoch: epoch, preserving: kept)
+        for id in ids where id != kept { deliveries.removeValue(forKey: id); received.remove(id); failedDeliveries.remove(id) }
         if cancelledTokens.count > 256 { cancelledTokens = Set(cancelledTokens.sorted().suffix(128)) }
         center?.removeDeliveredNotifications(withIdentifiers: identifiers); center?.removePendingNotificationRequests(withIdentifiers: identifiers)
-        if active { hideBubble?(); timer?.invalidate(); timer = nil }
+        if active != nil && kept == nil { bubbleTemporarilyHidden = false; hideBubble?(); timer?.invalidate(); timer = nil }
         onUnreadChange?(); dispatch()
     }
     func stop() { bark?.stop(); stopped = true; state.stop(); timer?.invalidate(); timer = nil; hideBubble?(); deliveries = [:]; received = []; previews = []; consumed = []; cancelledTokens = []; failedDeliveries = [] }
@@ -352,7 +368,7 @@ import QuotaCore
                 if delivery.message.kind == .update { self?.dismiss(id: id, read: true, token: token); self?.openUpdates?() }
                 else { self?.activate(id: id, token: token) }
             }
-            else if let version, (try? UpdateFeed.versionParts(version)) != nil { self?.openUpdates?() }
+            else if let version, (try? ProductVersion(version)) != nil { self?.openUpdates?() }
         }
         completionHandler()
     }

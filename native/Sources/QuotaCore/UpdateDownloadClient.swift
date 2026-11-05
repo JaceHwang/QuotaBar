@@ -34,7 +34,7 @@ public enum UpdateFileIntegrity {
 public struct UpdateDownloadClient: Sendable {
     private let transport: any UpdateTransport
     public init(transport: any UpdateTransport = UpdateHTTPTransport()) { self.transport = transport }
-    public func download(version: String, platform: String, currentVersion: String, cache: URL, progress: @escaping @Sendable (Int64, Int64) -> Void = { _, _ in }) async throws -> DownloadedUpdate {
+    public func download(version: String, platform: String, currentVersion: String, cache: URL, allowBeta: Bool = false, progress: @escaping @Sendable (Int64, Int64) -> Void = { _, _ in }) async throws -> DownloadedUpdate {
         let metadata = try await transport.metadata(TrustedUpdateRelease.apiURL(version: version), limit: 2 * 1024 * 1024)
         var tag = try await transport.metadata(TrustedUpdateRelease.tagURL(version: version), limit: 1024 * 1024)
         for _ in 0..<2 {
@@ -44,7 +44,7 @@ public struct UpdateDownloadClient: Sendable {
             guard ref.object.type == "tag", TrustedUpdateRelease.hex(ref.object.sha, count: 40) else { throw CocoaError(.fileReadCorruptFile) }
             tag = try await transport.metadata(URL(string: "https://api.github.com/repos/\(TrustedUpdateRelease.repository)/git/tags/\(ref.object.sha)")!, limit: 1024 * 1024)
         }
-        let release = try TrustedUpdateRelease.parse(releaseJSON: metadata, tagJSON: tag, version: version, platform: platform, currentVersion: currentVersion)
+        let release = try TrustedUpdateRelease.parse(releaseJSON: metadata, tagJSON: tag, version: version, platform: platform, currentVersion: currentVersion, allowBeta: allowBeta)
         try Task.checkCancellation()
         let fm = FileManager.default
         if fm.fileExists(atPath: cache.path), try fm.attributesOfItem(atPath: cache.path)[.type] as? FileAttributeType == .typeSymbolicLink { throw CocoaError(.fileWriteInvalidFileName) }

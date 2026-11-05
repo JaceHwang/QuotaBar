@@ -7,15 +7,16 @@ public sealed record UpdateAsset(string Name,Uri Url,long Size,string Sha256);
 public sealed record TrustedUpdateRelease(string Version,string Platform,string SourceCommit,UpdateAsset Package,UpdateAsset Provenance) {
     public const string Repository="JaceHwang/QuotaBar";
     public const long MaxDownloadBytes=512L*1024*1024;
-    public static Uri ApiUrl(string version) { UpdateFeed.ParseVersion(version); return new($"https://api.github.com/repos/{Repository}/releases/tags/v{version}"); }
-    public static Uri TagUrl(string version) { UpdateFeed.ParseVersion(version); return new($"https://api.github.com/repos/{Repository}/git/ref/tags/v{version}"); }
+    public static Uri ApiUrl(string version) { ProductVersion.Parse(version); return new($"https://api.github.com/repos/{Repository}/releases/tags/v{version}"); }
+    public static Uri TagUrl(string version) { ProductVersion.Parse(version); return new($"https://api.github.com/repos/{Repository}/git/ref/tags/v{version}"); }
     public static bool AllowedDownloadRedirect(Uri url)=>url.IsAbsoluteUri && url.Scheme=="https" && url.UserInfo.Length==0 && url.IsDefaultPort && url.Fragment.Length==0 && new[]{"github.com","release-assets.githubusercontent.com","objects.githubusercontent.com"}.Contains(url.Host);
     public static bool Hex(string value,int count)=>value.Length==count && value.All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f');
-    public static TrustedUpdateRelease Parse(string releaseJSON,string tagJSON,string version,string platform,string currentVersion) {
+    public static TrustedUpdateRelease Parse(string releaseJSON,string tagJSON,string version,string platform,string currentVersion,bool allowBeta=false) {
         try {
-            if(Encoding.UTF8.GetByteCount(releaseJSON)>2*1024*1024 || Encoding.UTF8.GetByteCount(tagJSON)>1024*1024 || UpdateFeed.ParseVersion(currentVersion)>=UpdateFeed.ParseVersion(version)) throw new FormatException("Invalid update version");
+            var target=ProductVersion.Parse(version);
+            if(Encoding.UTF8.GetByteCount(releaseJSON)>2*1024*1024 || Encoding.UTF8.GetByteCount(tagJSON)>1024*1024 || (target.IsBeta&&!allowBeta) || ProductVersion.Parse(currentVersion).CompareTo(target)>=0) throw new FormatException("Invalid update version");
             using var release=JsonDocument.Parse(releaseJSON); using var tag=JsonDocument.Parse(tagJSON); var r=release.RootElement; var obj=tag.RootElement.GetProperty("object"); var commit=obj.GetProperty("sha").GetString()!;
-            if(r.GetProperty("tag_name").GetString()!="v"+version || r.GetProperty("draft").GetBoolean() || r.GetProperty("prerelease").GetBoolean() || r.GetProperty("html_url").GetString()!=$"https://github.com/{Repository}/releases/tag/v{version}" || obj.GetProperty("type").GetString()!="commit" || !Hex(commit,40)) throw new FormatException("Untrusted release");
+            if(r.GetProperty("tag_name").GetString()!="v"+version || r.GetProperty("draft").GetBoolean() || r.GetProperty("prerelease").GetBoolean()!=target.IsBeta || r.GetProperty("html_url").GetString()!=$"https://github.com/{Repository}/releases/tag/v{version}" || obj.GetProperty("type").GetString()!="commit" || !Hex(commit,40)) throw new FormatException("Untrusted release");
             var assets=r.GetProperty("assets").EnumerateArray().ToArray();
             if(assets.Length>1000 || assets.Select(a=>a.GetProperty("name").GetString()).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=assets.Length) throw new FormatException("Duplicate release asset");
             var names=platform switch { "macos-arm64"=>($"codex-quota-v{version}-macos-arm64.dmg","CODEX-QUOTA-PROVENANCE.json"),"windows-x64"=>($"QuotaBar-{version}-windows-x64.zip","QUOTABAR-WINDOWS-PROVENANCE.json"),_=>throw new FormatException("Unsupported platform") };

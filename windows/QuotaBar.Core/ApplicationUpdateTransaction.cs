@@ -3,8 +3,10 @@ using System.Text.Json;
 namespace QuotaBar.Core;
 public sealed record UpdateInstallJob(int Schema,string OperationID,string Target,int ParentPID,string Nonce,DateTimeOffset ExpiresAt,TrustedUpdateRelease Release) {
     static readonly JsonSerializerOptions Json=new() { PropertyNamingPolicy=JsonNamingPolicy.CamelCase,PropertyNameCaseInsensitive=true };
-    public void Validate(string directory,string expectedTarget,DateTimeOffset now) {
+    public void Validate(string directory,string expectedTarget,DateTimeOffset now,bool allowBeta=false) {
         if(Schema!=1 || !Guid.TryParse(OperationID,out _) || !string.Equals(Target,expectedTarget,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal) || ParentPID<=1 || !TrustedUpdateRelease.Hex(Nonce,64) || now>=ExpiresAt || ExpiresAt-now>TimeSpan.FromSeconds(601) || File.Exists(Path.Combine(directory,"consumed")) || !TrustedUpdateRelease.Hex(Release.SourceCommit,40)) throw new IOException("Invalid, expired or consumed update job");
+        try { if(ProductVersion.Parse(Release.Version).IsBeta && !allowBeta) throw new IOException("Beta consent is required"); }
+        catch(FormatException e) { throw new IOException("Invalid update version",e); }
         PackageVerifier.RejectLinks(directory);
     }
     public static ApplicationUpdatePhase? ConsumeResult(string cache,string expectedTarget) {
@@ -41,6 +43,7 @@ public sealed record UpdateReceipt(int Schema,string OperationID,string Nonce,st
 public static class UpdateLocations {
     public static string Target=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","QuotaBar");
     public static string Cache=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"QuotaBar","Updates");
+    public static string ChannelPreferences=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"QuotaBar","update-channel.json");
     public static string DirectoryPath(string path) {
         var full=Path.GetFullPath(path);
         if(!string.Equals(Path.GetDirectoryName(full),Cache,StringComparison.OrdinalIgnoreCase) || !Guid.TryParse(Path.GetFileName(full),out _)) throw new IOException("Unmanaged update directory");
@@ -56,7 +59,7 @@ public static class UpdateLocations {
 }
 public static class ApplicationUpdateTransaction {
     public static void Run(UpdateInstallJob job,string directory,TransactionInstaller installer,Action<string,string[]> launchOld) {
-        job.Validate(directory,UpdateLocations.Target,DateTimeOffset.UtcNow);
+        job.Validate(directory,UpdateLocations.Target,DateTimeOffset.UtcNow,new UpdateChannelStore(UpdateLocations.ChannelPreferences).Load());
         using var reservation=new UpdateHandoffReservation(UpdateLocations.Target);
         var archive=Path.Combine(directory,job.Release.Package.Name); var proof=Path.Combine(directory,job.Release.Provenance.Name);
         UpdateDownloadClient.VerifyFile(archive,job.Release.Package).GetAwaiter().GetResult(); UpdateDownloadClient.VerifyFile(proof,job.Release.Provenance).GetAwaiter().GetResult();
@@ -70,6 +73,10 @@ public static class ApplicationUpdateTransaction {
         job.Receipt("ready",directory);
         if(!parent.WaitForExit(20000)) { job.Receipt("failed",directory); throw new IOException("Parent did not exit; installation unchanged"); }
         if(!job.HasReceipt("handoff",directory)) { job.Receipt("failed",directory); throw new IOException("Parent exited without update handoff permission"); }
+        if(ProductVersion.Parse(job.Release.Version).IsBeta && !new UpdateChannelStore(UpdateLocations.ChannelPreferences).Load()) {
+            TryReceipt(job,"failed",directory); launchOld(Path.Combine(job.Target,"QuotaBar.exe"),[]);
+            throw new IOException("Beta consent was revoked");
+        }
         Process? started=null;
         try {
             installer.Install(candidate,()=> {

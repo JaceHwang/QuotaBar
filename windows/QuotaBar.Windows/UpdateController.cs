@@ -6,8 +6,16 @@ using System.Text.Json;
 namespace QuotaBar.Windows;
 internal sealed class UpdateController : IDisposable {
     readonly Coordinator owner;
+    readonly BetaConsent beta;
+    long channelGeneration;
+    bool channelSaving;
+    (string English,string Chinese,string Traditional)? channelError;
+    public string? BetaError=>channelError is { } error?Text(error.English,error.Chinese,error.Traditional):null;
+    public bool BetaEnabled=>beta.Persisted;
+    public bool BetaEffective=>beta.Effective;
+    public bool BetaBusy=>channelSaving || Installer.Operation.Progress.Phase is ApplicationUpdatePhase.HandingOff or ApplicationUpdatePhase.Installing;
     public ApplicationUpdateService Installer { get; }
-    public void Install() { if(Available is { } release && !stopped) Installer.Operation.Start(release.Version); }
+    public void Install() { if(Available is { } release && !stopped && (!ProductVersion.Parse(release.Version).IsBeta || beta.Effective)) Installer.Operation.Start(release.Version); }
     public void CancelInstall()=>Installer.Operation.Cancel();
     public void OpenSettings()=>owner.ShowUpdateSettings();
     readonly Func<DateTimeOffset> now;
@@ -42,7 +50,18 @@ internal sealed class UpdateController : IDisposable {
     }
     void SetStatus(string english,string chinese,string traditional) { statusMessage=(english,chinese,traditional); }
     public bool Checking=>inFlight;
-    public string Version=>typeof(UpdateController).Assembly.GetName().Version?.ToString(3)??"0.0.0";
+    public string Version {
+        get {
+            var numeric=typeof(UpdateController).Assembly.GetName().Version?.ToString(3)??"0.0.0";
+            var proof=Path.Combine(AppContext.BaseDirectory,"PROVENANCE.json");
+            if(!File.Exists(proof)) return string.Equals(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),UpdateLocations.Target,StringComparison.OrdinalIgnoreCase)?"—":numeric;
+            try {
+                var manifest=Path.Combine(AppContext.BaseDirectory,"package.json"); string? full=null;
+                if(File.Exists(manifest)) { using var doc=JsonDocument.Parse(File.ReadAllText(manifest)); full=doc.RootElement.GetProperty("version").GetString(); }
+                return ProductIdentity.Resolve(numeric,full,File.ReadAllText(proof)).Version;
+            } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException or FormatException or KeyNotFoundException or InvalidOperationException) { return "—"; }
+        }
+    }
     public string DisplayVersion {
         get {
             var development=true;
@@ -50,7 +69,8 @@ internal sealed class UpdateController : IDisposable {
                 using var proof=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"PROVENANCE.json")));
                 development=proof.RootElement.ValueKind!=JsonValueKind.Object || !proof.RootElement.TryGetProperty("kind",out var kind) || kind.ValueKind!=JsonValueKind.String || kind.GetString()!="release";
             } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
-            return Version+(development?" ("+Text("development candidate","开发候选","開發候選")+")":"");
+            var betaLabel=IsBetaVersion(Version)?" ("+Text("Beta","内测版","內測版")+")":"";
+            return Version+betaLabel+(development?" ("+Text("development candidate","开发候选","開發候選")+")":"");
         }
     }
     public event Action? Changed;
@@ -61,7 +81,7 @@ internal sealed class UpdateController : IDisposable {
     public UpdateController(Coordinator owner,string root,HttpClient? transport=null,Func<DateTimeOffset>? clock=null,Func<string,Action<ApplicationUpdateProgress>,CancellationToken,Task>? updateExecute=null) {
         now=clock??(()=>DateTimeOffset.UtcNow); next=now().AddSeconds(10);
         http=transport??new HttpClient(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout=TimeSpan.FromSeconds(15) };
-        this.owner=owner; Installer=new(Version,updateExecute); Installer.Operation.Changed+=()=>Changed?.Invoke(); Installer.Operation.Ready+=owner.Quit; statePath=Path.Combine(root,"updates.json");
+        this.owner=owner; beta=new(new UpdateChannelStore(Path.Combine(root,"update-channel.json"))); Installer=new(Version,updateExecute,()=>beta.Effective); Installer.Operation.Changed+=()=>Changed?.Invoke(); Installer.Operation.Ready+=owner.Quit; statePath=Path.Combine(root,"updates.json");
         try { state=JsonSerializer.Deserialize<UpdateState>(File.ReadAllText(statePath))??new(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or JsonException) { }
         state=state with { Policy=state.Policy??new UpdateReminderPolicy() };
         timer.Tick+=(_,_)=> { Check(); Notify(); }; timer.Start();
@@ -69,11 +89,12 @@ internal sealed class UpdateController : IDisposable {
     }
     async Task InitialCheck() { try { await Task.Delay(TimeSpan.FromSeconds(10),lifetime.Token); Check(); } catch(OperationCanceledException) { } }
     string Text(string en,string zh,string tw)=>owner.Copy.Text(en,zh,tw);
+    internal static bool IsBetaVersion(string value) { try { return ProductVersion.Parse(value).IsBeta; } catch(FormatException) { return false; } }
     public async void Check(bool manual=false) {
         var now=this.now();
         if(stopped || inFlight || (manual?now-lastManual<TimeSpan.FromSeconds(10):!owner.Preferences.AutomaticUpdates || now<next)) return;
         if(manual) lastManual=now;
-        inFlight=true; SetStatus("Checking…","正在检查…","正在檢查…"); Changed?.Invoke();
+        inFlight=true; var generation=channelGeneration; SetStatus("Checking…","正在检查…","正在檢查…"); Changed?.Invoke();
         try {
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(15));
             using var request=new HttpRequestMessage(HttpMethod.Get,UpdateFeed.Endpoint);
@@ -88,18 +109,43 @@ internal sealed class UpdateController : IDisposable {
                 while((count=await input.ReadAsync(buffer,timeout.Token))>0) { if(data.Length+count>262144) throw new FormatException("Feed too large"); data.Write(buffer,0,count); }
                 json=new UTF8Encoding(false,true).GetString(data.ToArray());
             }
-            var release=UpdateFeed.Available(json,"windows-x64",Version,Environment.OSVersion.Version.ToString(3));
-            if(stopped) return;
+            var selection=UpdateFeed.Select(json,"windows-x64",Version,Environment.OSVersion.Version.ToString(3),beta.Effective); var release=selection.Release;
+            if(stopped || generation!=channelGeneration) return;
             Available=release; cache=json;
             if(response.StatusCode==HttpStatusCode.OK) etag=response.Headers.ETag?.ToString();
             failures=0; next=this.now().AddHours(24);
             state=state with { LastSuccess=this.now() }; Persist();
-            if(release is null) SetStatus("No newer release found","未发现更新版本","未發現更新版本"); else SetStatus("Update available","有新版本可用","有新版本可用"); Notify();
+            if(selection.BetaError) SetStatus("Could not check beta updates. Stable updates remain available.","内测更新检查失败，正式更新仍可用。","內測更新檢查失敗，正式更新仍可用。");
+            else if(release is null) SetStatus("No newer release found","未发现更新版本","未發現更新版本"); else SetStatus("Update available","有新版本可用","有新版本可用"); Notify();
         } catch(Exception e) when(e is HttpRequestException or IOException or OperationCanceledException or FormatException or DecoderFallbackException) {
-            if(stopped) return;
+            if(stopped || generation!=channelGeneration) return;
             failures=Math.Min(failures+1,6); next=this.now().AddSeconds(Math.Min(21600,300*Math.Pow(2,failures-1)));
             SetStatus("Could not check. Try again later.","检查失败，请稍后重试。","檢查失敗，請稍後重試。");
-        } finally { inFlight=false; if(!stopped) Changed?.Invoke(); }
+        } finally { inFlight=false; if(!stopped) { Changed?.Invoke(); if(generation!=channelGeneration && owner.Preferences.AutomaticUpdates) { next=DateTimeOffset.MinValue;Check(); } } }
+    }
+    void InvalidateChannel() {
+        channelGeneration++; pendingReminder=null; retryReminder=DateTimeOffset.MinValue; next=DateTimeOffset.MinValue;
+        if(Available is { } release && ProductVersion.Parse(release.Version).IsBeta) { owner.Notifications.CancelMessage("update-"+release.Version); Available=null; }
+    }
+    public async Task SetBetaAsync(bool enabled,Func<int,bool> confirm) {
+        if(stopped || BetaBusy) return;
+        if(enabled) {
+            if(beta.Persisted) return;
+            try {
+                if(!beta.Enable(confirm)) { Changed?.Invoke();return; }
+                channelError=null; InvalidateChannel(); SetStatus("Beta experience enabled","内测体验已开启","內測體驗已開啟");
+            } catch(Exception e) when(e is IOException or UnauthorizedAccessException) { channelError=("Could not save beta setting","无法保存内测设置","無法儲存內測設定"); SetStatus(channelError.Value.English,channelError.Value.Chinese,channelError.Value.Traditional); }
+        } else {
+            if(!beta.Persisted) return;
+            var target=Installer.Operation.TargetVersion;
+            var cancelBeta=ApplicationUpdateOperation.CanCancel(Installer.Operation.Progress.Phase) && target is not null && ProductVersion.Parse(target).IsBeta;
+            beta.Suspend(); InvalidateChannel(); channelSaving=true; Changed?.Invoke();
+            if(cancelBeta) await Installer.Operation.WaitForCleanup();
+            try { beta.FinishDisable(); channelError=null; SetStatus("Beta experience disabled","内测体验已关闭","內測體驗已關閉"); }
+            catch(Exception e) when(e is IOException or UnauthorizedAccessException) { channelError=("Could not save. Beta remains enabled after restart.","未能保存，重启后内测仍会开启。","未能儲存，重新啟動後內測仍會開啟。"); SetStatus(channelError.Value.English,channelError.Value.Chinese,channelError.Value.Traditional); }
+            finally { channelSaving=false; }
+        }
+        Changed?.Invoke(); if(owner.Preferences.AutomaticUpdates) Check();
     }
     void Persist() {
         try { var temp=statePath+".tmp"; File.WriteAllText(temp,JsonSerializer.Serialize(state)); File.Move(temp,statePath,true); }

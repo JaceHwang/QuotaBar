@@ -7,6 +7,24 @@ public sealed record UpdateRelease(string Version,string MinOS,Uri ReleaseNotesU
     public string? NotificationSummary=>string.IsNullOrWhiteSpace(Summary)?null:Summary.Trim();
 }
 public static class UpdateFeed {
+    public sealed record Selection(UpdateRelease? Release,bool BetaError);
+    public static Selection Select(string json,string platform,string current,string os,bool allowBeta) {
+        var stable=Available(json,platform,current,os); var installed=ProductVersion.Parse(current);
+        if(!allowBeta) return new(stable,false);
+        try {
+            using var doc=JsonDocument.Parse(json); var root=doc.RootElement;
+            if(!root.TryGetProperty("beta",out var beta)) return new(stable,false);
+            if(beta.ValueKind!=JsonValueKind.Object) throw new FormatException("Invalid beta feed");
+            if(!beta.TryGetProperty(platform,out var entry)) return new(stable,false);
+            var version=entry.GetProperty("version").GetString()!; var parsed=ProductVersion.Parse(version);
+            var minimum=entry.GetProperty("minOS").GetString()!; var link=entry.GetProperty("releaseNotesURL").GetString();
+            if(!parsed.IsBeta || link is null || !new[]{"QuotaBar","codex-usage-sidebar"}.Any(repo=>link==$"https://github.com/JaceHwang/{repo}/releases/tag/v{version}")) throw new FormatException("Invalid beta release");
+            var system=ParseVersion(os,true); var required=ParseVersion(minimum,true);
+            var summary=Text(entry,"summary",240); var notes=Text(entry,"releaseNotes",16000);
+            if(system<required || installed.CompareTo(parsed)>=0 || (stable is not null && ProductVersion.Parse(stable.Version).CompareTo(parsed)>=0)) return new(stable,false);
+            return new(new UpdateRelease(version,minimum,new Uri(link),summary,notes),false);
+        } catch(Exception e) when(e is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException or OverflowException or FormatException or NullReferenceException) { return new(stable,true); }
+    }
     public static readonly Uri Endpoint=new("https://jacehwang.github.io/QuotaBar/updates.json");
     static string? Text(JsonElement entry,string key,int limit) {
         if(!entry.TryGetProperty(key,out var value) || value.ValueKind==JsonValueKind.Null) return null;
@@ -26,9 +44,11 @@ public static class UpdateFeed {
             var stable=root.GetProperty("stable");
             if(!stable.TryGetProperty(platform,out var e)) return null;
             var version=e.GetProperty("version").GetString()!; var minimum=e.GetProperty("minOS").GetString()!;
-            var parsed=ParseVersion(version); var link=e.GetProperty("releaseNotesURL").GetString();
+            var parsed=ProductVersion.Parse(version); if(parsed.IsBeta) throw new FormatException("Invalid stable version"); var link=e.GetProperty("releaseNotesURL").GetString();
             if(link is null || !new[]{"QuotaBar","codex-usage-sidebar"}.Any(repo=>link==$"https://github.com/JaceHwang/{repo}/releases/tag/v{version}")) throw new FormatException("Unsafe release URL");
-            return ParseVersion(current)<parsed && ParseVersion(os,true)>=ParseVersion(minimum,true)?new(version,minimum,new Uri(link),Text(e,"summary",240),Text(e,"releaseNotes",16000)):null;
+            var installed=ProductVersion.Parse(current); var system=ParseVersion(os,true); var required=ParseVersion(minimum,true);
+            var summary=Text(e,"summary",240); var notes=Text(e,"releaseNotes",16000);
+            return installed.CompareTo(parsed)<0 && system>=required?new(version,minimum,new Uri(link),summary,notes):null;
         } catch(Exception e) when(e is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException or OverflowException) { throw new FormatException("Invalid update feed",e); }
     }
 }

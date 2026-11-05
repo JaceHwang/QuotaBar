@@ -40,9 +40,9 @@ Add, edit or remove low-quota percentages and Bank expiry hours. For example, co
 
 ### Unread reminders and local history
 
-The **Messages** window has Unread reminders and History tabs. Opening a message marks that message as read; Mark all read clears the unread state without deleting history. Details retain the original snapshot and provide an action to view the current quota or update.
+The current source presents unread and read messages in one chronological list. Unread messages use bold text and a shaded card; opening a message marks only that message as read and restores its default appearance. Mark all read does not delete history. Details retain the original snapshot and provide an action to view the current quota or update.
 
-<img src="docs/images/messages-windows-en.png" alt="Native Windows message history with a selected read message and two remaining unread reminders" width="900" />
+<img src="docs/images/messages-macos-unified-en.png" alt="Native macOS development candidate showing one message list with read and unread examples" width="900" />
 
 Real messages are saved locally and survive restarts. History is not automatically deleted; previews and test notifications are excluded. Storage failures preserve unread state and expose a retry action. Version 1.6.0 adds a guarded backup/copy path for Windows invalid-handle save failures. [Message-center behavior](docs/MESSAGE_CENTER_VALIDATION.md) · [Recovery](docs/TROUBLESHOOTING.md).
 
@@ -53,6 +53,8 @@ In **About app**, choose Update now to download an official release, verify its 
 <img src="docs/images/updates-windows-en.png" alt="Native Windows update download with progress and Cancel download; displayed versions are test fixtures" width="840" />
 
 The screenshot uses fixture versions 1.0.0 and 999.0.0 to exercise the update controls. Version 1.6.0 fixes macOS download progress and shutdown handoff, retains safe failure diagnostics, and lets the Windows helper take up to 120 seconds to verify/extract the package before declaring it ready. This readiness limit is separate from the 10-second startup check. [Update and recovery guide](docs/IN_APP_UPDATES.zh-CN.md).
+
+The current source adds an opt-in beta experience. It is off by default and requires two confirmations; after opting in, newer beta or stable updates can be offered, but installation still requires an explicit action. Opting out stops beta offers without downgrading an already installed beta. GitHub prerelease packages are public. This feature is not included in the v1.6.0 downloads above.
 
 ### A floating control that fits your desktop
 

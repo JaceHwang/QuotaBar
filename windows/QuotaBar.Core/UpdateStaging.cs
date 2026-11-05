@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 
 namespace QuotaBar.Core;
 public static class UpdateStaging {
@@ -60,6 +62,22 @@ public static class UpdateStaging {
         RequireUpdateProtocol(File.ReadAllBytes(download.Provenance));
         var package=ExtractArchive(download.Archive,destination,cancel); var manifest=PackageVerifier.Verify(package);
         if(manifest.Version!=download.Release.Version || !File.ReadAllBytes(Path.Combine(package,"PROVENANCE.json")).SequenceEqual(File.ReadAllBytes(download.Provenance))) throw new IOException("Staged package version or provenance mismatch");
+        var version=ProductVersion.Parse(download.Release.Version); var identityPath=Path.Combine(package,"PRODUCT-VERSION.json");
+        if(version.IsBeta || File.Exists(identityPath)) {
+            try {
+                if(new FileInfo(identityPath).Length>65536) throw new IOException("Oversized product identity");
+                using var identity=System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(identityPath));
+                if(identity.RootElement.GetProperty("version").GetString()!=download.Release.Version || identity.RootElement.GetProperty("numericVersion").GetString()!=version.NumericVersion) throw new IOException("Product identity mismatch");
+                if(!manifest.Files.ContainsKey("QuotaBar.dll")) throw new IOException("Managed application identity is missing");
+                using var binary=File.OpenRead(Path.Combine(package,"QuotaBar.dll"));
+                using var image=new PEReader(binary);
+                if(!image.HasMetadata) throw new IOException("Managed application identity is missing");
+                var metadata=image.GetMetadataReader();
+                if(!metadata.IsAssembly) throw new IOException("Managed application identity is invalid");
+                var assembly=metadata.GetAssemblyDefinition();
+                if(metadata.GetString(assembly.Name)!="QuotaBar" || assembly.Version.ToString(3)!=version.NumericVersion) throw new IOException("Managed application version mismatch");
+            } catch(Exception e) when(e is System.Text.Json.JsonException or KeyNotFoundException or InvalidOperationException or FileNotFoundException or BadImageFormatException or ArgumentException) { throw new IOException("Invalid product identity",e); }
+        }
         return package;
     }
 }

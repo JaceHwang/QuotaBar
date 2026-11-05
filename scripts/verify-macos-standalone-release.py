@@ -25,7 +25,8 @@ try:
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
     plist = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
     assert plist['CFBundleIdentifier'] == 'com.jace.codex-quota' and plist['CUSStandalone'] is True
-    assert plist['CFBundleShortVersionString'] == tag[1:]
+    assert plist['CFBundleShortVersionString'] == tag[1:].split('-beta.')[0]
+    assert plist['CUSFullVersion'] == tag[1:]
     assert plist['CFBundleDisplayName'] == 'QuotaBar' and plist['CFBundleIconFile'] == 'AppIcon'
     assert (app / 'Contents/Resources/AppIcon.icns').read_bytes()[:4] == b'icns'
     assert digest(app / 'Contents/MacOS' / plist['CFBundleExecutable']) == info['applicationSignedSha256']

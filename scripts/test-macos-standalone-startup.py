@@ -77,6 +77,9 @@ def main():
     with (source / 'Contents/Info.plist').open('rb') as stream:
         info = plistlib.load(stream)
     assert info['CUSStandalone'] is True
+    proof = json.loads((source / 'Contents/Resources/PROVENANCE.json').read_text())
+    assert info.get('CUSFullVersion') == proof['version'], 'Packaged full product version does not match provenance'
+    assert info['CFBundleShortVersionString'] == proof['version'].split('-beta.')[0], 'Numeric bundle version does not match full version'
     for name in ('quota-icon-light.png', 'quota-icon-dark.png'):
         matches = list((source / 'Contents/Resources/CodexQuota_CodexQuota.bundle').rglob(name))
         assert len(matches) == 1 and matches[0].read_bytes().startswith(b'\x89PNG\r\n\x1a\n'), name

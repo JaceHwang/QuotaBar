@@ -103,7 +103,6 @@ internal sealed class Coordinator : IDisposable {
         outside=new OutsideMouse(p=> {
             trayClickGate.BeginMouseDown();
             if(notificationBubble.IsVisible && Platform.Bounds(notificationBubble).Contains(p)) return;
-            if(notificationBubble.IsVisible) Notifications.Suspend();
             if(!detail.IsVisible || Platform.Bounds(detail).Contains(p) || Platform.Bounds(floating).Contains(p)) return;
             if(detailFromFloating) interaction.DismissOutside();
             else if(!trayLocked) { trayClickGate.OutsideDismissed(); trayDetail=false; }
@@ -199,7 +198,8 @@ internal sealed class Coordinator : IDisposable {
         detailFromFloating=false; trayDetail=true; Render(); Refresh();
     }
     internal bool ShowUpdateReminder(string version,string? summary=null,string reminderGeneration="initial") {
-        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration,Category:Notifications.PolicyActive?NotificationCategory.UpdateAvailable:null)); return true;
+        var channel=UpdateController.IsBetaVersion(version)?Copy.Text("Beta","内测版","內測版"):Copy.Text("Stable","正式版","正式版");
+        Notifications.Enqueue(new("update-"+version,ExperienceNotificationKind.Update,null,"QuotaBar "+Copy.Text("update available","有新版本","有新版本")+" "+channel+" "+version,summary??Copy.Text("Click to view release notes","点击查看更新说明","點擊查看更新說明"),DateTimeOffset.UtcNow,ReminderGeneration:reminderGeneration,Category:Notifications.PolicyActive?NotificationCategory.UpdateAvailable:null)); return true;
     }
     public void ShowUpdateSettings() { ShowSettings(); settings?.ShowAbout(); }
     public void ShowSettings() {
@@ -239,7 +239,7 @@ internal sealed class Coordinator : IDisposable {
             case "loggedOut": State.LoginCompleted(false); break;
             case "loginCompleted": State.LoginCompleted(e.Success==true); break;
             case "loginUrl": if(e.LoginUrl is not null) Platform.OpenUrl(e.LoginUrl.AbsoluteUri); break;
-            case "failure": State.Error(e.Method??"initialize",e.Message??"Request failed"); if(State.Phase!=Phase.Ready) Experience.ResetBaseline(); if(e.Method=="account/login/start") State.LoginCompleted(false); break;
+            case "failure": State.Error(e.Method??"initialize",e.Message??"Request failed"); if(State.Phase!=Phase.Ready) Experience.ResetBaseline(preserveNotifications:true); if(e.Method=="account/login/start") State.LoginCompleted(false); break;
         }
         Render(); if(State.Phase==Phase.NeedsLogin) ShowSettings();
     }
@@ -247,11 +247,11 @@ internal sealed class Coordinator : IDisposable {
         try { File.WriteAllText(Path.Combine(root,"standalone-state.txt"),$"pid={Environment.ProcessId} mode=standalone phase={State.Phase} has_quota={Snapshot is not null} host_ui=false floating_visible={floating.IsVisible} floating_enabled={Preferences.FloatingEnabled} detail_visible={detail.IsVisible}\n"); }
         catch(IOException) { }
     }
-    public void ShowUnread() { Notifications.Suspend(); if(messageWindow is { IsVisible:true }) { messageWindow.Activate(); return; } var window=new MessageCenterWindow(Notifications,Copy,Platform.IsDark(Preferences)); messageWindow=window; window.Closed+=(_,_)=> { if(ReferenceEquals(messageWindow,window)) messageWindow=null; }; window.Show(); }
+    public void ShowUnread() { if(messageWindow is { IsVisible:true }) { messageWindow.Activate(); return; } var window=new MessageCenterWindow(Notifications,Copy,Platform.IsDark(Preferences)); messageWindow=window; window.Closed+=(_,_)=> { if(ReferenceEquals(messageWindow,window)) messageWindow=null; }; window.Show(); }
     void SessionChanged(object sender,SessionSwitchEventArgs e) { app.Dispatcher.BeginInvoke(()=> { if(e.Reason==SessionSwitchReason.SessionLock) { screenLocked=true; Notifications.UpdateEnvironment(false); } else if(e.Reason==SessionSwitchReason.SessionUnlock) { screenLocked=false; Render(); } }); }
-    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) { Experience.ResetBaseline(); Notifications.UpdateEnvironment(false); } if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
+    void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) { Experience.ResetBaseline(preserveNotifications:true); Notifications.UpdateEnvironment(false); } if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
     void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); }); }
-    void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(()=> { Notifications.Suspend(); Render(); }); }
+    void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(()=> { Notifications.UpdateEnvironment(false); Render(); }); }
     void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(()=> { Refresh(); Updates.Check(); }); }
     public async void Quit() {
         if(stopping) return; stopping=true; Experience.Stop(); Notifications.Dispose(); notificationBubble.Dispose(); messageWindow?.Close(); Updates.Dispose(); ShutdownDiagnostic("requested"); tick.Stop(); pointer.Stop(); tray.Visible=false; floating.Hide(); detail.Hide(); settings?.Close();

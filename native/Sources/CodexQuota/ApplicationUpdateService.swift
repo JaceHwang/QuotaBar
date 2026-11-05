@@ -24,8 +24,8 @@ import QuotaCore
             self.progress = ApplicationUpdateProgress(result); self.onChange?()
         } }
     }
-    func start(version: String) {
-        guard !progress.phase.busy else { return }
+    func start(version: String, allowBeta: Bool = false) {
+        guard !progress.phase.busy, let target = try? ProductVersion(version), !target.isBeta || allowBeta else { return }
         let id = UUID(); generation = id; targetVersion = version; progress = ApplicationUpdateProgress(.resolving); onChange?()
         let run = execute, currentVersion = self.currentVersion
         task = Task { [weak self] in
@@ -36,7 +36,7 @@ import QuotaCore
                 }
                 if let run { try await run(version, emit) }
                 else {
-                    let worker = Task.detached { try await Self.perform(version: version, currentVersion: currentVersion, emit: emit) }
+                    let worker = Task.detached { try await Self.perform(version: version, currentVersion: currentVersion, allowBeta: allowBeta, emit: emit) }
                     handoff = try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
                 }
                 guard let self, generation == id, !Task.isCancelled else { handoff?.cancel(); return }
@@ -74,10 +74,10 @@ import QuotaCore
         let pending = Array(retiring.values)
         for worker in pending { await worker.value }
     }
-    nonisolated private static func perform(version: String, currentVersion: String, emit: @escaping @Sendable (ApplicationUpdateProgress) -> Void) async throws -> UpdateReadyHandoff {
+    nonisolated private static func perform(version: String, currentVersion: String, allowBeta: Bool, emit: @escaping @Sendable (ApplicationUpdateProgress) -> Void) async throws -> UpdateReadyHandoff {
         try Task.checkCancellation()
         guard Bundle.main.bundleURL.standardizedFileURL.path == UpdateLocations.target.standardizedFileURL.path else { throw UpdatePackageError.invalidIdentity }
-        let download = try await UpdateDownloadClient().download(version: version, platform: "macos-arm64", currentVersion: currentVersion, cache: UpdateLocations.cache) { n, total in emit(ApplicationUpdateProgress(.downloading, received: n, total: total)) }
+        let download = try await UpdateDownloadClient().download(version: version, platform: "macos-arm64", currentVersion: currentVersion, cache: UpdateLocations.cache, allowBeta: allowBeta) { n, total in emit(ApplicationUpdateProgress(.downloading, received: n, total: total)) }
         var handedOff = false
         defer { if !handedOff { try? FileManager.default.removeItem(at: download.directory) } }
         emit(ApplicationUpdateProgress(.verifying)); _ = try MacUpdatePackage.prepare(download); try Task.checkCancellation()
