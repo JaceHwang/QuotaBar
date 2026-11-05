@@ -28,6 +28,22 @@ import QuotaCore
     }
     private func table(_ view: NSView) throws -> NSTableView { try XCTUnwrap(tree(view).compactMap { $0 as? NSTableView }.first) }
     private func button(_ view: NSView,_ id: String) throws -> NSButton { try XCTUnwrap(tree(view).compactMap { $0 as? NSButton }.first { $0.identifier?.rawValue == id }) }
+    func testSelectedRowKeepsSemanticTextColorsInBothThemes() throws {
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let (root,router,view,window)=setup(count:1)
+            defer { window.close();router.stop();try? FileManager.default.removeItem(at:root) }
+            window.appearance=NSAppearance(named:appearance)
+            let list=try table(view)
+            list.selectRowIndexes(IndexSet(integer:0),byExtendingSelection:false)
+            view.layoutSubtreeIfNeeded(); window.displayIfNeeded()
+            let row=try XCTUnwrap(list.rowView(atRow:0,makeIfNecessary:true))
+            for emphasized in [true,false] {
+                row.isEmphasized=emphasized
+                XCTAssertEqual(row.interiorBackgroundStyle,.light,
+                    "Custom pale selection must not make AppKit turn row text white")
+            }
+        }
+    }
     func testUnreadCardAndSelectionFitInsideListViewport() throws {
         let (root,router,view,window)=setup(count:3); defer { window.close();router.stop();try? FileManager.default.removeItem(at:root) }
         view.layoutSubtreeIfNeeded(); let list=try table(view)

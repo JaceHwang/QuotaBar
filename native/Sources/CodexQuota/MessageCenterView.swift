@@ -16,10 +16,15 @@ private final class MessageTableView: NSTableView {
 }
 
 private final class MessageRowView: NSTableRowView {
+    // Our selection is a subtle tint, not AppKit's solid accent fill. Keep
+    // semantic label colors instead of the automatic white selected text.
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .light }
     override func drawSelection(in dirtyRect: NSRect) {
         guard selectionHighlightStyle != .none else { return }
-        NSColor.controlAccentColor.setStroke()
         let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 3), xRadius: 10, yRadius: 10)
+        NSColor.controlAccentColor.withAlphaComponent(0.10).setFill()
+        path.fill()
+        NSColor.controlAccentColor.setStroke()
         path.lineWidth = 1.5; path.stroke()
     }
 }

@@ -28,8 +28,17 @@ internal static class BetaExperienceNativeTests {
             if(toggle.IsChecked!=false) throw new Exception("Beta must start disabled");
             var steps=new List<int>(); Wait(owner.Updates.SetBetaAsync(true,step=> { steps.Add(step);return step==1; })); Pump();
             if(owner.Updates.BetaEnabled || !steps.SequenceEqual(new[]{1,2}) || toggle.IsChecked!=false) throw new Exception("Cancellation must leave beta disabled");
-            steps.Clear(); Wait(owner.Updates.SetBetaAsync(true,step=> { steps.Add(step);return true; })); Pump();
+            steps.Clear();
+            window.ConfirmBetaOverride=step=> { steps.Add(step); Pump(); return true; };
+            // Exercise the actual Checked handler, including modal dispatcher
+            // reentrancy; calling SetBetaAsync directly bypasses this bug.
+            toggle.IsChecked=true;
+            Pump(); Pump();
+            window.ConfirmBetaOverride=null;
             if(!owner.Updates.BetaEnabled || !steps.SequenceEqual(new[]{1,2}) || toggle.IsChecked!=true) throw new Exception("Both confirmations must enable beta");
+            if(!new UpdateChannelStore(Path.Combine(root,"update-channel.json")).Load()) throw new Exception("Real toggle must persist beta across restart");
+            Pump();
+            if(!owner.Updates.BetaEnabled || toggle.IsChecked!=true) throw new Exception("Queued UI refresh must not disable beta");
             var channel=Path.Combine(root,"update-channel.json"); var backup=channel+".backup";
             File.Move(channel,backup); Directory.CreateDirectory(channel);
             Wait(owner.Updates.SetBetaAsync(false,_=>true)); owner.Updates.Check(manual:true); Pump();

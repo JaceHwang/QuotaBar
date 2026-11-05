@@ -11,6 +11,8 @@ internal sealed class SettingsWindow : Window {
     CheckBox? betaToggle;
     TextBlock? betaState;
     bool synchronizingBeta;
+    bool changingBeta;
+    internal Func<int,bool>? ConfirmBetaOverride { get; set; }
     public void ShowAbout() { selectedPage="updates"; Build(); }
     TextBlock status=Ui.Text("");
     TextBlock accountName=Ui.Text("");
@@ -43,7 +45,7 @@ internal sealed class SettingsWindow : Window {
         if(updateActions is not null) foreach(var button in updateActions.Children.OfType<Button>().Skip(1)) button.IsEnabled=!busy;
         if(updateCheck is not null) updateCheck.IsEnabled=!updates.Checking&&!busy;
         if(updateProgress is not null) { updateProgress.Visibility=updates.Checking||busy?Visibility.Visible:Visibility.Collapsed; updateProgress.IsIndeterminate=state.Phase!=ApplicationUpdatePhase.Downloading; updateProgress.Value=state.Total>0?100d*state.Received/state.Total:0; }
-        if(betaToggle is not null) { synchronizingBeta=true; try { betaToggle.IsChecked=updates.BetaEnabled; betaToggle.IsEnabled=!updates.BetaBusy; } finally { synchronizingBeta=false; } }
+        if(betaToggle is not null) { synchronizingBeta=true; try { betaToggle.IsChecked=updates.BetaEnabled; betaToggle.IsEnabled=!changingBeta && !updates.BetaBusy; } finally { synchronizingBeta=false; } }
         if(betaState is not null) betaState.Text=updates.BetaError??(!updates.BetaEnabled && UpdateController.IsBetaVersion(updates.Version)?copy.Text("Disabled. The installed beta remains until a newer stable update is available.","已关闭。当前内测版会保留，等待更新的正式版。","已關閉。目前內測版會保留，等待更新的正式版。"):updates.BetaEnabled?copy.Text("Enabled","已开启","已開啟"):copy.Text("Disabled","已关闭","已關閉"));
     }
     public void Build() {
@@ -131,9 +133,18 @@ internal sealed class SettingsWindow : Window {
         updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); updateActions.Children.Add(Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
         var betaPanel=new StackPanel();
         betaToggle=SettingsVisual.Toggle(c.Text("Beta experience","内测体验","內測體驗"),owner.Updates.BetaEnabled,fg,async on=> {
-            if(synchronizingBeta) return;
-            synchronizingBeta=true; try { if(betaToggle is not null) betaToggle.IsChecked=owner.Updates.BetaEnabled; } finally { synchronizingBeta=false; }
-            await owner.Updates.SetBetaAsync(on,ConfirmBeta); UpdateUpdateStatus();
+            if(synchronizingBeta || changingBeta) return;
+            changingBeta=true;
+            try {
+                // Finish WPF's IsChecked change before resetting the control or
+                // opening modal dialogs, which run a nested dispatcher loop.
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                if(!IsVisible) return;
+                synchronizingBeta=true;
+                try { if(betaToggle is not null) betaToggle.IsChecked=owner.Updates.BetaEnabled; }
+                finally { synchronizingBeta=false; }
+                await owner.Updates.SetBetaAsync(on,ConfirmBetaOverride??ConfirmBeta);
+            } finally { changingBeta=false; UpdateUpdateStatus(); }
         });
         betaToggle.Tag="settings.betaExperience";
         var betaRow=new Grid(); betaRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto }); betaRow.ColumnDefinitions.Add(new());
