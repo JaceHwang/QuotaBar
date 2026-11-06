@@ -4,16 +4,22 @@ import QuotaCore
 @MainActor final class ApplicationUpdateServiceTests: XCTestCase {
     func testExplicitStartDoubleClickAndLateCancellationCannotInstall() async throws {
         let calls = UpdateTestCounter()
+        let gate = UpdateTestGate()
         let service = ApplicationUpdateService(currentVersion: "1.3.0", execute: { _, emit in
             await calls.increment(); emit(ApplicationUpdateProgress(.downloading, received: 1, total: 3))
-            try? await Task.sleep(for: .milliseconds(150)) // deliberately ignores cancellation
+            await gate.wait() // deliberately ignores cancellation until explicitly released
         })
         var ready = 0; service.onReady = { ready += 1 }
         XCTAssertEqual(service.progress.phase, .idle)
         try await Task.sleep(for: .milliseconds(20)); let initial = await calls.count(); XCTAssertEqual(initial, 0)
         service.start(version: "2.0.0"); service.start(version: "3.0.0"); XCTAssertEqual(service.targetVersion, "2.0.0")
-        try await Task.sleep(for: .milliseconds(30)); service.cancel()
-        try await Task.sleep(for: .milliseconds(200))
+        for _ in 0..<100 {
+            if await calls.count() == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        service.cancel()
+        await gate.open()
+        await service.waitForCleanup()
         let count = await calls.count(); XCTAssertEqual(count, 1); XCTAssertEqual(ready, 0); XCTAssertEqual(service.progress.phase, .cancelled)
     }
     func testLateProgressCannotReenableCancellationAfterReady() async throws {
@@ -59,3 +65,17 @@ import QuotaCore
     }
 }
 private actor UpdateTestCounter { var value = 0; func increment() { value += 1 }; func count() -> Int { value } }
+
+private actor UpdateTestGate {
+    private var opened = false
+    private var continuation: CheckedContinuation<Void, Never>?
+    func wait() async {
+        if opened { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func open() {
+        opened = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
