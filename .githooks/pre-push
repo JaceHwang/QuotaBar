@@ -2,4 +2,14 @@
 set -eu
 root=$(git rev-parse --show-toplevel)
 "$root/governance" check branch
-exec "$root/governance" check all
+if [ "${QUOTABAR_DRAFT_SYNC:-0}" = 1 ]; then
+  while read -r local_ref local_sha remote_ref remote_sha; do
+    case "$remote_ref" in
+      refs/heads/codex/prerelease/*)
+        echo 'draft sync cannot update a prerelease branch' >&2; exit 1 ;;
+      refs/heads/codex/*) "$root/governance" check branch "${remote_ref#refs/heads/}" ;;
+      *) echo "draft sync cannot update $remote_ref" >&2; exit 1 ;;
+    esac
+  done
+fi
+exec "$root/governance" check sync

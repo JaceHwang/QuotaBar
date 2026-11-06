@@ -5,11 +5,13 @@ cd "$repo_root"
 if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Developer ]; then
   export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 fi
-xcrun swift test --package-path native
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-standalone-install.py
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-startup-cleanup.py
-bash tests/test-signing-identity.sh
-dotnet run --project windows/QuotaBar.Core.Tests --configuration Release
-dotnet build windows/QuotaBar.Windows --configuration Release
-dotnet build windows/QuotaBar.Setup --configuration Release
-dotnet build windows/QuotaBar.Windows.Tests --configuration Release
+status=0
+xcrun swift test --package-path native || status=$?
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-standalone-install.py || status=$?
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-startup-cleanup.py || status=$?
+bash tests/test-signing-identity.sh || status=$?
+dotnet run --project windows/QuotaBar.Core.Tests --configuration Release || status=$?
+dotnet build windows/QuotaBar.Windows --configuration Release || status=$?
+dotnet build windows/QuotaBar.Setup --configuration Release || status=$?
+dotnet build windows/QuotaBar.Windows.Tests --configuration Release || status=$?
+exit "$status"

@@ -1,7 +1,9 @@
 import pathlib
+import os
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -20,7 +22,8 @@ class ReleaseTagRoutingTests(unittest.TestCase):
             def run(version):
                 (root/'version.txt').write_text(version+'\n')
                 (root/'.release-please-manifest.json').write_text(json.dumps({'.':version}))
-                return subprocess.run(['bash',str(root/'tests/test-repository-governance.sh')],capture_output=True,text=True).returncode
+                env=os.environ.copy();env['PYTHON_BIN']=sys.executable
+                return subprocess.run(['bash',str(root/'tests/test-repository-governance.sh')],env=env,capture_output=True,text=True).returncode
             self.assertEqual(run('1.8.0-beta.1'),0)
             self.assertNotEqual(run('1.8.0-beta.0'),0)
             self.assertNotEqual(run('1.8.0-rc.1'),0)
@@ -34,7 +37,7 @@ class ReleaseTagRoutingTests(unittest.TestCase):
         script = ROOT / 'scripts/validate-release-channel.py'
         def run(tag, prerelease):
             body = json.dumps({'tagName': tag, 'isPrerelease': prerelease})
-            return subprocess.run(['python3', str(script), tag], input=body, text=True, capture_output=True).returncode
+            return subprocess.run([sys.executable, str(script), tag], input=body, text=True, capture_output=True).returncode
         self.assertEqual(run('v1.7.0', False), 0)
         self.assertEqual(run('v1.8.0-beta.1', True), 0)
         self.assertNotEqual(run('v1.8.0-beta.1', False), 0)
@@ -48,7 +51,7 @@ class ReleaseTagRoutingTests(unittest.TestCase):
             adapter = ROOT / '.governance/project/build-release'
             def run(tag):
                 (root / 'invoked').unlink(missing_ok=True)
-                result = subprocess.run([str(adapter), 'macos-arm64', tag], cwd=root, capture_output=True, text=True)
+                result = subprocess.run(['sh',str(adapter), 'macos-arm64', tag], cwd=root, capture_output=True, text=True)
                 return result.returncode, (root / 'invoked').read_text() if (root / 'invoked').exists() else None
             for valid in ('v1.7.0', 'v1.8.0-beta.1', 'v1.8.0-beta.11'):
                 code, invoked = run(valid)
