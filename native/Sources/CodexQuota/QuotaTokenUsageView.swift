@@ -12,7 +12,8 @@ final class QuotaTokenUsageView: NSView {
     init(
         frame frameRect: NSRect,
         presentation: QuotaTokenUsagePresentation,
-        remainingPercent: Int
+        remainingPercent: Int,
+        expanded: Bool = false
     ) {
         let displayDays = Array(presentation.days.prefix(7))
         barCount = displayDays.count
@@ -55,7 +56,7 @@ final class QuotaTokenUsageView: NSView {
         )
         addSubview(total)
 
-        if presentation.availability != .available {
+        if expanded || presentation.availability != .available {
             let note = label(
                 presentation.delayNote,
                 font: Self.noteFont,
@@ -67,6 +68,7 @@ final class QuotaTokenUsageView: NSView {
             addSubview(note)
         }
 
+        if expanded && presentation.availability != .available { return }
         guard !displayDays.isEmpty else {
             return
         }
@@ -76,10 +78,11 @@ final class QuotaTokenUsageView: NSView {
                 x: 0,
                 y: 24,
                 width: bounds.width,
-                height: 86
+                height: expanded ? max(86, bounds.height - 66) : 86
             ),
             days: displayDays,
-            remainingPercent: remainingPercent
+            remainingPercent: remainingPercent,
+            expanded: expanded
         )
         addSubview(chart)
 
@@ -113,14 +116,15 @@ private final class TokenUsageChartView: NSView {
     init(
         frame frameRect: NSRect,
         days: [QuotaTokenUsageDay],
-        remainingPercent: Int
+        remainingPercent: Int,
+        expanded: Bool
     ) {
         super.init(frame: frameRect)
         let maximum = max(1, days.map(\.tokens).max() ?? 0)
         let columnWidth = bounds.width / CGFloat(max(1, days.count))
         for (index, day) in days.enumerated() {
             let height = day.tokens > 0
-                ? max(3, floor(30 * CGFloat(day.tokens) / CGFloat(maximum)))
+                ? max(3, floor((expanded ? max(30, bounds.height - 40) : 30) * CGFloat(day.tokens) / CGFloat(maximum)))
                 : 0
             let bar = QuotaTokenUsageBarView(
                 frame: CGRect(
@@ -131,7 +135,8 @@ private final class TokenUsageChartView: NSView {
                 ),
                 day: day,
                 barHeight: height,
-                remainingPercent: remainingPercent
+                remainingPercent: remainingPercent,
+                expanded: expanded
             )
             addSubview(bar)
         }
@@ -148,6 +153,7 @@ final class QuotaTokenUsageBarView: NSView {
     private let day: QuotaTokenUsageDay
     private let barHeight: CGFloat
     private let remainingPercent: Int
+    private let expanded: Bool
     private let numberFont = NSFont.systemFont(ofSize: 10, weight: .regular)
     private let dateFont = NSFont.systemFont(ofSize: 10, weight: .regular)
 
@@ -155,11 +161,13 @@ final class QuotaTokenUsageBarView: NSView {
         frame frameRect: NSRect,
         day: QuotaTokenUsageDay,
         barHeight: CGFloat,
-        remainingPercent: Int
+        remainingPercent: Int,
+        expanded: Bool = false
     ) {
         self.day = day
         self.barHeight = barHeight
         self.remainingPercent = remainingPercent
+        self.expanded = expanded
         super.init(frame: frameRect)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -177,7 +185,7 @@ final class QuotaTokenUsageBarView: NSView {
         let accent = QuotaColorScale.components(
             remainingPercent: remainingPercent
         ).appKitColor
-        let labelColor: NSColor = day.isCurrentDay ? accent : .secondaryLabelColor
+        let labelColor: NSColor = expanded ? .labelColor : day.isCurrentDay ? accent : .secondaryLabelColor
         let value = Self.tokenLabel(day.tokens) as NSString
         let valueAttributes: [NSAttributedString.Key: Any] = [
             .font: numberFont,
@@ -193,13 +201,12 @@ final class QuotaTokenUsageBarView: NSView {
         )
 
         if barHeight > 0 {
-            let fillColor: NSColor = day.isCurrentDay
-                ? accent
-                : NSColor.secondaryLabelColor.withAlphaComponent(0.38)
+            let fillColor: NSColor = expanded ? .controlAccentColor : day.isCurrentDay ? accent : NSColor.secondaryLabelColor.withAlphaComponent(0.38)
+            let barWidth: CGFloat = expanded ? 24 : 12
             let barRect = CGRect(
-                x: floor((bounds.width - 12) / 2),
+                x: floor((bounds.width - barWidth) / 2),
                 y: 15,
-                width: 12,
+                width: barWidth,
                 height: min(barHeight, max(3, bounds.height - 34))
             )
             let path = NSBezierPath(roundedRect: barRect, xRadius: 3, yRadius: 3)

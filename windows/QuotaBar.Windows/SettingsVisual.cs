@@ -37,6 +37,10 @@ internal static class SettingsVisual {
                 button.VerticalContentAlignment=VerticalAlignment.Center;
                 button.BorderThickness=new Thickness(0); button.BorderBrush=Brushes.Transparent;
                 Primary(button);
+                if(IsSecondaryAccountAction(button)) {
+                    button.Background=button.Tag?.ToString()=="settings-account-logout"?Brushes.Transparent:SystemParameters.HighContrast?SystemColors.WindowBrush:new SolidColorBrush(dark?Color.FromRgb(52,55,62):Color.FromRgb(237,240,244));
+                    button.Foreground=Ui.Foreground(dark);
+                }
                 // Explicit foregrounds on custom content otherwise override the shared button style.
                 if(button.Content is TextBlock label) {
                     label.FontSize=13; label.FontWeight=FontWeights.SemiBold;
@@ -47,8 +51,9 @@ internal static class SettingsVisual {
         }
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) ApplyButtons(child,dark);
     }
-    public static void Primary(Button button) { button.Background=new SolidColorBrush(Color.FromRgb(0,101,216)); button.Foreground=Brushes.White; }
-    public static Brush Muted(bool dark)=>new SolidColorBrush(dark?Color.FromRgb(170,175,187):Color.FromRgb(110,116,130));
+    internal static bool IsSecondaryAccountAction(Button button)=>button.Tag is string tag && tag is "settings-account-details" or "settings-account-cancel" or "settings-account-logout" or "settings-account-reload";
+    public static void Primary(Button button) { button.Background=SystemParameters.HighContrast?SystemColors.HighlightBrush:new SolidColorBrush(Color.FromRgb(0,101,216)); button.Foreground=SystemParameters.HighContrast?SystemColors.HighlightTextBrush:Brushes.White; }
+    public static Brush Muted(bool dark)=>SystemParameters.HighContrast?SystemColors.WindowTextBrush:new SolidColorBrush(dark?Color.FromRgb(170,175,187):Color.FromRgb(110,116,130));
     public static Border Card(UIElement child,bool dark,Thickness? padding=null)=>new() { Child=child,Background=Ui.Surface(dark),BorderBrush=new SolidColorBrush(Color.FromArgb(40,128,128,128)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=padding??new Thickness(16),Margin=new Thickness(0,0,0,10) };
     public static UIElement NavigationLabel(int index,string title,Brush foreground) {
         var geometries=new[]{"M 8,1 A 3,3 0 1 0 8,7 A 3,3 0 1 0 8,1 M 2,15 C 2,8 14,8 14,15 Z", "M 1,2 L 15,2 L 15,12 L 1,12 Z M 8,12 L 8,15 M 5,15 L 11,15", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 5,6 L 5,7 M 11,6 L 11,7 M 4,10 Q 8,15 12,10", "M 4,1 L 12,1 L 12,15 L 4,15 Z M 7,12 L 9,12", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 8,7 L 8,12 M 8,4 L 8,5"};

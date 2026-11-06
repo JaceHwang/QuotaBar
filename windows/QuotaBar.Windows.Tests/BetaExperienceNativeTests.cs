@@ -39,6 +39,16 @@ internal static class BetaExperienceNativeTests {
             if(!new UpdateChannelStore(Path.Combine(root,"update-channel.json")).Load()) throw new Exception("Real toggle must persist beta across restart");
             Pump();
             if(!owner.Updates.BetaEnabled || toggle.IsChecked!=true) throw new Exception("Queued UI refresh must not disable beta");
+            toggle.IsChecked=false;
+            Pump(); Pump();
+            if(owner.Updates.BetaEnabled || toggle.IsChecked!=false || new UpdateChannelStore(Path.Combine(root,"update-channel.json")).Load())
+                throw new Exception("Real toggle must persist disabled beta across restart");
+            window.ConfirmBetaOverride=_=>true;
+            toggle.IsChecked=true;
+            Pump(); Pump();
+            window.ConfirmBetaOverride=null;
+            if(!owner.Updates.BetaEnabled || toggle.IsChecked!=true || !new UpdateChannelStore(Path.Combine(root,"update-channel.json")).Load())
+                throw new Exception("Real toggle must enable beta again after disabling");
             var channel=Path.Combine(root,"update-channel.json"); var backup=channel+".backup";
             File.Move(channel,backup); Directory.CreateDirectory(channel);
             Wait(owner.Updates.SetBetaAsync(false,_=>true)); owner.Updates.Check(manual:true); Pump();

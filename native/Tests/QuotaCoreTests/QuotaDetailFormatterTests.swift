@@ -7,6 +7,14 @@ final class QuotaDetailFormatterTests: XCTestCase {
     private let timeZone = TimeZone(identifier: "Asia/Shanghai")!
     private let now = Date(timeIntervalSince1970: 1_785_000_000)
 
+    func testAccountGroupsRetainTheSameFormattedDetailRows() {
+        let content = formatter.content(snapshot: fullSnapshot, now: now, language: .simplifiedChinese, timeZone: timeZone)
+        XCTAssertEqual(content.windowResetRows.count, content.quotaWindows.count)
+        XCTAssertEqual(content.creditsSummary, "12.50")
+        XCTAssertFalse(content.bankRows.isEmpty)
+        for row in content.windowResetRows + content.bankRows { XCTAssertTrue(content.rows.contains(row)) }
+    }
+
     func testCarriesCodexAccountNameIntoFooterPresentation() {
         let content = formatter.content(
             snapshot: fullSnapshot,
