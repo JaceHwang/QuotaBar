@@ -36,17 +36,8 @@ internal sealed class DetailWindow : Window {
         var rows=new StackPanel { Margin=new Thickness(16,8,16,8) };
         if(quota.Plan is not null) Row(rows,copy.Text("Plan","套餐","方案"),Value(quota.Plan,p),p);
         foreach(var window in new[]{quota.Primary,quota.Secondary}.OfType<QuotaWindow>()) Row(rows,copy.Text("Next reset","下次重置","下次重設")+"（"+copy.Period(window.WindowMinutes)+"）",Countdown(window.ResetsAt,copy,p,Ui.Accent(window.RemainingPercent)),p);
-        Row(rows,copy.Text("Bank available","Bank 可用次数","Bank 可用次數"),Value(quota.Bank?.AvailableCount.ToString()??copy.NoData,p),p);
-        if(quota.Bank?.Credits is { } credits) {
-            var index=0;
-            foreach(var credit in credits.OrderBy(c=>c.ExpiresAt??DateTimeOffset.MaxValue)) {
-                var accent=credit.ExpiresAt is { } expiry?Ui.Accent((expiry-DateTimeOffset.Now).TotalDays<=3?10:(expiry-DateTimeOffset.Now).TotalDays<=7?49:100):p.Primary;
-                Row(rows,$"Bank {++index}",credit.ExpiresAt is { } reset?Countdown(reset,copy,p,accent):Value(copy.NoData,p),p);
-            }
-        }
-        if(quota.Bank is { AvailableCount:>0 } b && (b.Credits?.Count(c=>c.ExpiresAt is not null)??0)<b.AvailableCount)
-            Row(rows,copy.Text("Bank details","Bank 详情","Bank 詳情"),Value(copy.Text("Some credits have no expiry details","部分权益未提供到期时间","部分權益未提供到期時間"),p),p);
-        Row(rows,"Credits",Value(quota.Credits is { } balance?balance.Unlimited?copy.Text("Unlimited","无限","無限"):balance.HasCredits?balance.Balance??copy.Text("Available","可用"):copy.Text("None","无","無"):copy.NoData,p),p);
+        rows.Children.Add(DetailVisual.Separator(p));
+        rows.Children.Add(BankDetails(quota,copy,p));
         Row(rows,copy.Text("Updated","更新时间","更新時間"),Value(copy.PhaseLabel(state.Phase)+" · "+quota.ReceivedAt.ToLocalTime().ToString("HH:mm:ss"),p),p);
         var footer=Footer(identity,copy,p); var bottom=new StackPanel();
         var resize=new Thumb { Height=14,Cursor=Cursors.SizeNS,Background=Brushes.Transparent,Template=ResizeTemplate(p) };
@@ -66,7 +57,22 @@ internal sealed class DetailWindow : Window {
         }
         var y=anchor.Bottom+5; if(y+Height*scale>work.Y+work.Height) y=anchor.Top-Height*scale-5; Platform.Place(this,new(anchor.Right-Width*scale,y)); scroll.ScrollToVerticalOffset(offset);
     }
-    static TextBlock Value(string text,DetailPalette p) { var value=DetailVisual.Text(text,13,p.Primary); value.TextAlignment=TextAlignment.Right; return value; }
+    internal static StackPanel BankDetails(QuotaSnapshot quota,Copy copy,DetailPalette p) {
+        var rows=new StackPanel();
+        Row(rows,copy.Text("Bank available","Bank 可用次数","Bank 可用次數"),Value(quota.Bank?.AvailableCount.ToString()??copy.NoData,p),p);
+        if(quota.Bank?.Credits is { } credits) {
+            var index=0;
+            foreach(var credit in credits.OrderBy(c=>c.ExpiresAt??DateTimeOffset.MaxValue)) {
+                var accent=credit.ExpiresAt is { } expiry?Ui.Accent((expiry-DateTimeOffset.Now).TotalDays<=3?10:(expiry-DateTimeOffset.Now).TotalDays<=7?49:100):p.Primary;
+                Row(rows,$"Bank {++index}",credit.ExpiresAt is { } reset?Countdown(reset,copy,p,accent):Value(copy.NoData,p),p);
+            }
+        }
+        if(quota.Bank is { AvailableCount:>0 } b && (b.Credits?.Count(c=>c.ExpiresAt is not null)??0)<b.AvailableCount)
+            Row(rows,copy.Text("Bank details","Bank 详情","Bank 詳情"),Value(copy.Text("Some credits have no expiry details","部分权益未提供到期时间","部分權益未提供到期時間"),p),p);
+        Row(rows,"Credits",Value(quota.Credits is { } balance?balance.Unlimited?copy.Text("Unlimited","无限","無限"):balance.HasCredits?balance.Balance??copy.Text("Available","可用"):copy.Text("None","无","無"):copy.NoData,p),p);
+        return rows;
+    }
+    static TextBlock Value(string text,DetailPalette p) { var value=DetailVisual.Text(text,13,p.Primary); value.TextWrapping=TextWrapping.Wrap; value.TextAlignment=TextAlignment.Right; return value; }
     static TextBlock Countdown(DateTimeOffset reset,Copy copy,DetailPalette p,Brush accent) {
         var text=Value("",p);
         foreach(var part in System.Text.RegularExpressions.Regex.Split(copy.DetailCountdown(reset,DateTimeOffset.Now),"([0-9]+)")) text.Inlines.Add(new Run(part) { FontSize=part.Length>0 && char.IsDigit(part[0])?16:11,FontWeight=part.Length>0 && char.IsDigit(part[0])?FontWeights.SemiBold:FontWeights.Normal,Foreground=part.Length>0 && char.IsDigit(part[0])?accent:p.Secondary });
@@ -76,15 +82,15 @@ internal sealed class DetailWindow : Window {
         if(rows.Children.Count>0) rows.Children.Add(DetailVisual.Separator(p)); var row=new Grid { MinHeight=value.Inlines.OfType<Run>().Any(r=>r.Text.Contains('\n'))?46:32 };
         row.ColumnDefinitions.Add(new() { Width=new GridLength(126) }); row.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) }); row.Children.Add(DetailVisual.Text(label,13,p.Primary,true)); Grid.SetColumn(value,1); row.Children.Add(value); rows.Children.Add(row);
     }
-    static Border TokenBand(TokenUsage? tokens,QuotaSnapshot quota,Copy copy,DetailPalette p) {
+    internal static Border TokenBand(TokenUsage? tokens,QuotaSnapshot quota,Copy copy,DetailPalette p,bool expanded=false) {
         var panel=new StackPanel { Margin=new Thickness(16,7,16,9) }; var heading=new Grid(); heading.ColumnDefinitions.Add(new() { Width=GridLength.Auto }); heading.ColumnDefinitions.Add(new() { Width=new GridLength(1,GridUnitType.Star) }); heading.Children.Add(DetailVisual.Text(copy.Text("Token usage","Token 用量","Token 用量"),17,p.Primary,true));
         IReadOnlyList<TokenDay>? days=null; try { if(tokens is not null) days=TokenWindow.Days(tokens,quota,DateTimeOffset.Now); } catch(FormatException) { }
         string total; try { total=days is null?copy.NoData:copy.Text("This period total ","本周期总计 ","本週期總計 ")+TokenCount(TokenWindow.Total(days))+" tokens"; } catch(FormatException) { days=null; total=copy.NoData; }
         var sum=DetailVisual.Text(total,13,p.Secondary); sum.TextAlignment=TextAlignment.Right; Grid.SetColumn(sum,1); heading.Children.Add(sum); panel.Children.Add(heading);
-        var chart=new UniformGrid { Columns=7,Height=96,Margin=new Thickness(0,10,0,0) }; var max=days is null?1:Math.Max(1,days.Max(d=>d.Tokens));
+        var chart=new UniformGrid { Columns=7,Height=expanded?172:96,Margin=new Thickness(0,10,0,0) }; var max=days is null?1:Math.Max(1,days.Max(d=>d.Tokens));
         foreach(var day in days??Enumerable.Range(0,7).Select(i=>new TokenDay(DateOnly.FromDateTime(DateTime.Now).AddDays(i-6),0)).ToArray()) {
             var current=day.Date==DateOnly.FromDateTime(DateTime.Now); var labels=new StackPanel { VerticalAlignment=VerticalAlignment.Bottom }; var amount=DetailVisual.Text(days is null?"—":TokenCount(day.Tokens),10,current?Ui.Accent(quota.Primary.RemainingPercent):p.Secondary); amount.HorizontalAlignment=HorizontalAlignment.Center; labels.Children.Add(amount);
-            labels.Children.Add(new Border { Width=18,Height=day.Tokens==0?2:Math.Max(4,Math.Min(42,42d*day.Tokens/max)),Background=current?Ui.Accent(quota.Primary.RemainingPercent):p.Border,CornerRadius=new CornerRadius(3),Margin=new Thickness(0,4,0,4),HorizontalAlignment=HorizontalAlignment.Center,ToolTip=$"{day.Date}: {day.Tokens:N0}" }); var date=DetailVisual.Text(day.Date.ToString("M/d"),9,p.Secondary); date.HorizontalAlignment=HorizontalAlignment.Center; labels.Children.Add(date); chart.Children.Add(labels);
+            labels.Children.Add(new Border { Width=expanded?26:18,Height=day.Tokens==0?2:Math.Max(4,Math.Min(expanded?112:42,(expanded?112d:42d)*day.Tokens/max)),Background=current?Ui.Accent(quota.Primary.RemainingPercent):p.Border,CornerRadius=new CornerRadius(3),Margin=new Thickness(0,4,0,4),HorizontalAlignment=HorizontalAlignment.Center,ToolTip=$"{day.Date}: {day.Tokens:N0}" }); var date=DetailVisual.Text(day.Date.ToString("M/d"),9,p.Secondary); date.HorizontalAlignment=HorizontalAlignment.Center; labels.Children.Add(date); chart.Children.Add(labels);
         }
         panel.Children.Add(chart); return new Border { Child=panel };
     }

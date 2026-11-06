@@ -29,6 +29,7 @@ internal static class Program {
         NotificationMatrixTests.TestMessageCenterRouting(app);
         MessageCenterNativeTests.Run(app);
         BetaExperienceNativeTests.Run(app);
+        AccountQuotaOverviewNativeTests.Run(app);
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
         NotificationMatrixTests.TestDynamicBankProducer(app);
@@ -275,7 +276,10 @@ internal static class Program {
                                 Check(action.Height==(compact?24:30) && action.MinHeight==(compact?24:30) && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
                                 Check(action.MinWidth==(compact?24:eye?30:100) && action.Padding==new Thickness(compact?5:eye?0:12,0,compact?5:eye?0:12,0),"settings actions share content-fit metrics");
                                 Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
-                                if(action.IsEnabled) Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"enabled settings actions share blue and white");
+                                if(action.IsEnabled) {
+                                    if(SettingsVisual.IsSecondaryAccountAction(action)) Check((action.Foreground as SolidColorBrush)?.Color==(Ui.Foreground(dark) as SolidColorBrush)?.Color && (action.Background as SolidColorBrush)?.Color!=Color.FromRgb(0,101,216),"account secondary actions preserve semantic text and lower visual emphasis");
+                                    else Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"primary settings actions share blue and white");
+                                }
                                 action.ApplyTemplate();
                                 var actionFrame=action.Template.FindName("frame",action) as Border;
                                 Check(actionFrame?.CornerRadius==new CornerRadius(7),"settings actions share rounded corners");

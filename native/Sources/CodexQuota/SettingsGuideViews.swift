@@ -100,6 +100,7 @@ import AppKit
 
 @MainActor class SettingsAccentButton: NSButton {
     var usesAccentFill = true
+    var usesBorderlessStyle = false
     var fillColor = NSColor(srgbRed: 0, green: 101.0 / 255, blue: 216.0 / 255, alpha: 1)
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -117,16 +118,24 @@ import AppKit
         return NSSize(width: max(100, ceil(width) + 24 + (image == nil ? 0 : 22)), height: 30)
     }
     override func draw(_ dirtyRect: NSRect) {
-        let bg = isEnabled ? (isHighlighted ? fillColor.blended(withFraction: 0.15, of: .black)! : fillColor) : NSColor.disabledControlTextColor.withAlphaComponent(0.35)
-        bg.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7).fill()
-        let label = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: NSColor.white])
+        let foreground: NSColor = isEnabled ? (usesAccentFill ? .white : .labelColor) : .disabledControlTextColor
+        let background: NSColor
+        if usesAccentFill {
+            background = isEnabled ? (isHighlighted ? fillColor.blended(withFraction: 0.15, of: .black)! : fillColor) : NSColor.disabledControlTextColor.withAlphaComponent(0.35)
+        } else {
+            background = isHighlighted ? NSColor.controlAccentColor.withAlphaComponent(0.15) : usesBorderlessStyle ? .clear : .controlColor
+        }
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7)
+        background.setFill(); shape.fill()
+        if !usesAccentFill && !usesBorderlessStyle { NSColor.separatorColor.setStroke(); shape.lineWidth = 0.5; shape.stroke() }
+        let label = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: foreground])
         let size = label.size(), iconWidth: CGFloat = image == nil ? 0 : (title.isEmpty ? 16 : 22)
         let start = (bounds.width - size.width - iconWidth) / 2
         if let image {
             let icon = image.copy() as! NSImage; icon.size = NSSize(width: 16, height: 16)
             let rect = NSRect(x: start, y: (bounds.height - 16) / 2, width: 16, height: 16)
             let tinted = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { area in
-                icon.draw(in: area); NSColor.white.setFill(); area.fill(using: .sourceIn); return true
+                icon.draw(in: area); foreground.setFill(); area.fill(using: .sourceIn); return true
             }
             tinted.draw(in: rect)
         }

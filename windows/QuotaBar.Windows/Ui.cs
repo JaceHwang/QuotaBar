@@ -5,7 +5,7 @@ namespace QuotaBar.Windows;
 internal static class Ui {
     public static Brush Foreground(bool dark) => SystemParameters.HighContrast?SystemColors.WindowTextBrush:dark?Brushes.White:new SolidColorBrush(Color.FromRgb(32,32,34));
     public static Brush Surface(bool dark) => SystemParameters.HighContrast?SystemColors.WindowBrush:dark?new SolidColorBrush(Color.FromRgb(30,31,35)):Brushes.White;
-    public static Brush Accent(int percent) { var (r,g,b)=QuotaColors.ForPercent(percent); return new SolidColorBrush(Color.FromRgb(r,g,b)); }
+    public static Brush Accent(int percent) { if(SystemParameters.HighContrast) return SystemColors.WindowTextBrush; var (r,g,b)=QuotaColors.ForPercent(percent); return new SolidColorBrush(Color.FromRgb(r,g,b)); }
     public static TextBlock Text(string text,double size=13,Brush? brush=null) => new() { Text=text,FontSize=size,Foreground=brush??Brushes.Black,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center };
     public static Button Button(string text,Action action,string? accessibleName=null) {
         var button=new Button { Content=text,Foreground=SystemColors.ControlTextBrush,Padding=new Thickness(10,5,10,5),Margin=new Thickness(3),MinHeight=28,Cursor=Cursors.Arrow };

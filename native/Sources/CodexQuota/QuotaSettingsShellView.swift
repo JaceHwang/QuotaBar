@@ -82,7 +82,7 @@ import AppKit
             let y = bounds.height - 140 - CGFloat(index) * 40
             button.frame = NSRect(x: 12, y: y, width: side - 24, height: 34)
         }
-        let contentWidth = min(640, max(200, bounds.width - side - 48))
+        let contentWidth = min(selectedPage == 0 ? 960 : 640, max(200, bounds.width - side - 48))
         let contentX = side + max(24, (bounds.width - side - contentWidth) / 2)
         heading.frame = NSRect(x: contentX, y: 24, width: contentWidth, height: 32)
         scroll.frame = NSRect(x: contentX, y: 76, width: contentWidth, height: max(0, bounds.height - 96))
