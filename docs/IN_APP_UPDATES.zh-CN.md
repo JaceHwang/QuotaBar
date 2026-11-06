@@ -26,7 +26,7 @@ macOS新包包含原生 `Contents/Helpers/QuotaBarUpdater`，证明包含 `updat
 
 - `swift test --package-path native`：共享发布契约、下载/取消、实际只读DMG准备、事务回退、状态与三语言UI。
 - `dotnet run --project windows/QuotaBar.Core.Tests`：同批契约、HTTP边界、恶意ZIP、伪造暂存清单、事务与取消状态。
-- `python3 scripts/test-macos-in-app-update.py`：生产原生助手真实进程，隔离HOME与签名夹具；不读取真实钥匙串。
+- `python3 scripts/test-macos-in-app-update.py`：使用相同助手源码构建的专用测试进程，通过仅测试编译标记隔离全局安装目标、HOME与签名夹具；不读取真实钥匙串。
 - Windows原生CI构建候选后运行 `python scripts/test-windows-in-app-update.py <QuotaBar目录>`，要求干净测试账户，拒绝覆盖已有安装或真实凭据。验证真实父进程退出、就绪、安装、基本启动、失败回退、过期/损坏/重放及数据标记保留。
 - 两端原生证据分别记录，交叉构建不代替Windows实机。候选不能代替自然真实更新或用户设备验收。公开发布仍须明确授权与Release Please准确tag流程。
 

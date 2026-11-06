@@ -53,7 +53,14 @@ public struct UpdateInstallJob: Codable, Sendable {
 }
 private struct UpdateReceipt: Codable { let schema: Int; let operationID: String; let nonce: String; let kind: String }
 public enum UpdateLocations {
-    public static var target: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications/QuotaBar.app") }
+    public static var target: URL {
+#if QUOTABAR_UPDATE_TESTING
+        // Dedicated fixture builds mirror the global layout under an isolated home.
+        return FileManager.default.homeDirectoryForCurrentUser.deletingLastPathComponent().appendingPathComponent("Applications/QuotaBar.app")
+#else
+        return URL(fileURLWithPath: "/Applications/QuotaBar.app")
+#endif
+    }
     public static var cache: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/com.jace.codex-quota/Updates") }
     public static var channelPreferences: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexUsageSidebar/update-channel.json") }
     public static func directory(_ path: String) throws -> URL {
