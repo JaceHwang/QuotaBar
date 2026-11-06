@@ -1103,3 +1103,8 @@ candidate-20261106-110830已通过仓库安装器事务安装到/Applications/Qu
 项目进度工具不可用，当前检出未包含 .project-board/board.md，依据此路线图和实际源码继续，未生成或手改项目看板。governance doctor 的 hooks、分支和完整快速检查通过。此次只交付本地开发修复候选，不修改产品版本或公开发行记录。
 
 用户追加授权提交、推送并创建远程草稿 PR，目标为当前 codex/prerelease/beta 分支。推送前执行 governance check all，快速检查、14 项更新清单和 4 项标签路由测试通过，完整检查因 Windows 缺少 macOS xcrun 在 Swift 测试入口停止。保留完整 Core 和内测开关原生验证证据，以及全量 Windows UI 的浮窗拖动失败记录，不宣称跨平台全通过。草稿交付不包含合并或发布授权。
+
+
+### 2026-11-07 双实机代码同步工作流
+
+用户授权按平台执行本地检查、显式草稿同步和远程双平台合并/发布门槛。新增 check local/sync，草稿模式仍要求快速检查成功，拒绝 CI、主分支、预发布分支和标签。本机 Core、应用/安装器构建通过，原生 UI 测试存在 initial floating close hidden 失败，草稿同步明确报告该失败。新增同步/平台路由和精确提交发布 CI 核验测试，补齐 Windows 原生 Python/Git Bash 兼容。操作指南及 PR 实机证据模板已更新。远程规则和草稿 PR 随交付核对，跨平台 CI 与 Mac 实机结果待远程执行。
