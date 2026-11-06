@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0-beta.3](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.2...v1.7.0-beta.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* migrate macOS installation and updates to global Applications ([dc92478](https://github.com/JaceHwang/QuotaBar/commit/dc92478b6b78658bb0a132d22f7212fe7c7c1920))
+
 ## [1.7.0-beta.2](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.1...v1.7.0-beta.2) (2026-11-05)
 
 
