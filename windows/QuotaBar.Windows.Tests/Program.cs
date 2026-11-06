@@ -23,6 +23,7 @@ internal static class Program {
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        if(args.Contains("--beta-experience")) { BetaExperienceNativeTests.Run(app);app.Shutdown();return 0; }
         FloatingControlsTests.Run(app);
         NotificationMatrixTests.TestPolicyFailureRecovery(app);
         NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
