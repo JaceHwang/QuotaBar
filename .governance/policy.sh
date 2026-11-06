@@ -3,6 +3,7 @@
 RELEASE_MODE=staged
 RELEASE_PLATFORMS='macos-arm64 windows-x64'
 FAST_CHECK_ADAPTER=.governance/project/check-fast
+LOCAL_CHECK_ADAPTER=.governance/project/check-local
 FULL_CHECK_ADAPTER=.governance/project/check-full
 BUILD_RELEASE_ADAPTER=.governance/project/build-release
 VERIFY_RELEASE_ADAPTER=.governance/project/verify-release

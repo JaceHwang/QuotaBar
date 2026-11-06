@@ -8,8 +8,10 @@ if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_P
     while(await Console.In.ReadLineAsync() is not null) { }
     return 0;
 }
+if(args.Contains("--update-channel-tests")) { UpdateChannelStoreTests.Run();return 0; }
 if(args.Contains("--windows-reliability-settings")) { WindowsReliabilityTests.Settings();return 0; }
 if(args.Contains("--windows-reliability-readiness")) { await WindowsReliabilityTests.Readiness();return 0; }
+UpdateChannelStoreTests.Run();
 WindowsReliabilityTests.Settings();
 await WindowsReliabilityTests.Readiness();
 var tests = new (string Name, Action Run)[] {
