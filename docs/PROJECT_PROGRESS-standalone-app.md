@@ -1119,3 +1119,16 @@ Mac聚焦回归覆盖正常设置入口、三语言/深浅主题、双/单周期
 ### 2026-11-07 Windows 实机草稿修复集成
 
 用户要求查看远端3f16313对应的Windows实机修复草稿PR，并合入当前账户概览版本。当前分支codex/feat/account-quota-overview，HEAD7e1c2ec；上轮验收文档有两项未提交变更，继续保留。governance doctor通过，hooks active。已fetch origin并核对全部远端分支、PR及提交接口，当前JaceHwang/QuotaBar未找到3f16313，GitHub提交接口返回422。已请求草稿PR链接、编号或正确完整提交号，取得来源后审阅全部改动及依赖，解决与账户页的冲突并执行完整验证。当前尚未修改产品源码或合入其他修复。
+### 2026-11-06 Windows 内测设置保存兼容修复
+
+用户在 Windows 安装 beta.2 后报告“无法保存内测设置”，明确授权修改并在本机生效。范围为 UpdateChannelStore 保存和损坏文件隔离对 ERROR_INVALID_HANDLE (0x80070006) 的兼容，使用既有偏好存储的备份复制策略，保留正常原子替换和其他错误传播。覆盖失败恢复原文件，恢复失败保留有效备份并阻止后续覆盖；重启保持关闭，不自动恢复旧的内测授权。
+
+基于 v1.7.0-beta.2 的独立分支 codex/fix/beta-channel-save。定向错误注入测试先复现保存失败，再通过兼容处理；新增覆盖部分写入、首次保存失败、备份失败、恢复失败后的重试/重启、外部恢复后再次保存和损坏文件隔离失败。独立审阅发现“新文件完整但复制报错、恢复失败”时需要持久恢复标记，先失败回归后修复；标记在兼容写入前刷盘，失败恢复保留，读取保持关闭并保护旧备份。最终复核无新增问题。
+
+完整 Windows Core 套件通过，包括 20/20 行为测试、存储兼容、下载/信任、生命周期及安装事务测试。Windows 实际 WPF 开关开启、关闭、重新开启及错误恢复的原生聚焦测试通过。全量原生 UI 套件未全过，退出测试子进程的浮窗指针拖动断言失败（floating controls: native pointer drag moves transparent background），导致 actual Quit awaits updater cleanup without a runtime 失败，未修改该无关逻辑。Mac 测试未在本机执行。
+
+本地候选 .dist/beta-channel-save/QuotaBar 基于已核验的官方 beta.2 包，仅替换应用和 setup 的 QuotaBar.Core.dll，重新生成本地开发来源及包摘要。Core SHA256 为 17c061802af0af0aa952a5d3c6b1a660fdde449252f9722587f562ca8594fcf4。官方安装器仍因安装事务重命名返回“句柄无效”，采用先完整备份再复制替换，安装后所有文件摘要一致。实际设置界面关闭内测成功，再开启后显示“已开启”，正式设置为 true，兼容备份为之前的 false，未残留恢复标记。已重启验证持久化。旧程序备份在 .dist/beta-channel-save/previous-installation。
+
+项目进度工具不可用，当前检出未包含 .project-board/board.md，依据此路线图和实际源码继续，未生成或手改项目看板。governance doctor 的 hooks、分支和完整快速检查通过。此次只交付本地开发修复候选，不修改产品版本或公开发行记录。
+
+用户追加授权提交、推送并创建远程草稿 PR，目标为当前 codex/prerelease/beta 分支。推送前执行 governance check all，快速检查、14 项更新清单和 4 项标签路由测试通过，完整检查因 Windows 缺少 macOS xcrun 在 Swift 测试入口停止。保留完整 Core 和内测开关原生验证证据，以及全量 Windows UI 的浮窗拖动失败记录，不宣称跨平台全通过。草稿交付不包含合并或发布授权。
