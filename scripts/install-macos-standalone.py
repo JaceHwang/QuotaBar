@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reversible per-user installation of a verified local standalone candidate."""
+"""Reversible global application installation with per-user data preservation."""
 import argparse
 import json
 import os
@@ -10,6 +10,9 @@ import signal
 import subprocess
 import tempfile
 import time
+
+
+GLOBAL_APPLICATION = Path('/Applications/QuotaBar.app')
 
 
 def run(*args):
@@ -119,11 +122,13 @@ def application_executable(app):
     return app / 'Contents/MacOS' / name
 
 
-def verify(app):
+def verify(app, require_global=False):
     with (app / 'Contents/Info.plist').open('rb') as stream:
         info = plistlib.load(stream)
     if info.get('CFBundleIdentifier') != 'com.jace.codex-quota' or info.get('CUSStandalone') is not True:
         raise RuntimeError('Not a standalone Codex Quota bundle')
+    if require_global and info.get('CUSInstallLocation') != '/Applications/QuotaBar.app':
+        raise RuntimeError('Candidate does not support installation in /Applications; use a global-install compatible build')
     run('codesign', '--verify', '--deep', '--strict', str(app))
     version = subprocess.check_output([str(app / 'Contents/Helpers/codex'), '--version'], text=True).strip()
     if version != 'codex-cli 0.144.1':
@@ -174,11 +179,22 @@ def recover_install(home, info, marker, record, backups, reopen=True):
         record.unlink(missing_ok=True)
     if info.get('startupEnabled') and info.get('originalTarget') and original_target.exists():
         run(str(application_executable(original_target)), '--register-startup')
+    for item in info.get('migrations', []):
+        backup = Path(item['backup'])
+        old = Path(item['target'])
+        if backup.exists():
+            if old.exists():
+                raise RuntimeError('Migration recovery destination is occupied; backups retained')
+            backup.rename(old)
+            if item['startupEnabled']:
+                run(str(application_executable(old)), '--register-startup')
     if reopen and original_target.exists():
         run('open', str(original_target))
 
 
 def active_application(home):
+    if GLOBAL_APPLICATION.exists():
+        return GLOBAL_APPLICATION
     preferred = home / 'Applications/QuotaBar.app'
     legacy = home / 'Applications/Codex Quota.app'
     return preferred if preferred.exists() or not legacy.exists() else legacy
@@ -199,7 +215,7 @@ def main():
     parser.add_argument('--candidate', type=Path)
     args = parser.parse_args()
     home = Path.home()
-    target = home / 'Applications/QuotaBar.app' if args.action == 'install' else active_application(home)
+    target = GLOBAL_APPLICATION if args.action == 'install' else active_application(home)
     root = home / 'Library/Application Support/CodexUsageSidebar'
     backups = root / '.StandaloneBackups'
     root.mkdir(parents=True, exist_ok=True)
@@ -216,19 +232,30 @@ def main():
         if args.candidate is None:
             parser.error('install requires --candidate APP')
         source = args.candidate.resolve()
-        verify(source)
+        verify(source, require_global=True)
         target.parent.mkdir(parents=True, exist_ok=True)
         old_record = json.loads(record.read_text()) if record.exists() else {}
         old_marker = marker.read_text() if marker.exists() else None
         legacy = old_record.get('legacy', {})
         original_target = active_application(home)
-        if target.exists() and (home / 'Applications/Codex Quota.app').exists():
-            raise RuntimeError('Both QuotaBar and Codex Quota bundles exist; resolve duplicate applications before installing')
-        startup = startup_enabled(original_target)
+        if original_target.exists():
+            if original_target.is_symlink():
+                raise RuntimeError('Cannot migrate a linked application')
+            verify(original_target)
+        if target.is_symlink() or not os.access(target.parent, os.W_OK):
+            raise RuntimeError('The global Applications directory requires write permission for this account')
+        migrations = []
+        for old in [home / 'Applications/QuotaBar.app', home / 'Applications/Codex Quota.app']:
+            if old.exists() and old != original_target:
+                if old.is_symlink():
+                    raise RuntimeError('Cannot migrate a linked application')
+                verify(old)
+                migrations.append({'target': str(old), 'backup': str(backups / (str(time.time_ns()) + '.app')), 'startupEnabled': startup_enabled(old)})
+        startup = startup_enabled(original_target) or any(item['startupEnabled'] for item in migrations)
         previous = backups / (str(time.time_ns()) + '.app') if original_target.exists() else None
         plist = home / 'Library/LaunchAgents/com.jace.codex-usage-sidebar.plist'
         legacy_backup = backups / ('legacy-' + str(time.time_ns()) + '.plist') if plist.exists() else None
-        recovery = {'target': str(target), 'originalTarget': str(original_target), 'startupEnabled': startup, 'previous': str(previous) if previous else None, 'oldRecord': old_record, 'oldMarker': old_marker, 'legacy': {'pluginEnabled': set_plugin_enabled(home / '.codex/config.toml', None), 'plistBackup': str(legacy_backup) if legacy_backup else None}}
+        recovery = {'target': str(target), 'originalTarget': str(original_target), 'startupEnabled': startup, 'previous': str(previous) if previous else None, 'migrations': migrations, 'oldRecord': old_record, 'oldMarker': old_marker, 'legacy': {'pluginEnabled': set_plugin_enabled(home / '.codex/config.toml', None), 'plistBackup': str(legacy_backup) if legacy_backup else None}}
         atomic_json(journal, recovery)
         moved_legacy = False
         changed_flag = None
@@ -236,7 +263,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix='.quota-install-', dir=target.parent) as temporary:
             staged = Path(temporary) / target.name
             run('ditto', str(source), str(staged))
-            verify(staged)
+            verify(staged, require_global=True)
             stop(original_target)
             try:
                 if startup and original_target != target:
@@ -255,13 +282,19 @@ def main():
                     suspend_legacy(plist)
                     plist.rename(backup)
                     moved_legacy = True
+                for item in migrations:
+                    old = Path(item['target'])
+                    stop(old)
+                    if item['startupEnabled']:
+                        run(str(application_executable(old)), '--unregister-startup')
+                    old.rename(Path(item['backup']))
                 if original_target.exists():
                     original_target.rename(previous)
                 staged.rename(target)
                 installed = True
                 marker.write_text('Independent Codex Quota owns the isolated account directory.\n')
-                record.write_text(json.dumps({'target': str(target), 'previous': str(previous) if previous else None, 'legacy': legacy, 'credentialsPreserved': True}, indent=2) + '\n')
-                if startup and original_target != target:
+                record.write_text(json.dumps({'target': str(target), 'previous': str(previous) if previous else None, 'legacy': legacy, 'credentialsPreserved': True, 'migratedApplications': migrations}, indent=2) + '\n')
+                if startup and (original_target != target or any(item['startupEnabled'] for item in migrations)):
                     run(str(application_executable(target)), '--register-startup')
                 run('open', str(target))
             except BaseException:

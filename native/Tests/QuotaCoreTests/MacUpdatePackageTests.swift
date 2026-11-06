@@ -13,7 +13,7 @@ final class MacUpdatePackageTests: XCTestCase {
         try UpdateCommand.run("/usr/bin/xcrun", ["clang", c.path, "-o", binary.path], working: root)
         for name in ["MacOS/CodexQuota", "Helpers/codex", "Helpers/QuotaBarUpdater"] { try fm.copyItem(at: binary, to: contents.appendingPathComponent(name)) }
         try Data("{}".utf8).write(to: contents.appendingPathComponent("Resources/SOURCE-SNAPSHOT.json"))
-        var plist: [String: Any] = ["CFBundleIdentifier": "com.jace.codex-quota", "CFBundleExecutable": "CodexQuota", "CFBundleShortVersionString": "2.0.0", "CUSFullVersion": "2.0.0-beta.1", "CFBundlePackageType": "APPL", "CFBundleVersion": "1", "LSMinimumSystemVersion": "14.0", "CUSStandalone": true]
+        var plist: [String: Any] = ["CFBundleIdentifier": "com.jace.codex-quota", "CFBundleExecutable": "CodexQuota", "CFBundleShortVersionString": "2.0.0", "CUSFullVersion": "2.0.0-beta.1", "CFBundlePackageType": "APPL", "CFBundleVersion": "1", "LSMinimumSystemVersion": "14.0", "CUSStandalone": true, "CUSInstallLocation": "/Applications/QuotaBar.app"]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
         for path in [contents.appendingPathComponent("Helpers/codex"), contents.appendingPathComponent("Helpers/QuotaBarUpdater"), app] { try UpdateCommand.run("/usr/bin/codesign", ["--force", "--sign", "-", path.path], working: root) }
         let proof = root.appendingPathComponent("proof.json")
@@ -30,6 +30,13 @@ final class MacUpdatePackageTests: XCTestCase {
         }
         try signWithEmbedded(value)
         try MacUpdatePackage.verifyApp(app, release: release, provenance: proof)
+        plist.removeValue(forKey: "CUSInstallLocation")
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+        try signWithEmbedded(value)
+        XCTAssertThrowsError(try MacUpdatePackage.verifyApp(app, release: release, provenance: proof), "Old user-directory binaries cannot acknowledge global-install update health")
+        plist["CUSInstallLocation"] = "/Applications/QuotaBar.app"
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
+        try signWithEmbedded(value)
         var mismatched = value; mismatched["sourceCommit"] = String(repeating: "c", count: 40)
         try signWithEmbedded(mismatched)
         XCTAssertThrowsError(try MacUpdatePackage.verifyApp(app, release: release, provenance: proof), "Embedded provenance must match the trusted release")
@@ -48,7 +55,7 @@ final class MacUpdatePackageTests: XCTestCase {
         try UpdateCommand.run("/usr/bin/xcrun", ["clang", c.path, "-o", binary.path], working: root)
         for name in ["MacOS/CodexQuota", "Helpers/codex", "Helpers/QuotaBarUpdater"] { try fm.copyItem(at: binary, to: contents.appendingPathComponent(name)) }
         try Data("{}".utf8).write(to: contents.appendingPathComponent("Resources/SOURCE-SNAPSHOT.json"))
-        let plist: [String: Any] = ["CFBundleIdentifier": "com.jace.codex-quota", "CFBundleExecutable": "CodexQuota", "CFBundleShortVersionString": "2.0.0", "CFBundlePackageType": "APPL", "CFBundleVersion": "1", "LSMinimumSystemVersion": "14.0", "CUSStandalone": true]
+        let plist: [String: Any] = ["CFBundleIdentifier": "com.jace.codex-quota", "CFBundleExecutable": "CodexQuota", "CFBundleShortVersionString": "2.0.0", "CFBundlePackageType": "APPL", "CFBundleVersion": "1", "LSMinimumSystemVersion": "14.0", "CUSStandalone": true, "CUSInstallLocation": "/Applications/QuotaBar.app"]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
         for path in [contents.appendingPathComponent("Helpers/codex"), contents.appendingPathComponent("Helpers/QuotaBarUpdater"), app] { try UpdateCommand.run("/usr/bin/codesign", ["--force", "--sign", "-", path.path], working: root) }
         let proof = root.appendingPathComponent("proof.json")

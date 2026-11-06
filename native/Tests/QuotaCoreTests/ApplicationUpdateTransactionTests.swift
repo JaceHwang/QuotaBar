@@ -70,6 +70,9 @@ final class ApplicationUpdateTransactionTests: XCTestCase {
         try Data().write(to: root.appendingPathComponent("consumed"))
         XCTAssertThrowsError(try job.validate(directory: root, expectedTarget: job.target, now: Date()))
     }
+    func testProductionUpdateTargetIsGlobalApplications() {
+        XCTAssertEqual(UpdateLocations.target.path, "/Applications/QuotaBar.app")
+    }
     private func fixtureRelease() throws -> TrustedUpdateRelease {
         let asset = UpdateAsset(name: "a", url: URL(string: "https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0/a")!, size: 1, sha256: String(repeating: "a", count: 64))
         return TrustedUpdateRelease(version: "2.0.0", platform: "macos-arm64", sourceCommit: String(repeating: "b", count: 40), package: asset, provenance: asset)

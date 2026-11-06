@@ -39,6 +39,74 @@ class PluginMigrationTests(unittest.TestCase):
             self.assertIsNone(installer.set_plugin_enabled(path, False))
             self.assertFalse(path.exists())
 
+class IsolatedGlobalInstallTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.home = Path(self.directory.name) / 'home'
+        self.home.mkdir()
+        self.global_app = Path(self.directory.name) / 'Applications/QuotaBar.app'
+        self.patcher = patch.object(installer, 'GLOBAL_APPLICATION', self.global_app, create=True)
+        self.patcher.start()
+        self.addCleanup(self.patcher.stop)
+
+    def test_old_candidate_is_rejected_before_installation(self):
+        candidate = self.home / 'candidate.app'
+        (candidate / 'Contents').mkdir(parents=True)
+        (candidate / 'Contents/Info.plist').write_bytes(plistlib.dumps({
+            'CFBundleIdentifier': 'com.jace.codex-quota', 'CUSStandalone': True
+        }))
+        with patch.object(installer, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'does not support installation'):
+                installer.verify(candidate, require_global=True)
+            run.assert_not_called()
+
+    def test_global_target_is_preferred_over_user_copy(self):
+        user = self.home / 'Applications/QuotaBar.app'
+        user.mkdir(parents=True)
+        self.global_app.mkdir(parents=True)
+        self.assertEqual(installer.active_application(self.home), self.global_app)
+
+    def test_install_migrates_user_copy_and_preserves_global_backup(self):
+        user = self.home / 'Applications/QuotaBar.app'
+        user.mkdir(parents=True)
+        (user / 'user-version').write_text('user')
+        self.global_app.mkdir(parents=True)
+        (self.global_app / 'global-version').write_text('global')
+        candidate = self.home / 'candidate.app'
+        candidate.mkdir()
+        (candidate / 'new-version').write_text('new')
+        def run(*args):
+            if args[0] == 'ditto':
+                shutil.copytree(args[1], args[2])
+        with patch.object(installer.Path, 'home', return_value=self.home), patch.object(installer, 'verify'), patch.object(installer, 'stop'), patch.object(installer, 'startup_enabled', return_value=False), patch.object(installer, 'run', side_effect=run), patch.object(sys, 'argv', ['installer', 'install', '--candidate', str(candidate)]):
+            installer.main()
+        self.assertTrue((self.global_app / 'new-version').exists())
+        self.assertFalse(user.exists())
+        backups = self.home / 'Library/Application Support/CodexUsageSidebar/.StandaloneBackups'
+        self.assertEqual(len(list(backups.glob('*.app'))), 2)
+
+    def test_failed_migration_restores_both_installed_copies(self):
+        user = self.home / 'Applications/QuotaBar.app'
+        for path, name in [(user, 'user'), (self.global_app, 'global')]:
+            path.mkdir(parents=True)
+            (path / 'version').write_text(name)
+        candidate = self.home / 'candidate.app'
+        candidate.mkdir()
+        failed = False
+        def run(*args):
+            nonlocal failed
+            if args[0] == 'ditto':
+                shutil.copytree(args[1], args[2])
+            elif args[0] == 'open' and not failed:
+                failed = True
+                raise RuntimeError('activation failed')
+        with patch.object(installer.Path, 'home', return_value=self.home), patch.object(installer, 'verify'), patch.object(installer, 'stop'), patch.object(installer, 'startup_enabled', return_value=False), patch.object(installer, 'run', side_effect=run), patch.object(sys, 'argv', ['installer', 'install', '--candidate', str(candidate)]):
+            with self.assertRaisesRegex(RuntimeError, 'activation failed'):
+                installer.main()
+        self.assertEqual((user / 'version').read_text(), 'user')
+        self.assertEqual((self.global_app / 'version').read_text(), 'global')
+
 class InstallTransactionTests(unittest.TestCase):
     def test_interrupted_application_move_recovers_previous(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -109,7 +177,7 @@ class InstallTransactionTests(unittest.TestCase):
                 elif args[0] == 'open' and not failed:
                     failed = True
                     raise RuntimeError('injected activation failure')
-            with patch.object(installer.Path, 'home', return_value=home), patch.object(installer, 'verify'), patch.object(installer, 'stop'), patch.object(installer, 'run', side_effect=run), patch.object(installer.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), patch.object(sys, 'argv', ['installer', 'install', '--candidate', str(source)]):
+            with patch.object(installer, 'GLOBAL_APPLICATION', home / 'GlobalApplications/QuotaBar.app', create=True), patch.object(installer.Path, 'home', return_value=home), patch.object(installer, 'verify'), patch.object(installer, 'stop'), patch.object(installer, 'run', side_effect=run), patch.object(installer.subprocess, 'run', return_value=SimpleNamespace(returncode=1)), patch.object(sys, 'argv', ['installer', 'install', '--candidate', str(source)]):
                 with self.assertRaisesRegex(RuntimeError, 'injected activation failure'):
                     installer.main()
             self.assertTrue((target / 'old').exists())
@@ -123,10 +191,12 @@ class BrandingMigrationTests(unittest.TestCase):
             home = Path(directory)
             old = home / 'Applications/Codex Quota.app'
             old.mkdir(parents=True)
-            self.assertEqual(installer.active_application(home), old)
+            with patch.object(installer, 'GLOBAL_APPLICATION', home / 'GlobalApplications/QuotaBar.app', create=True):
+                self.assertEqual(installer.active_application(home), old)
             new = home / 'Applications/QuotaBar.app'
             old.rename(new)
-            self.assertEqual(installer.active_application(home), new)
+            with patch.object(installer, 'GLOBAL_APPLICATION', home / 'GlobalApplications/QuotaBar.app', create=True):
+                self.assertEqual(installer.active_application(home), new)
 
     def test_uninstall_after_interrupted_rename_uses_recovered_path(self):
         import json
@@ -136,7 +206,7 @@ class BrandingMigrationTests(unittest.TestCase):
             previous = backups/'previous.app'; previous.mkdir()
             info = {'target':str(new),'originalTarget':str(old),'previous':str(previous),'oldRecord':{'target':str(old)},'oldMarker':'standalone','legacy':{}}
             (root/'standalone-transaction.json').write_text(json.dumps(info))
-            with patch.object(installer.Path,'home',return_value=home), patch.object(installer,'run'), patch.object(installer,'stop'), patch.object(installer,'application_executable',return_value=Path('/fake/executable')), patch.object(sys,'argv',['installer','uninstall']):
+            with patch.object(installer,'GLOBAL_APPLICATION',home/'GlobalApplications/QuotaBar.app',create=True), patch.object(installer.Path,'home',return_value=home), patch.object(installer,'run'), patch.object(installer,'stop'), patch.object(installer,'application_executable',return_value=Path('/fake/executable')), patch.object(sys,'argv',['installer','uninstall']):
                 installer.main()
             self.assertFalse(old.exists()); self.assertFalse(new.exists())
             self.assertFalse((root/'standalone-mode').exists())

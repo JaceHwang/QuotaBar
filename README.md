@@ -85,7 +85,7 @@ For macOS, verify `CODEX-QUOTA-SHA256SUMS.txt`, open the DMG and use the release
 python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/QuotaBar.app'
 ```
 
-The standard location is `~/Applications/QuotaBar.app`. For Windows, verify `QUOTABAR-WINDOWS-SHA256SUMS.txt`, extract the whole ZIP and run `QuotaBar/setup/QuotaBar.Setup.exe`; the standard location is `%LOCALAPPDATA%\Programs\QuotaBar`. Upgrades preserve the isolated account and settings. Reopen from Finder or the Windows Start menu. Use Quit to stop the app and its runtime.
+The standard location is `/Applications/QuotaBar.app`. For Windows, verify `QUOTABAR-WINDOWS-SHA256SUMS.txt`, extract the whole ZIP and run `QuotaBar/setup/QuotaBar.Setup.exe`; the standard location is `%LOCALAPPDATA%\Programs\QuotaBar`. Upgrades preserve the isolated account and settings. Reopen from Finder or the Windows Start menu. Use Quit to stop the app and its runtime.
 
 Versions before 1.4.0 need a one-time manual installation to obtain the update helper. In-app updates require the standard per-user installation. [macOS installation](docs/MACOS_STANDALONE.zh-CN.md) · [Windows installation](docs/WINDOWS_STANDALONE.zh-CN.md).
 

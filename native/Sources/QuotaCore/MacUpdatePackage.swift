@@ -47,7 +47,7 @@ public enum MacUpdatePackage {
     }
     public static func verifyApp(_ app: URL, release: TrustedUpdateRelease, provenance: URL) throws {
         _ = try treeBytes(app)
-        struct Info: Decodable { let CFBundleIdentifier: String; let CFBundleExecutable: String; let CFBundleShortVersionString: String; let CUSFullVersion: String?; let LSMinimumSystemVersion: String; let CUSStandalone: Bool }
+        struct Info: Decodable { let CFBundleIdentifier: String; let CFBundleExecutable: String; let CFBundleShortVersionString: String; let CUSFullVersion: String?; let LSMinimumSystemVersion: String; let CUSStandalone: Bool; let CUSInstallLocation: String? }
         let contents = app.appendingPathComponent("Contents")
         let info: Info
         do { info = try PropertyListDecoder().decode(Info.self, from: Data(contentsOf: contents.appendingPathComponent("Info.plist"))) }
@@ -56,6 +56,7 @@ public enum MacUpdatePackage {
         let version = try ProductVersion(release.version)
         guard release.platform == "macos-arm64", info.CFBundleIdentifier == "com.jace.codex-quota", info.CFBundleExecutable == "CodexQuota", info.CFBundleShortVersionString == version.numericVersion,
               (info.CUSFullVersion == release.version || (info.CUSFullVersion == nil && !version.isBeta)), info.CUSStandalone,
+              info.CUSInstallLocation == "/Applications/QuotaBar.app",
               try !UpdateFeed.versionParts("\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)", os: true).lexicographicallyPrecedes(UpdateFeed.versionParts(info.LSMinimumSystemVersion, os: true)) else { throw UpdatePackageError.invalidIdentity }
         let data = try Data(contentsOf: provenance); try UpdateFileIntegrity.provenance(data, release: release)
         struct Proof: Decodable { let runtimeVersion: String; let applicationSignedSha256: String; let runtimeSignedSha256: String; let updaterSignedSha256: String; let sourceSnapshotSha256: String; let updateProtocol: Int }
