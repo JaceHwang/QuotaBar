@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0-beta.4](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.3...v1.7.0-beta.4) (2026-11-06)
+
+
+### Features
+
+* add account quota overview and fix beta settings persistence ([7da75f5](https://github.com/JaceHwang/QuotaBar/commit/7da75f531453ce6ff2df204897feb364cabd96dd))
+
 ## [1.7.0-beta.3](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.2...v1.7.0-beta.3) (2026-11-06)
 
 
