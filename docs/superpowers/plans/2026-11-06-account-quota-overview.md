@@ -38,11 +38,11 @@ Files: new AccountQuotaOverview.cs, SettingsWindow.cs, DetailWindow.cs, new Acco
 - [x] Add native coverage for primary/secondary, missing Token, Bank lists and narrow widths.
 - [x] Reuse TokenBand and a common BankDetails factory between detail window and account page.
 - [x] Integrate updates and authentication gating in SettingsWindow.UpdateStatus.
-- [ ] Compile locally and run Windows native CI when delivering.
+- [x] Compile locally and run Windows native CI when delivering.
 
 ### Task 3 — validation and local installation
 
 - [x] Review complete diff and run governance check all.
-- [ ] Verify screenshots against A, including empty/offline states and minimum window.
-- [ ] Build/install a macOS candidate in /Applications and inspect the real account page.
+- [x] Verify screenshots against A, including empty/offline states and minimum window.
+- [x] Build/install a macOS candidate in /Applications and inspect the real account page.
 - [ ] Update roadmap and board with exact verification evidence and remaining platform limits.

@@ -185,7 +185,7 @@ final class QuotaTokenUsageBarView: NSView {
         let accent = QuotaColorScale.components(
             remainingPercent: remainingPercent
         ).appKitColor
-        let labelColor: NSColor = day.isCurrentDay ? (expanded ? .controlAccentColor : accent) : .secondaryLabelColor
+        let labelColor: NSColor = expanded ? .labelColor : day.isCurrentDay ? accent : .secondaryLabelColor
         let value = Self.tokenLabel(day.tokens) as NSString
         let valueAttributes: [NSAttributedString.Key: Any] = [
             .font: numberFont,

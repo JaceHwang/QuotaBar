@@ -133,7 +133,11 @@ import QuotaCore
         title.font = .systemFont(ofSize: 14, weight: .semibold)
         value = QuotaSettingsStyle.label("\(window.remainingPercent)%", size: 32)
         value.font = .systemFont(ofSize: 32, weight: .semibold)
-        value.textColor = current ? QuotaColorScale.components(remainingPercent: window.remainingPercent).appKitColor : .secondaryLabelColor
+        let accent = QuotaColorScale.components(remainingPercent: window.remainingPercent).appKitColor
+        value.textColor = current ? NSColor(name: nil, dynamicProvider: { appearance in
+            if appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua { return accent.blended(withFraction: 0.2, of: .white) ?? accent }
+            return accent.blended(withFraction: 0.5, of: .black) ?? accent
+        }) : .secondaryLabelColor
         self.reset = QuotaSettingsStyle.label(reset.map { $0.label + "\n" + $0.value } ?? "—", size: 12, secondary: true)
         progress = AccountQuotaProgress(percent: window.remainingPercent)
         super.init(frame: .zero)

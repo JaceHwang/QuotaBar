@@ -32,9 +32,9 @@ internal sealed class AccountQuotaOverview : StackPanel {
         foreach(var window in windows) {
             var column=new StackPanel();
             var heading=Ui.Text(copy.Period(window.WindowMinutes),15,Ui.Foreground(dark)); heading.FontWeight=FontWeights.SemiBold; column.Children.Add(heading);
-            var percent=Ui.Text($"{window.RemainingPercent}%",34,current?Ui.Accent(window.RemainingPercent):SettingsVisual.Muted(dark));
+            var percent=Ui.Text($"{window.RemainingPercent}%",34,current?Ui.ReadableQuotaAccent(window.RemainingPercent,dark):SettingsVisual.Muted(dark));
             percent.FontWeight=FontWeights.SemiBold; percent.Margin=new Thickness(0,8,0,10); percent.Tag="account.quota.percent"; column.Children.Add(percent);
-            var bar=new ProgressBar { Minimum=0,Maximum=100,Value=window.RemainingPercent,Height=6,Margin=new Thickness(0,0,0,14) };
+            var bar=new ProgressBar { Foreground=SystemParameters.HighContrast?SystemColors.HighlightBrush:new SolidColorBrush(Color.FromRgb(0,101,216)),Minimum=0,Maximum=100,Value=window.RemainingPercent,Height=6,Margin=new Thickness(0,0,0,14) };
             System.Windows.Automation.AutomationProperties.SetName(bar,copy.Period(window.WindowMinutes)+$" {window.RemainingPercent}%"); column.Children.Add(bar);
             var reset=Ui.Text(copy.Text("Next reset","下次重置","下次重設")+"\n"+copy.DetailCountdown(window.ResetsAt,DateTimeOffset.Now)+"\n"+window.ResetsAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm"),12,SettingsVisual.Muted(dark));
             reset.TextWrapping=TextWrapping.Wrap; reset.Tag="account.quota.reset"; column.Children.Add(reset);

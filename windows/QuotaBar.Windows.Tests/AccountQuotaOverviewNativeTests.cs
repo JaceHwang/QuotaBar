@@ -20,7 +20,17 @@ internal static class AccountQuotaOverviewNativeTests {
         return new(new(28,72,now.AddHours(3),300),secondary?new(36,64,now.AddDays(6),10080):null,"Plus",new(false,false,null),
             new(count,Enumerable.Range(0,count).Select(i=>new BankCredit("available",now,now.AddDays(i+1),null,null)).ToArray()),now);
     }
+    static double Luminance(Color color) {
+        double Channel(byte value) { var v=value/255d; return v<=0.04045?v/12.92:Math.Pow((v+0.055)/1.055,2.4); }
+        return 0.2126*Channel(color.R)+0.7152*Channel(color.G)+0.0722*Channel(color.B);
+    }
     public static void Run(Application app) {
+        if(!SystemParameters.HighContrast) foreach(var dark in new[]{false,true}) foreach(var percent in new[]{0,10,42,64,72,100}) {
+            var foreground=Luminance(((SolidColorBrush)Ui.ReadableQuotaAccent(percent,dark)).Color);
+            var background=Luminance(((SolidColorBrush)Ui.Surface(dark)).Color);
+            var contrast=(Math.Max(foreground,background)+0.05)/(Math.Min(foreground,background)+0.05);
+            if(contrast<3) throw new Exception($"Large quota value contrast is {contrast:0.00} at {percent}% in dark={dark}");
+        }
         foreach(var language in new[]{"en","zh-CN","zh-TW"}) foreach(var dark in new[]{false,true}) {
             var copy=new Copy(language); var view=new AccountQuotaOverview();
             var scroll=new ScrollViewer { Content=view,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
