@@ -45,4 +45,8 @@ Files: new AccountQuotaOverview.cs, SettingsWindow.cs, DetailWindow.cs, new Acco
 - [x] Review complete diff and run governance check all.
 - [x] Verify screenshots against A, including empty/offline states and minimum window.
 - [x] Build/install a macOS candidate in /Applications and inspect the real account page.
-- [ ] Update roadmap and board with exact verification evidence and remaining platform limits.
+- [x] Update roadmap and board with exact verification evidence and remaining platform limits.
+
+## Delivery evidence
+
+Source `7e1c2ec` is committed and pushed. Full CI `42233179603` passed on macOS and Windows, and governance `42233179946` passed. Local complete checks passed with 211 Swift Core tests, 180 AppKit tests and Windows Core behavior/protocol/install tests. The final macOS development candidate `candidate-20261106-222232` is installed in `/Applications/QuotaBar.app` and verified with live account data. Windows native UI and installation/update verification ran in CI. User-device Windows validation remains pending. Product version is inherited `1.7.0-beta.3`; the account feature is delivered as a development candidate.
