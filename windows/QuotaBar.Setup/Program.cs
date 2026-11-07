@@ -35,7 +35,13 @@ try {
     }
     return 0;
 } catch(Exception e) when(e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException or COMException) {
-    Console.Error.WriteLine("QuotaBar setup failed: "+e.Message); return 1;
+    if(command=="update" && args.Length==2) {
+        try {
+            var directory=UpdateLocations.DirectoryPath(args[1]);
+            if(!File.Exists(Path.Combine(directory,"failure.json"))) UpdateInstallJob.Read(directory).RecordFailure("preparing",e,directory);
+        } catch(Exception loggingError) when(loggingError is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+    }
+    Console.Error.WriteLine("QuotaBar setup failed: "+e); return 1;
 }
 bool StartupEnabled() { using var key=Registry.CurrentUser.OpenSubKey(runKey); return key?.GetValue("QuotaBar") is string; }
 void StopOwned() {

@@ -43,10 +43,13 @@ public sealed class TransactionInstaller {
     private sealed record Journal(string Target,string Stage,string Backup,bool HadPrevious,bool Startup,string? PreviousHistory,LegacyState? Legacy);
     private sealed record History(string Backup,bool Startup);
     readonly string target,store,journalPath,historyPath;
-    public bool RecoveryPending=>File.Exists(journalPath);
+    public bool RecoveryPending=>InstallationState.Exists(journalPath) || files.RecoveryPending(store);
     readonly InstallHooks hooks;
-    public TransactionInstaller(string target,InstallHooks hooks) {
+    readonly InstallationFileOperations files;
+    public TransactionInstaller(string target,InstallHooks hooks):this(target,hooks,new InstallationFileOperations()) { }
+    internal TransactionInstaller(string target,InstallHooks hooks,InstallationFileOperations files) {
         this.target=Path.GetFullPath(target); this.hooks=hooks;
+        this.files=files;
         store=Path.Combine(Path.GetDirectoryName(this.target)!,".QuotaBar-install"); journalPath=Path.Combine(store,"journal.json"); historyPath=Path.Combine(store,"history.json");
     }
     FileStream Lock() { Directory.CreateDirectory(store); return new(Path.Combine(store,"install.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None); }
@@ -60,13 +63,13 @@ public sealed class TransactionInstaller {
         try {
             hooks.StopOwnedApplication();
             hooks.SuspendLegacy?.Invoke();
-            if(j.HadPrevious) Directory.Move(target,backup);
-            Directory.Move(stage,target);
+            if(j.HadPrevious) Move(target,backup);
+            Move(stage,target);
             hooks.Activate(target,j.Startup);
             verifyHealth?.Invoke();
             if(j.HadPrevious) Write(historyPath,new History(backup,j.Startup));
-            File.Delete(journalPath);
-        } catch { Recover(); throw; }
+            InstallationState.Delete(journalPath);
+        } catch(Exception error) { RecoverAfterFailure(error); throw; }
     }
     public void Rollback() {
         using var locked=Lock(); Recover();
@@ -75,36 +78,44 @@ public sealed class TransactionInstaller {
         var backup=Path.Combine(store,"backup-"+Guid.NewGuid());
         var j=new Journal(target,history.Backup,backup,Directory.Exists(target),hooks.StartupEnabled(),HistorySnapshot(),hooks.CaptureLegacy?.Invoke()); Write(journalPath,j);
         try {
-            hooks.StopOwnedApplication(); if(j.HadPrevious) Directory.Move(target,backup);
+            hooks.StopOwnedApplication(); if(j.HadPrevious) Move(target,backup);
             hooks.SuspendLegacy?.Invoke();
-            Directory.Move(history.Backup,target); hooks.Activate(target,history.Startup);
-            if(j.HadPrevious) Write(historyPath,new History(backup,j.Startup)); else File.Delete(historyPath);
-            File.Delete(journalPath);
-        } catch { Recover(); throw; }
+            Move(history.Backup,target); hooks.Activate(target,history.Startup);
+            if(j.HadPrevious) Write(historyPath,new History(backup,j.Startup)); else InstallationState.Delete(historyPath);
+            InstallationState.Delete(journalPath);
+        } catch(Exception error) { RecoverAfterFailure(error); throw; }
     }
     public void Uninstall() {
         using var locked=Lock(); Recover(); if(!Directory.Exists(target)) return;
         var backup=Path.Combine(store,"backup-"+Guid.NewGuid()); var j=new Journal(target,"",backup,true,hooks.StartupEnabled(),HistorySnapshot(),null); Write(journalPath,j);
         try {
-            hooks.StopOwnedApplication(); Directory.Move(target,backup); hooks.Deactivate();
-            Write(historyPath,new History(backup,j.Startup)); File.Delete(journalPath);
-        } catch { Recover(); throw; }
+            hooks.StopOwnedApplication(); Move(target,backup); hooks.Deactivate();
+            Write(historyPath,new History(backup,j.Startup)); InstallationState.Delete(journalPath);
+        } catch(Exception error) { RecoverAfterFailure(error); throw; }
     }
     public void RecoverInterrupted() { using var locked=Lock(); Recover(); }
+    void RecoverAfterFailure(Exception originalError) {
+        try { Recover(); }
+        catch(Exception recoveryError) {
+            throw new IOException("Installation failed and recovery is incomplete; recovery records retained",new AggregateException(originalError,recoveryError));
+        }
+    }
     void Recover() {
-        if(!File.Exists(journalPath)) return;
+        if(!RecoveryPending) return;
+        hooks.StopOwnedApplication();
+        files.Recover(target,store);
+        if(!InstallationState.Exists(journalPath)) return;
         var j=Read<Journal>(journalPath)??throw new IOException("Unreadable installation journal");
         if(j.Target!=target) throw new IOException("Unexpected recovery target"); ValidateManaged(j.Backup); if(j.Stage!="") ValidateManaged(j.Stage);
-        hooks.StopOwnedApplication();
         if(Directory.Exists(j.Backup)) {
             if(Directory.Exists(target)) {
                 // A failed rollback must put the consumed backup back where history points.
                 var destination=Path.GetFileName(j.Stage).StartsWith("backup-",StringComparison.Ordinal) && !Directory.Exists(j.Stage) ? j.Stage : Path.Combine(store,"failed-"+Guid.NewGuid());
-                Directory.Move(target,destination);
+                Move(target,destination);
             }
-            Directory.Move(j.Backup,target);
+            Move(j.Backup,target);
         } else if(!j.HadPrevious && Directory.Exists(target) && !Directory.Exists(j.Stage)) {
-            Directory.Move(target,Path.Combine(store,"failed-"+Guid.NewGuid()));
+            Move(target,Path.Combine(store,"failed-"+Guid.NewGuid()));
         }
         var failures=new List<Exception>();
         void Attempt(Action action) {
@@ -115,24 +126,23 @@ public sealed class TransactionInstaller {
         if(j.Legacy is not null) Attempt(()=>hooks.RestoreLegacy?.Invoke(j.Legacy));
         Attempt(()=> { if(Directory.Exists(target)) hooks.Activate(target,j.Startup); else hooks.Deactivate(); });
         Attempt(()=> {
-        if(j.PreviousHistory is null) File.Delete(historyPath); else {
+        if(j.PreviousHistory is null) InstallationState.Delete(historyPath); else {
             var old=JsonSerializer.Deserialize<History>(j.PreviousHistory)??throw new IOException("Invalid previous installation history");
             ValidateManaged(old.Backup); Write(historyPath,old);
         }
         });
         if(failures.Count>0) throw new IOException("Installation recovery incomplete; journal retained for retry",new AggregateException(failures));
-        File.Delete(journalPath);
+        InstallationState.Delete(journalPath);
     }
-    string? HistorySnapshot()=>File.Exists(historyPath)?File.ReadAllText(historyPath):null;
+    string? HistorySnapshot()=>InstallationState.Exists(historyPath)?JsonSerializer.Serialize(Read<History>(historyPath)):null;
+    void Move(string source,string destination)=>files.MoveDirectory(source,destination,target,store);
     void ValidateManaged(string path) { PackageVerifier.EnsureInside(store,path); }
     static T? Read<T>(string path) {
-        try { return JsonSerializer.Deserialize<T>(File.ReadAllText(path)); }
+        try { return InstallationState.Read<T>(path); }
         catch(Exception e) when(e is JsonException or IOException) { throw new IOException("Invalid installation state",e); }
     }
     static void Write<T>(string path,T value) {
-        var temp=path+".tmp";
-        using(var stream=new FileStream(temp,FileMode.Create,FileAccess.Write,FileShare.None)) { JsonSerializer.Serialize(stream,value); stream.Flush(true); }
-        File.Move(temp,path,true);
+        InstallationState.Write(path,value);
     }
     static void Copy(string source,string destination) {
         Directory.CreateDirectory(destination);
