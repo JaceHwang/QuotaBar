@@ -29,6 +29,10 @@ public sealed record UpdateInstallJob(int Schema,string OperationID,string Targe
         return JsonSerializer.Deserialize<UpdateInstallJob>(File.ReadAllText(path),Json)??throw new IOException("Invalid update job");
     }
     public void Receipt(string kind,string directory)=>Atomic(Path.Combine(directory,kind+".json"),new UpdateReceipt(1,OperationID,Nonce,kind));
+    public void RecordFailure(string stage,Exception error,string directory) {
+        try { Atomic(Path.Combine(directory,"failure.json"),new { schema=1,operationID=OperationID,stage,hResult=error.HResult,error=error.ToString(),recordedAt=DateTimeOffset.UtcNow }); }
+        catch(Exception loggingError) when(loggingError is IOException or UnauthorizedAccessException) { }
+    }
     public bool HasReceipt(string kind,string directory) {
         try { var path=Path.Combine(directory,kind+".json"); if(new FileInfo(path).Length>=4096) return false; var receipt=JsonSerializer.Deserialize<UpdateReceipt>(File.ReadAllText(path),Json); return receipt==new UpdateReceipt(1,OperationID,Nonce,kind); }
         catch(Exception e) when(e is IOException or JsonException or UnauthorizedAccessException) { return false; }
@@ -36,7 +40,7 @@ public sealed record UpdateInstallJob(int Schema,string OperationID,string Targe
     public static void Atomic<T>(string path,T value) {
         var temp=path+"."+Guid.NewGuid().ToString("N");
         using(var output=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None)) { JsonSerializer.Serialize(output,value,Json); output.Flush(true); }
-        File.Move(temp,path,true);
+        InstallationState.Commit(temp,path);
     }
 }
 public sealed record UpdateReceipt(int Schema,string OperationID,string Nonce,string Kind);
@@ -78,8 +82,10 @@ public static class ApplicationUpdateTransaction {
             throw new IOException("Beta consent was revoked");
         }
         Process? started=null;
+        var stage="installation";
         try {
             installer.Install(candidate,()=> {
+                stage="startup";
                 var start=new ProcessStartInfo(Path.Combine(job.Target,"QuotaBar.exe")) { UseShellExecute=false,WorkingDirectory=job.Target };
                 foreach(var arg in new[]{"--update-health",directory,job.Nonce}) start.ArgumentList.Add(arg);
                 started=Process.Start(start)??throw new IOException("Updated app did not launch");
@@ -88,8 +94,10 @@ public static class ApplicationUpdateTransaction {
                     if(started.HasExited || DateTimeOffset.UtcNow>=deadline) throw new IOException("Updated app did not acknowledge startup"); Thread.Sleep(50);
                 }
                 if(started.WaitForExit(2000)) throw new IOException("Updated app exited during startup");
+                stage="installation";
             });
-        } catch {
+        } catch(Exception error) {
+            job.RecordFailure(stage,error,directory);
             if(started is { HasExited:false }) { started.Kill(true); started.WaitForExit(6000); }
             TryReceipt(job,installer.RecoveryPending?"failed":"rolledBack",directory);
             if(!installer.RecoveryPending) launchOld(Path.Combine(job.Target,"QuotaBar.exe"),[]);

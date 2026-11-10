@@ -1136,3 +1136,32 @@ Mac聚焦回归覆盖正常设置入口、三语言/深浅主题、双/单周期
 2026-11-07集成结果。用户补充远端分支codex/fix/beta-channel-save后，已取得3f16313575d5f33d37e1f1d8e498a6de27495061并审阅，cherry-pick为e6b7924。仅路线图追加记录发生冲突，双方记录均保留，产品源码自动合并。该分支另有9ca7c18的开发同步治理改动，本轮按指定Windows实机修复范围选取3f16313。最新完整governance check all通过，包含新增内测存储错误注入回归、Swift测试与Windows三工程跨编译。当前Mac环境未执行新的Windows原生测试，来源分支的实机证据按历史记录保留。修复已进入当前账户概览分支，后续候选构建及公开发布按授权推进。
 
 2026-11-07用户明确授权发布当前最新功能测试版。范围为账户概览和Windows内测设置保存修复，使用Release Please生成下一Beta版本，执行双平台原生CI、准确标签打包及公开更新源核验。
+### 2026-11-07 双实机代码同步工作流
+
+用户授权按平台执行本地检查、显式草稿同步和远程双平台合并/发布门槛。新增 check local/sync，草稿模式仍要求快速检查成功，拒绝 CI、主分支、预发布分支和标签。本机 Core、应用/安装器构建通过，原生 UI 测试存在 initial floating close hidden 失败，草稿同步明确报告该失败。新增同步/平台路由和精确提交发布 CI 核验测试，补齐 Windows 原生 Python/Git Bash 兼容。操作指南及 PR 实机证据模板已更新。远程规则和草稿 PR 随交付核对，跨平台 CI 与 Mac 实机结果待远程执行。
+
+### 2026-11-07 Windows beta.4 本机更新回滚排查与恢复
+
+用户报告本机下载并安装后显示新版未能正常启动、恢复旧版。最新更新目录 bdd0a945cf284e0eb93f1ab16dbe6f33 对应官方 1.7.0-beta.4（2281d6be3bf127eb6057758c3ab503afdb733571），存在 ready/handoff/rolledBack 回执，无 health 回执，当前安装仍为本地兼容修复的 beta.2。在安装事务目录内用隔离空目录调用 System.IO.Directory.Move，复现 IOException“句柄无效”；事务替换依赖相同调用，通用 rolledBack 文案将安装阶段失败描述为启动失败。原助手未持久化具体异常，无法从该次回执单独恢复原始异常堆栈。
+
+本轮使用已下载官方 beta.4 包恢复本机。核验 ZIP 和外部来源文件的长度与 SHA256、解包来源文件一致性、785 项包文件摘要。完整备份并逐文件核验旧安装至 %LOCALAPPDATA%/Programs/.QuotaBar-install/manual-backup-20261107-180821，随后复制替换安装目录并移除旧版独有文件，安装后全部清单摘要一致。启动 PID31512 来自标准安装路径，运行超过12秒，standalone-state 为 Ready、has_quota=True、floating_visible=True，内测授权仍为 true。
+
+本轮为本机安装恢复，未修改安装器源码。自动更新所依赖的目录重命名兼容问题仍需后续修复及错误注入/事务恢复回归，未据此宣称自动更新链已修复。项目进度技能工具不可用，检出缺少 .project-board/board.md，依据路线图与本机证据记录，未生成看板。
+
+### 2026-11-07 Windows 安装器无效句柄兼容修复
+
+用户明确要求执行安装器修复。沿用现有隔离工作区，创建 codex/fix/windows-installer-handle，基于 9ca7c18；Core 和 Setup 修复前内容与官方 beta.4 一致，保留既有路线图修改。governance doctor 通过。进度技能工具不可用，缺少 .project-board/board.md，继续按路线图和实证记录。
+
+InstallationFileOperations 对 0x80070006 启用带文件摘要清单的复制事务，记录 copy-move.json，在完整副本刷盘及校验完成后记录 complete 并删除源。重启时先恢复复制，再恢复既有安装事务，其他重命名错误继续传播。InstallationState 保留中断写入后的有效临时记录，逻辑删除先删最终文件、后删临时记录。更新任务/回执写入复用无效句柄兼容提交，助手新增 failure.json，包含 preparing/installation/startup 阶段、错误码及异常堆栈。安装与恢复同时失败时保留两项异常。
+
+错误注入回归先复现安装失败，再验证首次安装、升级、健康失败回滚、卸载恢复、备份复制失败重试、复制中断、源清理中断、恢复失败重启、校验损坏及受管路径拒绝。独立审阅发现并修复原始异常被恢复异常覆盖、临时历史残留、健康成功后阶段未重置，以及临时日志过早删除；后者通过实际 Windows 文件独占锁先失败后通过。最终审阅无遗留问题。完整 governance check local 退出 0，包括 Core 全套、20/20 行为测试、应用/安装器构建及原生 Windows UI 套件；本轮浮窗和真实 Quit 测试通过。未在本机执行 Mac 或远程 CI。
+
+本地候选 .dist/installer-handle/QuotaBar 基于校验过的官方 beta.4，替换应用与 setup 的 Core DLL、Setup 可执行文件和程序集，保留官方 beta.4 其余界面及运行时。来源明确标为 local-development-candidate，并分别记录原发行来源和修复源码摘要，未修改产品版本。Core SHA256 为 91f3bda21b82a10052b0ad12edd9251e5cc88d18fe8f22a6ccf0f831dd02a7be。旧安装完整备份于 %LOCALAPPDATA%/Programs/.QuotaBar-install/installer-repair-backup-20261107-185810。修复后的 Setup.exe 已实际完成安装，785 项文件摘要一致，应用 Ready 且额度可用。
+
+实机更新助手第一次使用未修改的官方 beta.4 包。交接及目录替换成功，随后旧 Core 在健康回执的 File.Move 留下完整临时回执，应用未提交 health.json 并退出。新助手正确记录 startup 失败、完成回滚并恢复修复候选，偏好摘要一致。此探测失败记录保留，不能宣称未修改的旧官方包更新成功。正在使用包含两条兼容修复的本地夹具验收完整助手链路；夹具合成发布元数据仅用于现有受信任务入口测试，标记 localTestOnly，不作为公开发行包交付。最终安装将恢复带本地开发来源的候选。源码未提交或推送，未公开发布。
+
+验收完成补充：本地修复夹具的真实 Setup update 入口在当前设备获得 ready、handoff、health、succeeded 回执，助手退出 0，无 rolledBack；包含两条修复的包完成目录替换并持续运行。随后再次通过修复后的 Setup install 恢复带 local-development-candidate 来源的候选，785 项文件摘要及偏好摘要全部一致，最终 PID38756，状态 Ready、has_quota=True、floating_visible=True。验证记录位于 .dist/installer-handle/verification.json，testKind=local-repair-fixture；旧官方包失败探测单独保存在 official-probe-verification.json。最新快速治理检查通过，独立审阅全部问题已关闭。当前为已安装的本机修复候选，未提交、推送或公开发布；未来正式包需同时包含目录与启动回执两条兼容修复，不能把旧官方包探测失败写成更新成功。
+
+### 2026-11-07 安装器修复本地提交授权
+
+用户明确授权提交本次修复。提交范围为安装器/更新回执兼容处理、故障日志、回归测试、修复计划及实机验收记录。提交前 governance doctor 与快速治理检查通过，沿用已完成的完整 Windows 本地检查和修复夹具实机健康回执证据。当前交付为 codex/fix/windows-installer-handle 分支的本地 Git 提交，发行状态为本机开发候选。
