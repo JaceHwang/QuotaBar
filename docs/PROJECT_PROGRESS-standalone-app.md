@@ -1187,3 +1187,23 @@ InstallationFileOperations 对 0x80070006 启用带文件摘要清单的复制�
 用户授权将本次改动提交远端。交付包含工作目录双层保护、目录占用有限重试、诊断文案和回归测试及实机证据。beta.5基线推送钩子要求本机执行macOS xcrun，当前Windows无法完成；集成仓库已有9ca7c18原生设备同步工作流，以Windows完整检查和远端双平台CI继续验证。既有在线实机验收结果保持按候选和官方包分别记录。
 
 远端提交验证补充：修复已形成23301dd，既有原生设备同步工作流9ca7c18已集成为17adf7c，路线图冲突核对后保留全部现有记录并去除重复条目。首次普通推送的Core及构建通过，但原生浮窗断言“native pointer down reaches fully transparent dimmed padding”失败，钩子阻止推送。同一二进制完整原生UI套件复跑退出0，包括账户总览、浮窗和真实Quit；随后重新执行普通推送检查。此记录保留首次失败和复跑证据。
+
+### 2026-11-10 Windows 断点续传与安装失败缓存复用
+
+用户要求增加断点续下载，使断网及安装报错后的重试复用已有数据。在codex/feat/resumable-windows-updates实现，基于已推送的工作目录修复分支。governance doctor通过；进度技能工具和.project-board/board.md仍不可用，按路线图和实证记录。
+
+下载资产以官方SHA256为身份保存在Updates/downloads，与每次新建的GUID安装工作目录分离。文件锁覆盖缓存下载、校验及工作目录复制，阻止并发写入。每次重新解析官方发布和tag元数据，完整资产重新校验长度/摘要，来源仍验证版本、标签和提交。取消、传输中断和任务清理保留缓存；安装失败重试获得全新任务目录和凭据。旧版GUID目录中的有效包/来源文件可导入复用。损坏完整文件被删除重取，损坏断点在最终校验失败后清除，允许下次完整重试。
+
+HTTP续传使用Range，严格校验206的起点、终点和总长度；范围单位大小写不敏感。200完整响应重置文件，416后尝试无Range请求。拒绝不匹配范围、压缩响应和不受信重定向；最终摘要和来源校验继续强制执行。公开IUpdateTransport签名保持兼容。
+
+测试先复现缺少Range请求和安装失败重复下载，再验证续传、200重启、416恢复、错误范围、取消保留、截断响应、受信重定向、缓存复用、新任务隔离、旧包导入、缓存损坏恢复及并发写入拒绝。独立审阅无阻塞问题，补充损坏短前缀最终校验失败后可完整重试回归。完整Core和Windows应用/安装器构建、原生UI套件通过，含账户总览、浮窗和真实Quit；范围单位大小写回归先失败再修正，之后完整Core再次通过。Mac未在本机执行。
+
+实网组件验收通过实际UpdateDownloadClient入口解析官方beta.5元数据，导入既有失败更新包；清理自身GUID工作目录后重试，安装包/来源数据请求均为0。独立实网缓存以已校验的1MiB前缀起步，真实下载主动取消后保留3159738字节；新操作确实发送Range bytes=3159738-，完成247401951字节，并核验官方SHA256 b9080a491ba26ff6afa19bba74ee4a018894a6367f010c4d6795daa344614213及发布来源。完成后再次创建新操作，资产数据请求为0。模拟截断覆盖断网语义，实网使用主动取消避免中断设备整体网络。记录位于.dist/resume-probe/results/verification.json。
+
+部署沿用beta.5本地候选和既有工作目录/回执兼容，替换应用与setup的Core DLL，重建本地开发来源及包摘要；产品版本保持beta.5。整份安装已备份到%LOCALAPPDATA%/Programs/.QuotaBar-install/resume-backup-20261110-183445，安装和最终启动核验进行中。当前范围为Windows实现、本机测试和候选部署。
+
+验收完成：断点续传Core已部署到本机beta.5开发候选，PID18632，Ready、has_quota=True、floating_visible=True，786项安装文件及偏好摘要一致。应用与setup的Core SHA256为8ffecef1a2acb46948bcf4550f77f39ef6e9270ddffbfac31a1688a672c45a70。记录位于.dist/resumable-updates/verification.json；当前源码在codex/feat/resumable-windows-updates，尚未提交、推送或公开发布。
+
+### 2026-11-10 断点续传远端提交授权
+
+用户授权提交远端并确认继续。范围为Windows下载续传、已校验资产缓存复用、回归测试、方案及本机验收记录。提交前governance doctor与快速检查通过，已有完整Windows测试和真实GitHub Range续传、零资产重复下载实测证据；普通推送再次执行完整Windows检查。当前按功能分支同步源码，发行状态为本机开发候选。
