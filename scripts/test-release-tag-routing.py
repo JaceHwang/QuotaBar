@@ -8,6 +8,8 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+BASH = shutil.which('bash')
+SH = shutil.which('sh')
 
 class ReleaseTagRoutingTests(unittest.TestCase):
     def test_governance_accepts_beta_version_files_and_rejects_other_prereleases(self):
@@ -23,10 +25,11 @@ class ReleaseTagRoutingTests(unittest.TestCase):
                 (root/'version.txt').write_text(version+'\n')
                 (root/'.release-please-manifest.json').write_text(json.dumps({'.':version}))
                 env=os.environ.copy();env['PYTHON_BIN']=sys.executable
-                return subprocess.run(['bash',str(root/'tests/test-repository-governance.sh')],env=env,capture_output=True,text=True).returncode
-            self.assertEqual(run('1.8.0-beta.1'),0)
-            self.assertNotEqual(run('1.8.0-beta.0'),0)
-            self.assertNotEqual(run('1.8.0-rc.1'),0)
+                return subprocess.run([BASH,str(root/'tests/test-repository-governance.sh')],env=env,capture_output=True,text=True)
+            valid = run('1.8.0-beta.1')
+            self.assertEqual(valid.returncode,0,valid.stdout + valid.stderr)
+            self.assertNotEqual(run('1.8.0-beta.0').returncode,0)
+            self.assertNotEqual(run('1.8.0-rc.1').returncode,0)
     def test_release_please_beta_configuration_starts_with_a_number(self):
         config=json.loads((ROOT/'.governance/release/beta.json').read_text())
         self.assertEqual(config['versioning'],'prerelease')
@@ -51,7 +54,7 @@ class ReleaseTagRoutingTests(unittest.TestCase):
             adapter = ROOT / '.governance/project/build-release'
             def run(tag):
                 (root / 'invoked').unlink(missing_ok=True)
-                result = subprocess.run(['sh',str(adapter), 'macos-arm64', tag], cwd=root, capture_output=True, text=True)
+                result = subprocess.run([SH,str(adapter), 'macos-arm64', tag], cwd=root, capture_output=True, text=True)
                 return result.returncode, (root / 'invoked').read_text() if (root / 'invoked').exists() else None
             for valid in ('v1.7.0', 'v1.8.0-beta.1', 'v1.8.0-beta.11'):
                 code, invoked = run(valid)

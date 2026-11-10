@@ -1229,3 +1229,5 @@ Range和缓存重试回归在旧代码上先失败，修复后通过；审查发
 已定位f808161的Windows CI失败：原生Python调用bash时找到System32的WSL bash。Windows CI快速校验步骤将Git Bash的/usr/bin置于PATH前端，校验脚本显式解析shell完整路径以避免Windows进程搜索顺序命中系统目录，保留全部检查；此调整仍需远端Windows CI验证。当前准备提交、构建候选与验证，尚未发布。
 
 提交准备：加入CI路径调整后，在macOS重新执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0。下一步生成准确源码提交并同步开发分支，以获取双平台CI候选；正式发布前还需分别记录同提交的两端实机结果。
+
+开发分支bcfb447已推送并创建草稿PR #80，macOS候选candidate-20261110-200403按该提交干净构建、签名和隔离启动通过，DMG SHA256为1d64af374cbaa738d99432fa1b32cb3767cf68898646fdb8ec206d6830643ac3。该候选尚未安装；后续CI修正会使其源码提交落后，不能作为后续提交的实机证据。远端Windows CI42812562691通过了原先失败的仓库校验，但下一组发布标签测试失败；原测试未输出子进程错误，怀疑仍与直接调用bash有关。现已将同步和发布测试的shell调用也改为显式解析并输出失败详情，待重新验证。

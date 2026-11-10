@@ -8,6 +8,8 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+BASH = shutil.which("bash")
+SH = shutil.which("sh")
 
 # Git hooks export repository locations. Fixtures must never inherit those paths.
 for variable in list(os.environ):
@@ -43,9 +45,9 @@ class DevelopmentSyncTests(unittest.TestCase):
         env = os.environ.copy()
         env.update(QUOTABAR_DRAFT_SYNC=draft, SYNC_FAST_STATUS=fast,
                    SYNC_LOCAL_STATUS=local, SYNC_TRACE=str(self.trace), CI=ci)
-        command = ["sh", str(self.root / "governance"), "check", mode]
+        command = [SH, str(self.root / "governance"), "check", mode]
         if refs is not None:
-            command = ["sh", str(self.root / ".githooks/pre-push")]
+            command = [SH, str(self.root / ".githooks/pre-push")]
         return subprocess.run(command, cwd=self.root, env=env, input=refs, text=True, capture_output=True)
 
     def calls(self):
@@ -130,7 +132,7 @@ class DevelopmentSyncTests(unittest.TestCase):
         env = os.environ.copy()
         env.update(BASH_ENV=str(mock).replace("\\", "/"),
                    SYNC_TRACE=str(self.trace), SYNC_DOTNET_STATUS=status)
-        return subprocess.run(["bash", str(project / "check-local")], cwd=self.root,
+        return subprocess.run([BASH, str(project / "check-local")], cwd=self.root,
                               env=env, text=True, capture_output=True)
 
     def test_windows_device_runs_core_builds_and_native_ui(self):
@@ -171,7 +173,7 @@ class DevelopmentSyncTests(unittest.TestCase):
         )
         env = os.environ.copy()
         env.update(BASH_ENV=str(mock).replace("\\", "/"), SYNC_TRACE=str(self.trace))
-        result = subprocess.run(["bash", str(project / "check-full")], cwd=self.root,
+        result = subprocess.run([BASH, str(project / "check-full")], cwd=self.root,
                                 env=env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 8, result.stderr)
         self.assertEqual(self.calls(), ["swift", "python", "python", "signing"] + ["dotnet"] * 4)
