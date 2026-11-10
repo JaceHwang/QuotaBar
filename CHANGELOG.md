@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0-beta.6](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.5...v1.7.0-beta.6) (2026-11-10)
+
+
+### Features
+
+* resume verified updates on macOS and Windows ([#80](https://github.com/JaceHwang/QuotaBar/issues/80)) ([9f1bcde](https://github.com/JaceHwang/QuotaBar/commit/9f1bcde9da745688e782b1d7389097fd71c6cbd4))
+
 ## [1.7.0-beta.5](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.4...v1.7.0-beta.5) (2026-11-10)
 
 
