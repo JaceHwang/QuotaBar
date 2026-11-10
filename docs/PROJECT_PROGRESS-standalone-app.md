@@ -1226,6 +1226,6 @@ Range和缓存重试回归在旧代码上先失败，修复后通过；审查发
 
 用户授权发布测试版进行实机测试。范围包含Windows工作目录保护与断点续传、macOS断点续传和缓存复用，按仓库规则通过Release Please生成beta版本，不覆盖历史资产。发布前需同一源码提交的两端实机结果与候选摘要，以及准确tag的双平台CI；此前Windows实机结果和macOS本地测试不等同于新整合提交的双端验收。
 
-已定位f808161的Windows CI失败：原生Python在PATH中优先找到System32的WSL bash。Windows CI快速校验步骤将Git Bash的/usr/bin置于PATH前端，保留全部检查；此调整仍需远端Windows CI验证。当前准备提交、构建候选与验证，尚未发布。
+已定位f808161的Windows CI失败：原生Python调用bash时找到System32的WSL bash。Windows CI快速校验步骤将Git Bash的/usr/bin置于PATH前端，校验脚本显式解析shell完整路径以避免Windows进程搜索顺序命中系统目录，保留全部检查；此调整仍需远端Windows CI验证。当前准备提交、构建候选与验证，尚未发布。
 
 提交准备：加入CI路径调整后，在macOS重新执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0。下一步生成准确源码提交并同步开发分支，以获取双平台CI候选；正式发布前还需分别记录同提交的两端实机结果。
