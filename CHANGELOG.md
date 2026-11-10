@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0-beta.5](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.4...v1.7.0-beta.5) (2026-11-10)
+
+
+### Bug Fixes
+
+* **windows:** recover installer operations from invalid handles ([61bd5c9](https://github.com/JaceHwang/QuotaBar/commit/61bd5c9b04b15b80fe24e1ea70eb5dcc742f5e80))
+
 ## [1.7.0-beta.4](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.3...v1.7.0-beta.4) (2026-11-06)
 
 
