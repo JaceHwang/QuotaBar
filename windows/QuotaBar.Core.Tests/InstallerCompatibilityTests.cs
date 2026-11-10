@@ -7,6 +7,7 @@ internal static class InstallerCompatibilityTests {
         var root=Path.Combine(Path.GetTempPath(),"quotabar-install-compat-"+Guid.NewGuid());
         Directory.CreateDirectory(root);
         try {
+            SharingViolations(root);
             var one=Candidate(root,"one");
             var two=Candidate(root,"two");
             var target=Path.Combine(root,"Programs","QuotaBar");
@@ -49,6 +50,27 @@ internal static class InstallerCompatibilityTests {
             StateWrites(root);
             Console.WriteLine("PASS installer invalid-handle install, upgrade, health rollback, uninstall, failed backup and retry");
         } finally { Directory.Delete(root,true); }
+    }
+
+    static void SharingViolations(string root) {
+        var source=Path.Combine(root,"sharing-source");
+        var destination=Path.Combine(root,"sharing-destination");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source,"keep"),"original");
+        var attempts=0;
+        var delays=0;
+        var transient=new InstallationFileOperations(moveDirectory:(from,to)=> {
+            attempts++;
+            if(attempts<=2) throw new IOException("transient lock",unchecked((int)(attempts==1?0x80070020:0x80070021)));
+            Directory.Move(from,to);
+        },retryDelay:duration=> { Check(duration==TimeSpan.FromMilliseconds(250),"bounded retry interval");delays++; });
+        transient.MoveDirectory(source,destination,"unused","unused");
+        Check(attempts==3 && delays==2 && File.ReadAllText(Path.Combine(destination,"keep"))=="original","transient sharing violation retries then moves directory");
+        attempts=0;delays=0;
+        var persistent=new InstallationFileOperations(moveDirectory:(_,_)=> { attempts++;throw new IOException("persistent lock",unchecked((int)0x80070020)); },retryDelay:_=>delays++);
+        Throws(()=>persistent.MoveDirectory(destination,source,"unused","unused"));
+        Check(attempts==21 && delays==20 && File.Exists(Path.Combine(destination,"keep")) && !Directory.Exists(source),"persistent sharing violation is bounded and preserves source");
+        Console.WriteLine("PASS transient sharing/lock violations and bounded persistent-lock failure");
     }
 
     static void StateWrites(string root) {

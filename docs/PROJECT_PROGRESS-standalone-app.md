@@ -1165,3 +1165,23 @@ InstallationFileOperations 对 0x80070006 启用带文件摘要清单的复制�
 ### 2026-11-07 安装器修复本地提交授权
 
 用户明确授权提交本次修复。提交范围为安装器/更新回执兼容处理、故障日志、回归测试、修复计划及实机验收记录。提交前 governance doctor 与快速治理检查通过，沿用已完成的完整 Windows 本地检查和修复夹具实机健康回执证据。当前交付为 codex/fix/windows-installer-handle 分支的本地 Git 提交，发行状态为本机开发候选。
+
+### 2026-11-10 在线更新工作目录最小修复与实机验收
+
+用户批准按最小方案实施并实际测试。基于官方 beta.5（d57e8963dcbf1045f9ffc26ce30bd3a915f8fd4b）创建 codex/fix/windows-update-working-directory。治理 doctor 在配置既有 Python/Git Bash 适配后通过。进度技能工具及 .project-board/board.md 不可用，依据路线图、源码及实际回执继续。
+
+客户端显式指定复制助手所在目录为 WorkingDirectory；Setup 的 update 分支在解析任务后规范化原始参数，再切换到自身目录，记录 PID、继承及生效 CWD。恢复旧应用时显式使用安装目录作为应用工作目录。目录移动仅对错误32/33增加20次250ms延迟，错误6继续走既有可恢复复制，其他错误传播。failure.json 补充进程、CWD、移动路径和次数；通用回滚文案改为更新失败。原生助手测试改为父进程和助手均从安装目录启动，并传入相对任务路径，验证准备失败的日志。
+
+短暂占用回归先失败后通过，覆盖32/33释放后成功以及持续占用21次调用、最多5秒延迟后安全失败。独立审阅发现外层 catch 在切换CWD后重新解析相对任务导致日志丢失，使用实际过期相对任务命令先复现，再规范化参数修复，现可返回 preparing 失败日志。审阅复核无剩余问题。完整 Core、Windows应用/安装器构建及原生UI套件通过，包括账户总览、浮窗、退出等待更新清理。governance check all 的快速检查通过，完整检查在 Windows 缺少 xcrun 处退出127；Mac及远程CI尚无本轮结果。
+
+完整备份当前安装至 %LOCALAPPDATA%/Programs/.QuotaBar-install/cwd-repair-backup-20261110-175148，逐文件摘要一致。为首次在线更新，在已安装beta.4中部署修复助手并更新本地来源和包摘要，保留旧客户端。通过真实设置页“立即更新”获取官方beta.5，任务3f76cdab632b4c4c9e2587c084707049获得 ready/handoff/health/succeeded，全部安装文件摘要与官方包一致，偏好摘要一致。助手PID6780日志确认继承CWD为安装目录，生效CWD为更新缓存的current-setup，验证此次自占用路径已解除。官方包来源为release，精确源提交d57e896；此验收使用正式包，非合成发布夹具。证据在 .dist/update-cwd/online-verification.json。
+
+随后通过修复后的安装器部署包含客户端保护、助手保护、有限重试及新文案的beta.5本地开发候选，最终启动和文件核验正在完成。Core SHA256为84b5c32b116ee6c439fa6033d11ff5497e1a0903e373c00f1ce4409bd4d2b46e。当前范围为源码修复和本机安装测试。
+
+验收完成：最终beta.5本地候选安装完成，786项文件摘要和偏好摘要一致，PID4544，standalone-state为Ready、has_quota=True、floating_visible=True。实际设置界面显示beta.5开发候选，账户页确认额度已更新。最终证据在 .dist/update-cwd/final-verification.json。当前修复源码位于codex/fix/windows-update-working-directory，尚未提交、推送或公开发布。真实在线升级验收对应官方beta.5，最终常驻安装对应包含本轮改动的本地候选，两者证据分开保存。原生助手全模式脚本为干净测试账号设计，本轮修改其继承目录和相对任务回归，用户账号以真实在线升级验证主链路；其余恢复分支通过Core回归验证。
+
+设置页另观察到“无法保存提醒状态，本次未发提醒”，记录为独立的提醒状态持久化问题；本轮提醒偏好文件摘要一致，在线更新收到成功回执。
+
+### 2026-11-10 工作目录修复远端提交授权
+
+用户授权将本次改动提交远端。交付包含工作目录双层保护、目录占用有限重试、诊断文案和回归测试及实机证据。beta.5基线推送钩子要求本机执行macOS xcrun，当前Windows无法完成；集成仓库已有9ca7c18原生设备同步工作流，以Windows完整检查和远端双平台CI继续验证。既有在线实机验收结果保持按候选和官方包分别记录。
