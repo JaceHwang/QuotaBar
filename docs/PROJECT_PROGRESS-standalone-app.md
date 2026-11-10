@@ -1207,3 +1207,25 @@ HTTP续传使用Range，严格校验206的起点、终点和总长度；范围�
 ### 2026-11-10 断点续传远端提交授权
 
 用户授权提交远端并确认继续。范围为Windows下载续传、已校验资产缓存复用、回归测试、方案及本机验收记录。提交前governance doctor与快速检查通过，已有完整Windows测试和真实GitHub Range续传、零资产重复下载实测证据；普通推送再次执行完整Windows检查。当前按功能分支同步源码，发行状态为本机开发候选。
+
+### 2026-11-10 Windows 更新修复本地整合
+
+用户要求将工作目录修复和断点续传两次提交整合到本地。获取远端后核对，f808161已包含23301dd及设备同步工作流17adf7c，因此以f808161建立本地分支codex/feat/integrate-windows-updates，无需重复合并；未修改main或推送本地分支。该基线同时包含既有beta.5历史。
+
+本机macOS执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check local` 通过，包含Swift测试、安装与启动清理、Windows Core行为和安装事务测试，以及Windows应用、安装器和原生测试项目跨编译；本次未在Windows设备运行原生UI或安装验收。f808161的远端治理作业42809202607通过；CI作业42809202662的Windows阶段在快速校验时失败：Python调用bash命中未安装发行版的WSL，后续Windows原生作业被跳过；macOS阶段查询时仍在运行。下一步需修复Windows CI的Git Bash解析并重新验证，不能以本机跨编译或历史设备证据代替本次CI。
+
+### 2026-11-10 macOS 更新断点续传与缓存复用
+
+用户要求分析Windows提交f808161并在macOS实现相同功能。在本地整合分支实现按官方SHA-256保存更新包和来源文件，重新读取并校验发布和标签元数据；取消、传输中断和安装失败后可复用缓存，每次安装仍创建独立任务目录。支持精确Range续传、200重启、416回退、缓存损坏删除、已验证旧任务导入，以及文件锁防止并发写入；继续校验重定向、包长度、摘要和来源。取消后立即重试会等待旧任务释放缓存锁。
+
+Range和缓存重试回归在旧代码上先失败，修复后通过；审查发现立即重试竞态，新增回归先失败再修复并复核。14项下载测试和7项更新服务测试通过，覆盖主动取消、截断后续传、错误范围、损坏缓存、旧任务导入、并发锁与重试清理。实际GitHub重定向后的产品端到端续传、候选安装和新提交的远端CI尚未执行，不将模拟网络测试等同实机在线安装。当前为本地源码改动，未提交、推送或发布。
+
+本机完整验证：`PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0，Swift Core 220项、AppKit 181项通过，安装/启动夹具、Windows Core行为和安装事务检查通过，Windows应用、安装器及UI测试项目跨编译通过。原生Windows UI本次未在Mac执行。下一步可基于准确源码构建候选，实际验证GitHub在线续传及安装后重试；远端Windows CI的Git Bash解析问题仍独立待修复。
+
+### 2026-11-10 续传测试版发布准备
+
+用户授权发布测试版进行实机测试。范围包含Windows工作目录保护与断点续传、macOS断点续传和缓存复用，按仓库规则通过Release Please生成beta版本，不覆盖历史资产。发布前需同一源码提交的两端实机结果与候选摘要，以及准确tag的双平台CI；此前Windows实机结果和macOS本地测试不等同于新整合提交的双端验收。
+
+已定位f808161的Windows CI失败：原生Python在PATH中优先找到System32的WSL bash。Windows CI快速校验步骤将Git Bash的/usr/bin置于PATH前端，保留全部检查；此调整仍需远端Windows CI验证。当前准备提交、构建候选与验证，尚未发布。
+
+提交准备：加入CI路径调整后，在macOS重新执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0。下一步生成准确源码提交并同步开发分支，以获取双平台CI候选；正式发布前还需分别记录同提交的两端实机结果。

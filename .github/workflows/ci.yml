@@ -52,7 +52,10 @@ jobs:
           dotnet-version: 10.0.x
       - name: Validate repository and synchronization policy
         shell: bash
-        run: ./.governance/project/check-fast
+        run: |
+          # Native Windows Python must resolve Git Bash before System32's WSL shim.
+          export PATH="/usr/bin:$PATH"
+          ./.governance/project/check-fast
       - name: Core behavior, protocol and install transactions
         run: dotnet run --project windows/QuotaBar.Core.Tests --configuration Release
       - name: Native Windows UI smoke and rendering
