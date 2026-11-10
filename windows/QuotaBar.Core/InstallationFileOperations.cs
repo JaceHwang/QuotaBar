@@ -8,15 +8,28 @@ internal sealed class InstallationFileOperations {
     readonly Action<string,string> moveDirectory;
     readonly Action<string,string,bool> copyFile;
     readonly Action<string,bool> deleteDirectory;
+    readonly Action<TimeSpan> retryDelay;
 
-    internal InstallationFileOperations(Action<string,string>? moveDirectory=null,Action<string,string,bool>? copyFile=null,Action<string,bool>? deleteDirectory=null) {
+    internal InstallationFileOperations(Action<string,string>? moveDirectory=null,Action<string,string,bool>? copyFile=null,Action<string,bool>? deleteDirectory=null,Action<TimeSpan>? retryDelay=null) {
         this.moveDirectory=moveDirectory??Directory.Move;
         this.copyFile=copyFile??File.Copy;
         this.deleteDirectory=deleteDirectory??Directory.Delete;
+        this.retryDelay=retryDelay??Thread.Sleep;
     }
 
     internal void MoveDirectory(string source,string destination,string target,string store) {
-        try { moveDirectory(source,destination);return; }
+        try {
+            for(var attempt=0;;attempt++) {
+                try { moveDirectory(source,destination);return; }
+                catch(IOException error) when(error.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021)) {
+                    error.Data["MoveSource"]=source;
+                    error.Data["MoveDestination"]=destination;
+                    error.Data["MoveAttempts"]=attempt+1;
+                    if(attempt>=20) throw;
+                    retryDelay(TimeSpan.FromMilliseconds(250));
+                }
+            }
+        }
         catch(IOException error) when(error.HResult==unchecked((int)0x80070006)) { }
         ValidatePaths(source,destination,target,store);
         if(Directory.Exists(destination) || File.Exists(destination)) throw new IOException("Copy destination already exists");

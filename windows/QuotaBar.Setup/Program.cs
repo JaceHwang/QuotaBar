@@ -21,7 +21,12 @@ try {
         case "update":
             if(args.Length!=2) throw new IOException("Expected managed update job");
             var directory=UpdateLocations.DirectoryPath(args[1]); var job=UpdateInstallJob.Read(directory);
-            ApplicationUpdateTransaction.Run(job,directory,installer,(exe,arguments)=> { var p=new ProcessStartInfo(exe) { UseShellExecute=false }; foreach(var a in arguments) p.ArgumentList.Add(a); Process.Start(p); });
+            args[1]=directory;
+            var inheritedDirectory=Environment.CurrentDirectory;
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+            try { File.AppendAllText(Path.Combine(directory,"helper-context.log"),$"PID={Environment.ProcessId} inheritedCWD={inheritedDirectory} effectiveCWD={Environment.CurrentDirectory}{Environment.NewLine}"); }
+            catch(Exception logError) when(logError is IOException or UnauthorizedAccessException) { }
+            ApplicationUpdateTransaction.Run(job,directory,installer,(exe,arguments)=> { var p=new ProcessStartInfo(exe) { UseShellExecute=false,WorkingDirectory=target }; foreach(var a in arguments) p.ArgumentList.Add(a); Process.Start(p); });
             break;
         case "install":
             var index=Array.IndexOf(args,"--candidate");

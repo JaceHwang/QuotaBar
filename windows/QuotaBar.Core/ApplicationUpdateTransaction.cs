@@ -30,7 +30,7 @@ public sealed record UpdateInstallJob(int Schema,string OperationID,string Targe
     }
     public void Receipt(string kind,string directory)=>Atomic(Path.Combine(directory,kind+".json"),new UpdateReceipt(1,OperationID,Nonce,kind));
     public void RecordFailure(string stage,Exception error,string directory) {
-        try { Atomic(Path.Combine(directory,"failure.json"),new { schema=1,operationID=OperationID,stage,hResult=error.HResult,error=error.ToString(),recordedAt=DateTimeOffset.UtcNow }); }
+        try { Atomic(Path.Combine(directory,"failure.json"),new { schema=1,operationID=OperationID,stage,hResult=error.HResult,error=error.ToString(),helperPID=Environment.ProcessId,workingDirectory=Environment.CurrentDirectory,moveSource=error.Data["MoveSource"],moveDestination=error.Data["MoveDestination"],moveAttempts=error.Data["MoveAttempts"],recordedAt=DateTimeOffset.UtcNow }); }
         catch(Exception loggingError) when(loggingError is IOException or UnauthorizedAccessException) { }
     }
     public bool HasReceipt(string kind,string directory) {

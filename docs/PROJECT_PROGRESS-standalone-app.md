@@ -1165,3 +1165,69 @@ InstallationFileOperations 对 0x80070006 启用带文件摘要清单的复制�
 ### 2026-11-07 安装器修复本地提交授权
 
 用户明确授权提交本次修复。提交范围为安装器/更新回执兼容处理、故障日志、回归测试、修复计划及实机验收记录。提交前 governance doctor 与快速治理检查通过，沿用已完成的完整 Windows 本地检查和修复夹具实机健康回执证据。当前交付为 codex/fix/windows-installer-handle 分支的本地 Git 提交，发行状态为本机开发候选。
+
+### 2026-11-10 在线更新工作目录最小修复与实机验收
+
+用户批准按最小方案实施并实际测试。基于官方 beta.5（d57e8963dcbf1045f9ffc26ce30bd3a915f8fd4b）创建 codex/fix/windows-update-working-directory。治理 doctor 在配置既有 Python/Git Bash 适配后通过。进度技能工具及 .project-board/board.md 不可用，依据路线图、源码及实际回执继续。
+
+客户端显式指定复制助手所在目录为 WorkingDirectory；Setup 的 update 分支在解析任务后规范化原始参数，再切换到自身目录，记录 PID、继承及生效 CWD。恢复旧应用时显式使用安装目录作为应用工作目录。目录移动仅对错误32/33增加20次250ms延迟，错误6继续走既有可恢复复制，其他错误传播。failure.json 补充进程、CWD、移动路径和次数；通用回滚文案改为更新失败。原生助手测试改为父进程和助手均从安装目录启动，并传入相对任务路径，验证准备失败的日志。
+
+短暂占用回归先失败后通过，覆盖32/33释放后成功以及持续占用21次调用、最多5秒延迟后安全失败。独立审阅发现外层 catch 在切换CWD后重新解析相对任务导致日志丢失，使用实际过期相对任务命令先复现，再规范化参数修复，现可返回 preparing 失败日志。审阅复核无剩余问题。完整 Core、Windows应用/安装器构建及原生UI套件通过，包括账户总览、浮窗、退出等待更新清理。governance check all 的快速检查通过，完整检查在 Windows 缺少 xcrun 处退出127；Mac及远程CI尚无本轮结果。
+
+完整备份当前安装至 %LOCALAPPDATA%/Programs/.QuotaBar-install/cwd-repair-backup-20261110-175148，逐文件摘要一致。为首次在线更新，在已安装beta.4中部署修复助手并更新本地来源和包摘要，保留旧客户端。通过真实设置页“立即更新”获取官方beta.5，任务3f76cdab632b4c4c9e2587c084707049获得 ready/handoff/health/succeeded，全部安装文件摘要与官方包一致，偏好摘要一致。助手PID6780日志确认继承CWD为安装目录，生效CWD为更新缓存的current-setup，验证此次自占用路径已解除。官方包来源为release，精确源提交d57e896；此验收使用正式包，非合成发布夹具。证据在 .dist/update-cwd/online-verification.json。
+
+随后通过修复后的安装器部署包含客户端保护、助手保护、有限重试及新文案的beta.5本地开发候选，最终启动和文件核验正在完成。Core SHA256为84b5c32b116ee6c439fa6033d11ff5497e1a0903e373c00f1ce4409bd4d2b46e。当前范围为源码修复和本机安装测试。
+
+验收完成：最终beta.5本地候选安装完成，786项文件摘要和偏好摘要一致，PID4544，standalone-state为Ready、has_quota=True、floating_visible=True。实际设置界面显示beta.5开发候选，账户页确认额度已更新。最终证据在 .dist/update-cwd/final-verification.json。当前修复源码位于codex/fix/windows-update-working-directory，尚未提交、推送或公开发布。真实在线升级验收对应官方beta.5，最终常驻安装对应包含本轮改动的本地候选，两者证据分开保存。原生助手全模式脚本为干净测试账号设计，本轮修改其继承目录和相对任务回归，用户账号以真实在线升级验证主链路；其余恢复分支通过Core回归验证。
+
+设置页另观察到“无法保存提醒状态，本次未发提醒”，记录为独立的提醒状态持久化问题；本轮提醒偏好文件摘要一致，在线更新收到成功回执。
+
+### 2026-11-10 工作目录修复远端提交授权
+
+用户授权将本次改动提交远端。交付包含工作目录双层保护、目录占用有限重试、诊断文案和回归测试及实机证据。beta.5基线推送钩子要求本机执行macOS xcrun，当前Windows无法完成；集成仓库已有9ca7c18原生设备同步工作流，以Windows完整检查和远端双平台CI继续验证。既有在线实机验收结果保持按候选和官方包分别记录。
+
+远端提交验证补充：修复已形成23301dd，既有原生设备同步工作流9ca7c18已集成为17adf7c，路线图冲突核对后保留全部现有记录并去除重复条目。首次普通推送的Core及构建通过，但原生浮窗断言“native pointer down reaches fully transparent dimmed padding”失败，钩子阻止推送。同一二进制完整原生UI套件复跑退出0，包括账户总览、浮窗和真实Quit；随后重新执行普通推送检查。此记录保留首次失败和复跑证据。
+
+### 2026-11-10 Windows 断点续传与安装失败缓存复用
+
+用户要求增加断点续下载，使断网及安装报错后的重试复用已有数据。在codex/feat/resumable-windows-updates实现，基于已推送的工作目录修复分支。governance doctor通过；进度技能工具和.project-board/board.md仍不可用，按路线图和实证记录。
+
+下载资产以官方SHA256为身份保存在Updates/downloads，与每次新建的GUID安装工作目录分离。文件锁覆盖缓存下载、校验及工作目录复制，阻止并发写入。每次重新解析官方发布和tag元数据，完整资产重新校验长度/摘要，来源仍验证版本、标签和提交。取消、传输中断和任务清理保留缓存；安装失败重试获得全新任务目录和凭据。旧版GUID目录中的有效包/来源文件可导入复用。损坏完整文件被删除重取，损坏断点在最终校验失败后清除，允许下次完整重试。
+
+HTTP续传使用Range，严格校验206的起点、终点和总长度；范围单位大小写不敏感。200完整响应重置文件，416后尝试无Range请求。拒绝不匹配范围、压缩响应和不受信重定向；最终摘要和来源校验继续强制执行。公开IUpdateTransport签名保持兼容。
+
+测试先复现缺少Range请求和安装失败重复下载，再验证续传、200重启、416恢复、错误范围、取消保留、截断响应、受信重定向、缓存复用、新任务隔离、旧包导入、缓存损坏恢复及并发写入拒绝。独立审阅无阻塞问题，补充损坏短前缀最终校验失败后可完整重试回归。完整Core和Windows应用/安装器构建、原生UI套件通过，含账户总览、浮窗和真实Quit；范围单位大小写回归先失败再修正，之后完整Core再次通过。Mac未在本机执行。
+
+实网组件验收通过实际UpdateDownloadClient入口解析官方beta.5元数据，导入既有失败更新包；清理自身GUID工作目录后重试，安装包/来源数据请求均为0。独立实网缓存以已校验的1MiB前缀起步，真实下载主动取消后保留3159738字节；新操作确实发送Range bytes=3159738-，完成247401951字节，并核验官方SHA256 b9080a491ba26ff6afa19bba74ee4a018894a6367f010c4d6795daa344614213及发布来源。完成后再次创建新操作，资产数据请求为0。模拟截断覆盖断网语义，实网使用主动取消避免中断设备整体网络。记录位于.dist/resume-probe/results/verification.json。
+
+部署沿用beta.5本地候选和既有工作目录/回执兼容，替换应用与setup的Core DLL，重建本地开发来源及包摘要；产品版本保持beta.5。整份安装已备份到%LOCALAPPDATA%/Programs/.QuotaBar-install/resume-backup-20261110-183445，安装和最终启动核验进行中。当前范围为Windows实现、本机测试和候选部署。
+
+验收完成：断点续传Core已部署到本机beta.5开发候选，PID18632，Ready、has_quota=True、floating_visible=True，786项安装文件及偏好摘要一致。应用与setup的Core SHA256为8ffecef1a2acb46948bcf4550f77f39ef6e9270ddffbfac31a1688a672c45a70。记录位于.dist/resumable-updates/verification.json；当前源码在codex/feat/resumable-windows-updates，尚未提交、推送或公开发布。
+
+### 2026-11-10 断点续传远端提交授权
+
+用户授权提交远端并确认继续。范围为Windows下载续传、已校验资产缓存复用、回归测试、方案及本机验收记录。提交前governance doctor与快速检查通过，已有完整Windows测试和真实GitHub Range续传、零资产重复下载实测证据；普通推送再次执行完整Windows检查。当前按功能分支同步源码，发行状态为本机开发候选。
+
+### 2026-11-10 Windows 更新修复本地整合
+
+用户要求将工作目录修复和断点续传两次提交整合到本地。获取远端后核对，f808161已包含23301dd及设备同步工作流17adf7c，因此以f808161建立本地分支codex/feat/integrate-windows-updates，无需重复合并；未修改main或推送本地分支。该基线同时包含既有beta.5历史。
+
+本机macOS执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check local` 通过，包含Swift测试、安装与启动清理、Windows Core行为和安装事务测试，以及Windows应用、安装器和原生测试项目跨编译；本次未在Windows设备运行原生UI或安装验收。f808161的远端治理作业42809202607通过；CI作业42809202662的Windows阶段在快速校验时失败：Python调用bash命中未安装发行版的WSL，后续Windows原生作业被跳过；macOS阶段查询时仍在运行。下一步需修复Windows CI的Git Bash解析并重新验证，不能以本机跨编译或历史设备证据代替本次CI。
+
+### 2026-11-10 macOS 更新断点续传与缓存复用
+
+用户要求分析Windows提交f808161并在macOS实现相同功能。在本地整合分支实现按官方SHA-256保存更新包和来源文件，重新读取并校验发布和标签元数据；取消、传输中断和安装失败后可复用缓存，每次安装仍创建独立任务目录。支持精确Range续传、200重启、416回退、缓存损坏删除、已验证旧任务导入，以及文件锁防止并发写入；继续校验重定向、包长度、摘要和来源。取消后立即重试会等待旧任务释放缓存锁。
+
+Range和缓存重试回归在旧代码上先失败，修复后通过；审查发现立即重试竞态，新增回归先失败再修复并复核。14项下载测试和7项更新服务测试通过，覆盖主动取消、截断后续传、错误范围、损坏缓存、旧任务导入、并发锁与重试清理。实际GitHub重定向后的产品端到端续传、候选安装和新提交的远端CI尚未执行，不将模拟网络测试等同实机在线安装。当前为本地源码改动，未提交、推送或发布。
+
+本机完整验证：`PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0，Swift Core 220项、AppKit 181项通过，安装/启动夹具、Windows Core行为和安装事务检查通过，Windows应用、安装器及UI测试项目跨编译通过。原生Windows UI本次未在Mac执行。下一步可基于准确源码构建候选，实际验证GitHub在线续传及安装后重试；远端Windows CI的Git Bash解析问题仍独立待修复。
+
+### 2026-11-10 续传测试版发布准备
+
+用户授权发布测试版进行实机测试。范围包含Windows工作目录保护与断点续传、macOS断点续传和缓存复用，按仓库规则通过Release Please生成beta版本，不覆盖历史资产。发布前需同一源码提交的两端实机结果与候选摘要，以及准确tag的双平台CI；此前Windows实机结果和macOS本地测试不等同于新整合提交的双端验收。
+
+已定位f808161的Windows CI失败：原生Python调用bash时找到System32的WSL bash。Windows CI快速校验步骤将Git Bash的/usr/bin置于PATH前端，校验脚本显式解析shell完整路径以避免Windows进程搜索顺序命中系统目录，保留全部检查；此调整仍需远端Windows CI验证。当前准备提交、构建候选与验证，尚未发布。
+
+提交准备：加入CI路径调整后，在macOS重新执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0。下一步生成准确源码提交并同步开发分支，以获取双平台CI候选；正式发布前还需分别记录同提交的两端实机结果。
+
+开发分支bcfb447已推送并创建草稿PR #80，macOS候选candidate-20261110-200403按该提交干净构建、签名和隔离启动通过，DMG SHA256为1d64af374cbaa738d99432fa1b32cb3767cf68898646fdb8ec206d6830643ac3。该候选尚未安装；后续CI修正会使其源码提交落后，不能作为后续提交的实机证据。远端Windows CI42812562691通过了原先失败的仓库校验，但下一组发布标签测试失败；原测试未输出子进程错误，怀疑仍与直接调用bash有关。现已将同步和发布测试的shell调用也改为显式解析并输出失败详情，待重新验证。

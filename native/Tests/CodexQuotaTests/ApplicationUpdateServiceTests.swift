@@ -2,6 +2,23 @@ import XCTest
 import QuotaCore
 @testable import CodexQuota
 @MainActor final class ApplicationUpdateServiceTests: XCTestCase {
+    func testImmediateRetryWaitsForCancelledWorkerCleanup() async throws {
+        let calls = UpdateTestCounter(), gate = UpdateTestGate()
+        let service = ApplicationUpdateService(currentVersion: "1.3.0", execute: { _, _ in
+            await calls.increment()
+            if await calls.count() == 1 { await gate.wait() }
+        })
+        service.start(version: "2.0.0")
+        for _ in 0..<100 { if await calls.count() == 1 { break }; try await Task.sleep(for: .milliseconds(5)) }
+        service.cancel(); service.start(version: "2.0.0")
+        try await Task.sleep(for: .milliseconds(50))
+        let beforeCleanup = await calls.count()
+        XCTAssertEqual(beforeCleanup, 1, "Retry must wait for the old worker to release its cache lock")
+        await gate.open()
+        for _ in 0..<100 { if await calls.count() == 2 { break }; try await Task.sleep(for: .milliseconds(5)) }
+        let afterCleanup = await calls.count()
+        XCTAssertEqual(afterCleanup, 2)
+    }
     func testExplicitStartDoubleClickAndLateCancellationCannotInstall() async throws {
         let calls = UpdateTestCounter()
         let gate = UpdateTestGate()

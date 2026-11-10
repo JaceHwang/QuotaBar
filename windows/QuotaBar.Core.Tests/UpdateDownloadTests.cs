@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using QuotaBar.Core;
 internal static class UpdateDownloadTests {
     sealed class Transport : IUpdateTransport {
+        public int DownloadCalls { get; private set; }
         readonly byte[] release,tag,proof; readonly bool corrupt,late;
         public Transport(bool corrupt=false,bool late=false,bool wrongSource=false,string version="2.0.0") {
             this.corrupt=corrupt; this.late=late;
@@ -16,9 +17,78 @@ internal static class UpdateDownloadTests {
         }
         public Task<byte[]> Metadata(Uri url,int limit,CancellationToken cancel)=>Task.FromResult(url.AbsolutePath.Contains("/releases/")?release:tag);
         public async Task Download(UpdateAsset asset,string destination,Action<long> progress,CancellationToken cancel) {
+            DownloadCalls++;
             var bytes=asset.Name.EndsWith(".zip")?Encoding.UTF8.GetBytes(corrupt?"corrupt":"package"):proof;
             await File.WriteAllBytesAsync(destination,bytes,CancellationToken.None); progress(bytes.Length);
             if(late) try { await Task.Delay(50,cancel); } catch(OperationCanceledException) { }
+        }
+    }
+    public static async Task CacheTests() {
+        var root=Path.Combine(Path.GetTempPath(),"quotabar-cache-"+Guid.NewGuid());Directory.CreateDirectory(root);
+        try {
+            var firstTransport=new Transport();
+            var first=await new UpdateDownloadClient(firstTransport).Download("2.0.0","windows-x64","1.3.0",root);
+            CheckCache(firstTransport.DownloadCalls==2,"first request downloads package and provenance");
+            File.WriteAllText(Path.Combine(first.Directory,"consumed"),"");
+            var secondTransport=new Transport();
+            var second=await new UpdateDownloadClient(secondTransport).Download("2.0.0","windows-x64","1.3.0",root);
+            CheckCache(secondTransport.DownloadCalls==0,"retry after installation failure reuses verified assets");
+            CheckCache(first.Directory!=second.Directory && !File.Exists(Path.Combine(second.Directory,"consumed")),"retry gets a fresh installation job directory");
+            Directory.Delete(first.Directory,true);Directory.Delete(second.Directory,true);
+            var restartedTransport=new Transport();
+            var restarted=await new UpdateDownloadClient(restartedTransport).Download("2.0.0","windows-x64","1.3.0",root);
+            CheckCache(restartedTransport.DownloadCalls==0,"cache survives operation cleanup and client restart");
+
+            var legacy=Path.Combine(root,"legacy");var legacyJob=Path.Combine(legacy,Guid.NewGuid().ToString("N"));Directory.CreateDirectory(legacyJob);
+            File.Copy(restarted.Archive,Path.Combine(legacyJob,restarted.Release.Package.Name));
+            File.Copy(restarted.Provenance,Path.Combine(legacyJob,restarted.Release.Provenance.Name));
+            File.WriteAllText(Path.Combine(legacyJob,"rolledBack.json"),"historical receipt");
+            var legacyTransport=new Transport();
+            await new UpdateDownloadClient(legacyTransport).Download("2.0.0","windows-x64","1.3.0",legacy);
+            CheckCache(legacyTransport.DownloadCalls==0,"existing failed update archives are imported without downloading");
+
+            var cachedArchive=Path.Combine(root,"downloads",restarted.Release.Package.Sha256);
+            foreach(var job in Directory.GetDirectories(root).Where(path=>Guid.TryParse(Path.GetFileName(path),out _))) Directory.Delete(job,true);
+            await File.WriteAllTextAsync(cachedArchive,"corrupt");
+            var repairedTransport=new Transport();
+            var repaired=await new UpdateDownloadClient(repairedTransport).Download("2.0.0","windows-x64","1.3.0",root);
+            CheckCache(repairedTransport.DownloadCalls==1 && await File.ReadAllTextAsync(repaired.Archive)=="package","corrupt cached package is replaced while valid provenance is reused");
+            using(var reservation=new FileStream(Path.Combine(root,"downloads","download.lock"),FileMode.Open,FileAccess.ReadWrite,FileShare.None)) {
+                var refused=false;
+                try { await new UpdateDownloadClient(new Transport()).Download("2.0.0","windows-x64","1.3.0",root); } catch(IOException) { refused=true; }
+                CheckCache(refused,"concurrent cache writer is rejected before mutation");
+            }
+            await UpdateDownloadClient.VerifyFile(cachedArchive,repaired.Release.Package);
+            var interruptedCache=Path.Combine(root,"interrupted");
+            var interrupted=false;
+            try { await new UpdateDownloadClient(new InterruptedTransport(true)).Download("2.0.0","windows-x64","1.3.0",interruptedCache); } catch(IOException) { interrupted=true; }
+            CheckCache(interrupted,"truncated HTTP response reaches the update client as a failed attempt");
+            var resumed=await new UpdateDownloadClient(new InterruptedTransport(false)).Download("2.0.0","windows-x64","1.3.0",interruptedCache);
+            CheckCache(await File.ReadAllTextAsync(resumed.Archive)=="package","new operation completes interrupted cached transfer");
+            var poisoned=Path.Combine(root,"poisoned");Directory.CreateDirectory(Path.Combine(poisoned,"downloads"));
+            var poisonedAsset=Path.Combine(poisoned,"downloads",repaired.Release.Package.Sha256);
+            await File.WriteAllTextAsync(poisonedAsset,"bad");
+            var rejected=false;
+            try { await new UpdateDownloadClient(new InterruptedTransport(false)).Download("2.0.0","windows-x64","1.3.0",poisoned); } catch(IOException) { rejected=true; }
+            CheckCache(rejected && !File.Exists(poisonedAsset),"corrupt resumed prefix is rejected and removed after final checksum");
+            var fresh=await new UpdateDownloadClient(new Transport()).Download("2.0.0","windows-x64","1.3.0",poisoned);
+            CheckCache(await File.ReadAllTextAsync(fresh.Archive)=="package","checksum failure permits a fresh successful retry");
+            Console.WriteLine("PASS verified cache reuse, fresh install jobs, cleanup retention, legacy imports and corrupt cache repair");
+        } finally { Directory.Delete(root,true); }
+    }
+    static void CheckCache(bool value,string message) { if(!value) throw new Exception(message); }
+    sealed class InterruptedTransport(bool interrupt):IUpdateTransport {
+        readonly Transport metadata=new();
+        public Task<byte[]> Metadata(Uri url,int limit,CancellationToken cancel)=>metadata.Metadata(url,limit,cancel);
+        public async Task Download(UpdateAsset asset,string destination,Action<long> progress,CancellationToken cancel) {
+            if(!asset.Name.EndsWith(".zip")) { await metadata.Download(asset,destination,progress,cancel);return; }
+            using var http=new UpdateHttpTransport(new HttpFixture(request=> {
+                if(!interrupt) CheckCache(request.Headers.Range?.ToString()=="bytes=3-","new client resumes the previous failed operation's offset");
+                var response=new HttpResponseMessage(interrupt?System.Net.HttpStatusCode.OK:System.Net.HttpStatusCode.PartialContent) { Content=new ByteArrayContent(Encoding.UTF8.GetBytes(interrupt?"pac":"kage")) };
+                if(!interrupt) response.Content.Headers.ContentRange=new System.Net.Http.Headers.ContentRangeHeaderValue(3,6,7);
+                return response;
+            }));
+            await http.Download(asset,destination,progress,cancel);
         }
     }
     sealed class HttpFixture(Func<HttpRequestMessage,HttpResponseMessage> response) : HttpMessageHandler {
@@ -38,7 +108,8 @@ internal static class UpdateDownloadTests {
                     else await transport.Download(new UpdateAsset("a",new Uri("https://github.com/JaceHwang/QuotaBar/releases/download/v2.0.0/a"),3,new string('a',64)),path,_=>{},default);
                 } catch(IOException) { rejected=true; }
                 if(rejected!=(mode!="valid")) throw new Exception("HTTP bounds/redirect handling: "+mode);
-                if(rejected && File.Exists(path)) throw new Exception("Failed transfer leaked file");
+                if(mode=="truncated" && File.ReadAllText(path)!="a") throw new Exception("Interrupted transfer lost partial data");
+                if(rejected && mode!="truncated" && File.Exists(path)) throw new Exception("Invalid response created a file");
             }
             var zip=Path.Combine(root,"valid.zip"); using(var archive=ZipFile.Open(zip,ZipArchiveMode.Create)) { using var output=archive.CreateEntry("QuotaBar/a").Open(); output.Write("abc"u8); }
             var extracted=UpdateStaging.ExtractArchive(zip,Path.Combine(root,"out"));
@@ -90,6 +161,7 @@ internal static class UpdateDownloadTests {
         } finally { Directory.Delete(root,true); }
     }
     public static async Task Run() {
+        await CacheTests();
         BetaPackageMustCarryMatchingFullIdentity();
         var betaRoot=Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString());
         try {
@@ -112,7 +184,7 @@ internal static class UpdateDownloadTests {
                 var task=client.Download("2.0.0","windows-x64","1.3.0",root,null,cancel.Token); if(mode==3) { await Task.Delay(5); cancel.Cancel(); }
                 try { var result=await task; if(mode!=0||File.ReadAllText(result.Archive)!="package") throw new Exception("Invalid download accepted"); }
                 catch(Exception e) when(e is IOException or OperationCanceledException or FormatException) { if(mode==0) throw; }
-                if(mode!=0 && Directory.GetDirectories(root).Length!=0) throw new Exception("Failed stage leaked");
+                if(mode!=0 && Directory.GetDirectories(root).Any(path=>Guid.TryParse(Path.GetFileName(path),out _))) throw new Exception("Failed installation workspace leaked");
                 if(!File.Exists(Path.Combine(root,"keep"))) throw new Exception("Unrelated file removed");
             } finally { Directory.Delete(root,true); }
         }

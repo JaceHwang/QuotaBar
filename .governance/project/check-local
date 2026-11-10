@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+cd "$repo_root"
+case "$(uname -s)" in
+  Darwin)
+    exec "$repo_root/.governance/project/check-full"
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    status=0
+    dotnet run --project windows/QuotaBar.Core.Tests --configuration Release || status=$?
+    dotnet build windows/QuotaBar.Windows --configuration Release || status=$?
+    dotnet build windows/QuotaBar.Setup --configuration Release || status=$?
+    dotnet run --project windows/QuotaBar.Windows.Tests --configuration Release || status=$?
+    exit "$status"
+    ;;
+  *)
+    echo 'Local device verification requires native macOS or Windows (Git Bash). Use GitHub CI for both platforms.' >&2
+    exit 1
+    ;;
+esac

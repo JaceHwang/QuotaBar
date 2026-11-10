@@ -27,10 +27,14 @@ import QuotaCore
     func start(version: String, allowBeta: Bool = false) {
         guard !progress.phase.busy, let target = try? ProductVersion(version), !target.isBeta || allowBeta else { return }
         let id = UUID(); generation = id; targetVersion = version; progress = ApplicationUpdateProgress(.resolving); onChange?()
-        let run = execute, currentVersion = self.currentVersion
+        let run = execute, currentVersion = self.currentVersion, previous = Array(retiring.values)
         task = Task { [weak self] in
             var handoff: UpdateReadyHandoff?
             do {
+                if !previous.isEmpty {
+                    for worker in previous { await worker.value }
+                    try Task.checkCancellation()
+                }
                 let emit: @Sendable (ApplicationUpdateProgress) -> Void = { [weak self] update in
                     Task { @MainActor [weak self] in guard let self, self.generation == id, self.progress.phase.canCancel else { return }; self.progress = update; self.onChange?() }
                 }

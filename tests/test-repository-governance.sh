@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-python3 - "$root" <<'PY'
-import json,pathlib,re,sys
+"${PYTHON_BIN:-python3}" - "$root" <<'PY'
+import json,os,pathlib,re,subprocess,sys
 root=pathlib.Path(sys.argv[1])
 version=(root/'version.txt').read_text().strip()
 match=re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-beta\.([1-9][0-9]*))?',version)
@@ -18,8 +18,11 @@ for channel in ['alpha','beta','rc']:
  if channel=='beta': assert config['packages']['.']['extra-files']==[{'type':'generic','path':'version.txt'}]
 policy=(root/'.governance/policy.sh').read_text()
 assert "RELEASE_MODE=staged" in policy and "RELEASE_PLATFORMS='macos-arm64 windows-x64'" in policy
-for name in ['check-fast','check-full','build-release','verify-release']:
- assert (root/'.governance/project'/name).stat().st_mode & 0o111
+for name in ['check-fast','check-local','check-full','build-release','verify-release']:
+ adapter=root/'.governance/project'/name
+ assert adapter.is_file()
+ subprocess.run(['sh','-n',str(adapter)],check=True)
+ if os.name!='nt': assert adapter.stat().st_mode & 0o111
 full=(root/'.governance/project/check-full').read_text()
 assert 'swift test --package-path native' in full and 'test-macos-standalone-install.py' in full
 assert 'test-signing-identity.sh' in full
