@@ -1,5 +1,4 @@
 using System.Windows.Media.Imaging;
-using System.Windows.Markup;
 namespace QuotaBar.Windows;
 internal enum NotificationCharacterArtwork { Recovery, Bank, Neutral, Attention }
 internal sealed class CharacterNotificationBubble : Window,IDisposable {
@@ -55,13 +54,11 @@ internal sealed class CharacterNotificationBubble : Window,IDisposable {
         var primary=Ui.Button(label,()=>ActionRequested?.Invoke(message.Id,message.DeliveryToken)); primary.Tag="notification.primary";
         var acknowledge=Ui.Button(copy.Text("Got it","知道了","知道了"),()=>Acknowledged?.Invoke(message.Id,message.DeliveryToken)); acknowledge.Tag="notification.acknowledge";
         foreach(var button in new[]{primary,acknowledge}) {
-            button.Height=32; button.MinHeight=32; button.FontSize=12; button.FontWeight=FontWeights.SemiBold; button.Margin=new Thickness(0); button.Padding=new Thickness(4,0,4,0);
-            button.Template=(ControlTemplate)XamlReader.Parse("""
-<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button"><Border x:Name="frame" CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="frame" Property="BorderBrush" Value="#4488DD"/><Setter TargetName="frame" Property="BorderThickness" Value="2"/><Setter TargetName="frame" Property="Padding" Value="2,0,2,0"/></Trigger></ControlTemplate.Triggers></ControlTemplate>
-""");
+            SettingsVisual.ApplyVariant(button,ReferenceEquals(button,primary)?SettingsVisual.ButtonVariant.Primary:SettingsVisual.ButtonVariant.Secondary,dark);
+            SettingsVisual.ApplySize(button,SettingsVisual.ButtonSize.Compact);
+            button.FontWeight=FontWeights.SemiBold; button.Margin=new Thickness(0);
+            button.HorizontalAlignment=HorizontalAlignment.Stretch; button.HorizontalContentAlignment=HorizontalAlignment.Center;
         }
-        primary.Background=new LinearGradientBrush(Color.FromRgb(52,65,83),Color.FromRgb(39,50,65),90); primary.Foreground=Brushes.White; primary.BorderThickness=new Thickness(0);
-        acknowledge.Background=ColorBrush(dark?"#353D4D":"#F4F6FA"); acknowledge.Foreground=muted; acknowledge.BorderBrush=ColorBrush(dark?"#505B71":"#E3E8F1"); acknowledge.BorderThickness=new Thickness(1);
         Grid.SetColumn(acknowledge,2); actions.Children.Add(primary); actions.Children.Add(acknowledge); Place(actions,actionY);
         System.Windows.Automation.AutomationProperties.SetName(this,message.Title+". "+message.Body); Content=canvas;
     }

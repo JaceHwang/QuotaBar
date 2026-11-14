@@ -31,9 +31,8 @@ import AppKit
         let mark = QuotaThemeIconView(frame: NSRect(x: 20, y: 15, width: 38, height: 38)); sidebar.addSubview(mark)
         brand.font = .systemFont(ofSize: 20, weight: .bold); versionLabel.font = .systemFont(ofSize: 11); versionLabel.textColor = .secondaryLabelColor
         for (index, page) in pages.enumerated() {
-            let button = NSButton(title: page.navigationTitle ?? page.title, target: self, action: #selector(navigate(_:)))
-            button.cell = QuotaSettingsNavigationCell(textCell: page.navigationTitle ?? page.title)
-            button.target = self; button.action = #selector(navigate(_:))
+            let button = SettingsAccentButton(title: page.navigationTitle ?? page.title, target: self, action: #selector(navigate(_:)))
+            button.buttonSize = .navigation; button.usesAutomaticHeight = false; button.usesAccentFill = false; button.variant = .ghost
             button.toolTip = page.title
             button.tag = index; button.identifier = NSUserInterfaceItemIdentifier("settings.nav.\(index)")
             button.isBordered = false; button.alignment = .left; button.font = .systemFont(ofSize: 13, weight: .medium)
@@ -65,7 +64,7 @@ import AppKit
             layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
             sidebar.layer?.backgroundColor = (effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(calibratedWhite: 0.12, alpha: 1) : NSColor(calibratedRed: 0.94, green: 0.95, blue: 0.96, alpha: 1)).cgColor
             for button in navigation {
-                button.layer?.backgroundColor = button.tag == selectedPage ? NSColor.systemGreen.withAlphaComponent(0.15).cgColor : NSColor.clear.cgColor
+                (button as? SettingsAccentButton)?.variant = button.tag == selectedPage ? .tertiary : .ghost
                 button.contentTintColor = .labelColor
             }
         }
@@ -80,7 +79,7 @@ import AppKit
         sidebar.subviews.compactMap { $0 as? QuotaThemeIconView }.first?.frame = NSRect(x: 20, y: bounds.height - 65, width: 36, height: 36)
         for (index, button) in navigation.enumerated() {
             let y = bounds.height - 140 - CGFloat(index) * 40
-            button.frame = NSRect(x: 12, y: y, width: side - 24, height: 34)
+            button.frame = NSRect(x: 12, y: y, width: side - 24, height: 36)
         }
         let contentWidth = min(selectedPage == 0 ? 960 : 640, max(200, bounds.width - side - 48))
         let contentX = side + max(24, (bounds.width - side - contentWidth) / 2)
@@ -115,6 +114,7 @@ import AppKit
     static func button(_ title: String, target: AnyObject?, action: Selector?, primary: Bool = false) -> NSButton {
         let button: NSButton = SettingsAccentButton(title: title, target: target, action: action)
 
+        (button as? SettingsAccentButton)?.usesAccentFill = primary
         button.bezelStyle = .rounded; button.controlSize = .regular
         button.font = .systemFont(ofSize: 13, weight: .semibold)
         if primary { button.bezelColor = .controlAccentColor }

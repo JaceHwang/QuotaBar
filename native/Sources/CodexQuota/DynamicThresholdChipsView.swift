@@ -4,7 +4,7 @@ import QuotaCore
 /// Native numeric chips reuse their controls so moving between inputs never loses focus.
 @MainActor final class DynamicThresholdChipsView: NSView, NSTextFieldDelegate {
     private final class ValueField: NSTextField { var original: Int? }
-    private final class RemoveButton: NSButton { var original: Int? }
+    private final class RemoveButton: SettingsAccentButton { var original: Int? }
     private struct Chip { let view: NSView; let field: ValueField; let remove: RemoveButton }
     private let kind: String
     private let titleText: String
@@ -22,13 +22,13 @@ import QuotaCore
     private var name: NSTextField!
     private var addButton: NSButton!
     private var empty: NSTextField!
-    private let rowHeight: CGFloat = 26
+    private let rowHeight: CGFloat = 32
     override var isFlipped: Bool { true }
     init(kind: String, title: String, unit: String, range: ClosedRange<Int>, language: CodexDisplayLanguage, change: @escaping (Int?, Int?) -> Bool, error: @escaping (String) -> Void) {
         self.kind = kind; titleText = title; self.unit = unit; self.range = range; copy = ExperienceCopy(language); self.change = change; self.error = error
         super.init(frame: .zero)
         name = NSTextField(labelWithString: titleText); name.font = .systemFont(ofSize: 13); name.identifier = .init("notification.title.\(kind)")
-        addButton = NSButton(title: "+", target: self, action: #selector(addTapped)); addButton.bezelStyle = .roundRect; addButton.controlSize = .small
+        let add = SettingsAccentButton(title: "+", target: self, action: #selector(addTapped)); add.buttonSize = .compact; add.usesAutomaticHeight = false; add.usesAccentFill = false; add.variant = .tertiary; addButton = add
         addButton.identifier = .init("notification.threshold.\(kind).add")
         addButton.setAccessibilityLabel(copy.text("Add \(titleText) threshold", "添加\(titleText)阈值", "新增\(titleText)閾值")); addButton.toolTip = addButton.accessibilityLabel()
         empty = QuotaSettingsStyle.label(copy.text("No thresholds — no reminders", "未设置阈值，不发送此类提醒", "未設定閾值，不傳送此類提醒"), size: 11, secondary: true)
@@ -63,14 +63,14 @@ import QuotaCore
         field.identifier = .init("notification.threshold.\(kind).\(value.map(String.init) ?? "draft")")
         field.setAccessibilityLabel(titleText + " " + unit + " (\(range.lowerBound)–\(range.upperBound))")
         let suffix = NSTextField(labelWithString: unit); suffix.font = .systemFont(ofSize: 11); suffix.textColor = .secondaryLabelColor
-        let remove = RemoveButton(title: "×", target: self, action: #selector(removeTapped(_:))); remove.original = value; remove.isBordered = false; remove.font = .systemFont(ofSize: 14)
+        let remove = RemoveButton(title: "×", target: self, action: #selector(removeTapped(_:))); remove.original = value; remove.buttonSize = .compact; remove.usesAutomaticHeight = false; remove.usesAccentFill = false; remove.variant = .ghost; remove.isBordered = false
         remove.identifier = .init("notification.threshold.\(kind).remove.\(value.map(String.init) ?? "draft")")
         remove.setAccessibilityLabel(copy.text("Remove \(value.map(String.init) ?? "") \(unit) threshold", "移除\(value.map(String.init) ?? "")\(unit)阈值", "移除\(value.map(String.init) ?? "")\(unit)閾值"))
         let numberWidth: CGFloat = kind == "low" ? 26 : 40
         let unitWidth = max(10, ceil(suffix.intrinsicContentSize.width))
-        field.frame = NSRect(x: 3, y: 4, width: numberWidth, height: 18)
-        suffix.frame = NSRect(x: 3 + numberWidth, y: 5, width: unitWidth, height: 16)
-        remove.frame = NSRect(x: 5 + numberWidth + unitWidth, y: 3, width: 16, height: 20)
+        field.frame = NSRect(x: 3, y: 7, width: numberWidth, height: 18)
+        suffix.frame = NSRect(x: 3 + numberWidth, y: 8, width: unitWidth, height: 16)
+        remove.frame = NSRect(x: 5 + numberWidth + unitWidth, y: 6, width: 20, height: 20)
         view.addSubview(field); view.addSubview(suffix); view.addSubview(remove)
         view.layer?.borderColor = NSColor.separatorColor.cgColor; view.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         return Chip(view: view, field: field, remove: remove)
@@ -79,11 +79,11 @@ import QuotaCore
         let nameWidth = ceil(max(name.intrinsicContentSize.width, name.cell?.cellSize.width ?? 0)) + 4
         parts = [(name, nameWidth)]
         let unitWidth = max(10, ceil((unit as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width))
-        let chipWidth = (kind == "low" ? 26.0 : 40.0) + unitWidth + 24
+        let chipWidth = (kind == "low" ? 26.0 : 40.0) + unitWidth + 28
         var controls: [NSView] = []
         for value in values { if let chip = chips[value] { parts.append((chip.view, chipWidth)); controls.append(contentsOf: [chip.field, chip.remove]) } }
         if let draft { parts.append((draft.view, chipWidth)); controls.append(contentsOf: [draft.field, draft.remove]) }
-        parts.append((addButton, 24)); addButton.isEnabled = values.count < 32 && draft == nil
+        parts.append((addButton, 32)); addButton.isEnabled = values.count < 32 && draft == nil
         if values.isEmpty && draft == nil { parts.append((empty, 280)) } else { empty.removeFromSuperview() }
         for (view, _) in parts where view.superview !== self { addSubview(view) }
         for (index, control) in controls.enumerated() { control.nextKeyView = index + 1 < controls.count ? controls[index+1] : addButton }
@@ -103,7 +103,7 @@ import QuotaCore
     override func layout() { super.layout(); let height = arrange(width: max(1, bounds.width), apply: true); if abs(height - bounds.height) > 0.5 { invalidateIntrinsicContentSize() } }
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance { for (view, _) in parts where view.layer != nil { view.layer?.borderColor = NSColor.separatorColor.cgColor; view.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor } }
+        effectiveAppearance.performAsCurrentDrawingAppearance { for (view, _) in parts where view.layer != nil && !(view is NSButton) { view.layer?.borderColor = NSColor.separatorColor.cgColor; view.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor } }
     }
     @objc private func addTapped() {
         guard values.count < 32, draft == nil else { return }

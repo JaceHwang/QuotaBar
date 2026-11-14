@@ -9,6 +9,7 @@ case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
     status=0
     dotnet run --project windows/QuotaBar.Core.Tests --configuration Release || status=$?
+    dotnet run --project windows/QuotaBar.Windows.Tests/Portable/Tactile/TactilePortable.Tests.csproj --configuration Release || status=$?
     dotnet build windows/QuotaBar.Windows --configuration Release || status=$?
     dotnet build windows/QuotaBar.Setup --configuration Release || status=$?
     dotnet run --project windows/QuotaBar.Windows.Tests --configuration Release || status=$?

@@ -6,7 +6,7 @@ internal sealed class SettingsWindow : Window {
     BarkSettingsView? mobile;
     public void UpdateMobileStatus()=>mobile?.Refresh();
     TextBlock? updateStatus,updateNotes;
-    StackPanel? updateActions;
+    WrapPanel? updateActions;
     Button? updateCheck,installButton,cancelInstallButton;
     CheckBox? betaToggle;
     TextBlock? betaState;
@@ -66,7 +66,7 @@ internal sealed class SettingsWindow : Window {
         for(var i=0;i<keys.Length;i++) {
             var key=keys[i]; var button=Ui.Button(labels[i],()=> { selectedPage=key; if(key=="mobile") owner.Mobile.RefreshConfiguration(); Build(); }); button.Tag="settings-nav-"+key; button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Padding=new Thickness(10,8,6,8); button.BorderThickness=new Thickness(0); button.FontSize=13;
             button.Content=SettingsVisual.NavigationLabel(i,labels[i],fg);
-            button.Background=key==selectedPage?new SolidColorBrush(dark?Color.FromRgb(43,81,53):Color.FromRgb(218,242,218)):Brushes.Transparent; button.Foreground=fg; if(key==selectedPage) button.FontWeight=FontWeights.Bold;
+            button.Resources["TactileNavigationSelected"]=key==selectedPage; button.Foreground=fg; if(key==selectedPage) button.FontWeight=FontWeights.Bold;
             System.Windows.Automation.AutomationProperties.SetName(button,labels[i]); navigation.Children.Add(button);
         } sidebar.Children.Add(navigation);
         var sideSurface=new Border { Background=dark?new SolidColorBrush(Color.FromRgb(25,27,32)):new SolidColorBrush(Color.FromRgb(240,242,245)),Child=new ScrollViewer { Content=sidebar,VerticalScrollBarVisibility=ScrollBarVisibility.Auto } }; shell.Children.Add(sideSurface);
@@ -137,7 +137,7 @@ internal sealed class SettingsWindow : Window {
         var statusRow=new Grid { Margin=new Thickness(0,10,0,6) }; statusRow.ColumnDefinitions.Add(new()); statusRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
         updateStatus=Ui.Text("",12,fg); updateStatus.TextWrapping=TextWrapping.Wrap; updateStatus.Margin=new Thickness(0,0,12,0); updateStatus.VerticalAlignment=VerticalAlignment.Center; statusRow.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); updateCheck.VerticalAlignment=VerticalAlignment.Center; SettingsVisual.Primary(updateCheck); Grid.SetColumn(updateCheck,1); statusRow.Children.Add(updateCheck); panel.Children.Add(statusRow);
         updateProgress=new ProgressBar { IsIndeterminate=true,Height=3,Margin=new Thickness(0,8,0,8),Visibility=Visibility.Collapsed }; panel.Children.Add(updateProgress);
-        updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); updateActions.Children.Add(Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
+        updateActions=new WrapPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10),Tag="settings-update-actions" }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); var notesAction=Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open); notesAction.Tag="settings-update-notes"; updateActions.Children.Add(notesAction); var laterAction=Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze); laterAction.Tag="settings-update-later"; updateActions.Children.Add(laterAction); var skipAction=Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip); skipAction.Tag="settings-update-skip"; updateActions.Children.Add(skipAction); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
         var betaPanel=new StackPanel();
         betaToggle=SettingsVisual.Toggle(c.Text("Beta experience","内测体验","內測體驗"),owner.Updates.BetaEnabled,fg,async on=> {
             if(synchronizingBeta || changingBeta) return;

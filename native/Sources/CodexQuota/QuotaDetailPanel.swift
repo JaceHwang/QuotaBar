@@ -856,7 +856,7 @@ private final class QuotaFooterView: NSView {
 }
 
 @MainActor
-final class QuotaFooterLinkButton: NSButton {
+final class QuotaFooterLinkButton: SettingsAccentButton {
     private static let projectMark: NSImage = {
         let svg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -882,7 +882,6 @@ final class QuotaFooterLinkButton: NSButton {
     private let iconTint: NSColor
     private let destination: URL
     private let onActivate: (URL) -> Void
-    private var hoverTrackingArea: NSTrackingArea?
     private var isPointerInside = false
 
     init(
@@ -900,6 +899,9 @@ final class QuotaFooterLinkButton: NSButton {
         iconView = NSImageView(image: mark ?? Self.projectMark)
         titleLabel = NSTextField(labelWithString: label)
         super.init(frame: frameRect)
+        buttonSize = .compact
+        usesAutomaticHeight = false
+        variant = .ghost
         title = ""
         isBordered = false
         setButtonType(.momentaryPushIn)
@@ -913,7 +915,7 @@ final class QuotaFooterLinkButton: NSButton {
         action = #selector(activateLink)
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.contentTintColor = .secondaryLabelColor
-        titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: 11.2, weight: .medium)
         titleLabel.textColor = .secondaryLabelColor
         titleLabel.alignment = .left
         titleLabel.isSelectable = false
@@ -934,22 +936,17 @@ final class QuotaFooterLinkButton: NSButton {
     override func layout() {
         super.layout()
         iconView.frame = CGRect(x: 10, y: 7, width: 16, height: 16)
-        titleLabel.frame = CGRect(x: 32, y: 6, width: bounds.width - 40, height: 18)
+        titleLabel.frame = CGRect(x: 30, y: 6, width: max(0, bounds.width - 44), height: 18)
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let hoverTrackingArea {
-            removeTrackingArea(hoverTrackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        hoverTrackingArea = area
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let arrow = NSAttributedString(string: "↗", attributes: [
+            .font: NSFont.systemFont(ofSize: 10, weight: .medium),
+            .foregroundColor: NSColor.secondaryLabelColor
+        ])
+        let size = arrow.size()
+        arrow.draw(at: NSPoint(x: bounds.maxX - 12 + (isPointerInside ? 2 : 0), y: (bounds.height - size.height) / 2))
     }
 
     override func resetCursorRects() {
@@ -962,26 +959,26 @@ final class QuotaFooterLinkButton: NSButton {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
         isPointerInside = true
         updateAppearance()
     }
 
     override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
         isPointerInside = false
         updateAppearance()
     }
 
     private func updateAppearance() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = NSColor.labelColor
-                .withAlphaComponent(isPointerInside ? 0.08 : 0)
-                .cgColor
-            layer?.shadowColor = NSColor.black.cgColor
-            layer?.shadowOpacity = isPointerInside ? 0.22 : 0
-            layer?.shadowRadius = isPointerInside ? 8 : 0
-            layer?.shadowOffset = NSSize(width: 0, height: -1)
             iconView.contentTintColor = iconTint
-            titleLabel.textColor = .secondaryLabelColor
+            titleLabel.attributedStringValue = NSAttributedString(string: titleLabel.stringValue, attributes: [
+                .font: NSFont.systemFont(ofSize: 11.2, weight: .medium),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue
+            ])
+            needsDisplay = true
         }
     }
 
@@ -992,10 +989,9 @@ final class QuotaFooterLinkButton: NSButton {
 }
 
 @MainActor
-final class QuotaFooterSettingsButton: NSButton {
+final class QuotaFooterSettingsButton: SettingsAccentButton {
     private let iconView: NSImageView
     private let onActivate: (QuotaFooterSettingsButton) -> Void
-    private var hoverTrackingArea: NSTrackingArea?
     private var isPointerInside = false
 
     init(
@@ -1011,6 +1007,9 @@ final class QuotaFooterSettingsButton: NSButton {
         )
         self.onActivate = onActivate
         super.init(frame: frameRect)
+        buttonSize = .compact
+        usesAutomaticHeight = false
+        variant = .ghost
         title = ""
         isBordered = false
         setButtonType(.momentaryPushIn)
@@ -1039,21 +1038,6 @@ final class QuotaFooterSettingsButton: NSButton {
         )
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let hoverTrackingArea {
-            removeTrackingArea(hoverTrackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        hoverTrackingArea = area
-    }
-
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .pointingHand)
     }
@@ -1064,11 +1048,13 @@ final class QuotaFooterSettingsButton: NSButton {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
         isPointerInside = true
         updateAppearance()
     }
 
     override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
         isPointerInside = false
         updateAppearance()
     }
@@ -1079,13 +1065,6 @@ final class QuotaFooterSettingsButton: NSButton {
 
     private func updateAppearance() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = NSColor.labelColor
-                .withAlphaComponent(isPointerInside ? 0.08 : 0)
-                .cgColor
-            layer?.shadowColor = NSColor.black.cgColor
-            layer?.shadowOpacity = isPointerInside ? 0.22 : 0
-            layer?.shadowRadius = isPointerInside ? 8 : 0
-            layer?.shadowOffset = NSSize(width: 0, height: -1)
             iconView.contentTintColor = .secondaryLabelColor
         }
     }
@@ -1164,10 +1143,9 @@ private final class VersionBadgeView: NSView {
 }
 
 @MainActor
-final class QuotaDetailLockButton: NSButton {
+final class QuotaDetailLockButton: SettingsAccentButton {
     private let iconView: NSImageView
     private let onActivate: () -> Void
-    private var hoverTrackingArea: NSTrackingArea?
     private var isPointerInside = false
 
     init(
@@ -1179,6 +1157,8 @@ final class QuotaDetailLockButton: NSButton {
         iconView = NSImageView()
         self.onActivate = onActivate
         super.init(frame: frameRect)
+        buttonSize = .compact
+        usesAutomaticHeight = false
         title = ""
         isBordered = false
         setButtonType(.momentaryPushIn)
@@ -1208,21 +1188,6 @@ final class QuotaDetailLockButton: NSButton {
         )
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let hoverTrackingArea {
-            removeTrackingArea(hoverTrackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        hoverTrackingArea = area
-    }
-
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .pointingHand)
     }
@@ -1233,11 +1198,13 @@ final class QuotaDetailLockButton: NSButton {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
         isPointerInside = true
         updateAppearance()
     }
 
     override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
         isPointerInside = false
         updateAppearance()
     }
@@ -1249,15 +1216,8 @@ final class QuotaDetailLockButton: NSButton {
     private func updateAppearance() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             let isLockedOpen = state == .on
-            let backgroundAlpha: CGFloat = isLockedOpen ? 0.12 : (isPointerInside ? 0.08 : 0)
-            let tint: NSColor = isLockedOpen ? .controlAccentColor : .secondaryLabelColor
-            layer?.backgroundColor = (isLockedOpen ? NSColor.controlAccentColor : NSColor.labelColor)
-                .withAlphaComponent(backgroundAlpha)
-                .cgColor
-            layer?.shadowColor = NSColor.black.cgColor
-            layer?.shadowOpacity = isPointerInside ? 0.16 : 0
-            layer?.shadowRadius = isPointerInside ? 5 : 0
-            layer?.shadowOffset = NSSize(width: 0, height: -1)
+            variant = isLockedOpen ? .tertiary : .ghost
+            let tint: NSColor = isLockedOpen ? .labelColor : .secondaryLabelColor
             iconView.image = NSImage(
                 systemSymbolName: isLockedOpen ? "pin.fill" : "pin",
                 accessibilityDescription: accessibilityLabel()

@@ -16,6 +16,14 @@ import QuotaCore
         let expanded = bubble.content(message: long, dark: false, language: .english, width: 340)
         XCTAssertGreaterThan(expanded.frame.height, view.frame.height)
     }
+    func testBubbleActionsUseSharedTactileButtonStyles() throws {
+        let bubble = CharacterNotificationBubble()
+        let message = ExperienceNotification(id: "shared", kind: .test, epoch: nil, title: "Example", body: "100%", createdAt: Date())
+        let view = bubble.content(message: message, dark: true, language: .english, width: 420)
+        let actions = tree(view).compactMap { $0 as? NSButton }
+        XCTAssertEqual(actions.count, 2)
+        XCTAssertTrue(actions.allSatisfy { $0 is SettingsAccentButton }, "Bubble actions must share the settings button material")
+    }
     func testRealPreviewBodyFitsItsNativeWrappingCell() throws {
         let raw = "5 小时剩余 100% · 7 天剩余 36%。仅为示例。"
         let bubble = CharacterNotificationBubble()

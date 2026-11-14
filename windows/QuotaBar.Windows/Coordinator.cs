@@ -250,7 +250,7 @@ internal sealed class Coordinator : IDisposable {
     public void ShowUnread() { if(messageWindow is { IsVisible:true }) { messageWindow.Activate(); return; } var window=new MessageCenterWindow(Notifications,Copy,Platform.IsDark(Preferences)); messageWindow=window; window.Closed+=(_,_)=> { if(ReferenceEquals(messageWindow,window)) messageWindow=null; }; window.Show(); }
     void SessionChanged(object sender,SessionSwitchEventArgs e) { app.Dispatcher.BeginInvoke(()=> { if(e.Reason==SessionSwitchReason.SessionLock) { screenLocked=true; Notifications.UpdateEnvironment(false); } else if(e.Reason==SessionSwitchReason.SessionUnlock) { screenLocked=false; Render(); } }); }
     void PowerChanged(object sender,PowerModeChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { sleeping=e.Mode==PowerModes.Suspend; if(sleeping) { Experience.ResetBaseline(preserveNotifications:true); Notifications.UpdateEnvironment(false); } if(e.Mode==PowerModes.Resume) { sleeping=false; Refresh(); Updates.Check(); } }); }
-    void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); }); }
+    void ThemeChanged(object sender,UserPreferenceChangedEventArgs e) { app.Dispatcher.BeginInvoke(()=> { Render(); settings?.Build(); messageWindow?.RefreshSystemButtonStyles(); }); }
     void DisplayChanged(object? sender,EventArgs e) { app.Dispatcher.BeginInvoke(()=> { Notifications.UpdateEnvironment(false); Render(); }); }
     void NetworkChanged(object? sender,System.Net.NetworkInformation.NetworkAvailabilityEventArgs e) { if(e.IsAvailable) app.Dispatcher.BeginInvoke(()=> { Refresh(); Updates.Check(); }); }
     public async void Quit() {

@@ -13,7 +13,7 @@ import AppKit
     init(_ title: String, destination: URL?, open: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }) {
         self.destination = destination; opener = open
         super.init(frame: .zero)
-        self.title = title; usesAccentFill = true; target = self; action = #selector(follow)
+        self.title = title; usesAccentFill = false; variant = .text; target = self; action = #selector(follow)
         bezelStyle = .rounded; isBordered = false; alignment = .left
         font = .systemFont(ofSize: 13); isEnabled = destination != nil
         contentTintColor = destination == nil ? .tertiaryLabelColor : .labelColor
@@ -99,48 +99,167 @@ import AppKit
 }
 
 @MainActor class SettingsAccentButton: NSButton {
-    var usesAccentFill = true
-    var usesBorderlessStyle = false
+    enum Variant { case primary, secondary, tertiary, ghost, text }
+    enum Size { case compact, navigation, md, lg
+        var unit: CGFloat { switch self { case .compact: 0.8; case .navigation: 0.9; case .md: 1; case .lg: 16.0 / 14.0 } }
+    }
+    // Existing callers retain their original API; an explicit variant can refine it.
+    var usesAccentFill = true { didSet { needsDisplay = true } }
+    var usesBorderlessStyle = false { didSet { needsDisplay = true } }
     var fillColor = NSColor(srgbRed: 0, green: 101.0 / 255, blue: 216.0 / 255, alpha: 1)
+    var variant: Variant? { didSet { needsDisplay = true } }
+    var buttonSize: Size = .md { didSet { heightConstraint?.constant = 40 * buttonSize.unit; invalidateIntrinsicContentSize(); needsDisplay = true } }
+    var usesAutomaticHeight = true { didSet { heightConstraint?.isActive = usesAutomaticHeight } }
+    private var heightConstraint: NSLayoutConstraint?
+    private var tracking: NSTrackingArea?
+    private var hovering = false
+    private struct Motion {
+        var from: CGFloat = 0
+        var target: CGFloat = 0
+        var began: TimeInterval = 0
+        func value(now: TimeInterval, duration: TimeInterval) -> CGFloat {
+            let progress = CGFloat(min(1, max(0, (now - began) / duration)))
+            return from + (target - from) * progress
+        }
+    }
+    private var hoverMotion = Motion(), pressMotion = Motion()
+    private var animationTimer: Timer?
+    @objc private func animationTick(_ timer: Timer) {
+        needsDisplay = true
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - max(hoverMotion.began, pressMotion.began) >= 0.16 { timer.invalidate(); animationTimer = nil }
+    }
+    private func updateMotion(_ motion: inout Motion, target: CGFloat, now: TimeInterval) -> Bool {
+        guard motion.target != target else { return false }
+        motion.from = motion.value(now: now, duration: 0.16); motion.target = target; motion.began = now
+        return true
+    }
+    private var effectiveVariant: Variant { variant ?? (usesAccentFill ? .primary : (usesBorderlessStyle ? .ghost : .secondary)) }
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        font = .systemFont(ofSize: 13, weight: .semibold)
+        font = .systemFont(ofSize: 14, weight: .semibold)
         isBordered = false
-        heightAnchor.constraint(equalToConstant: 30).isActive = true
+        let height = heightAnchor.constraint(equalToConstant: 40); height.isActive = true; heightConstraint = height
         setContentHuggingPriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .horizontal)
     }
     required init?(coder: NSCoder) { nil }
     override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
     override var intrinsicContentSize: NSSize {
-        if title.isEmpty { return NSSize(width: 30, height: 30) }
-        let width = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold)]).size().width
-        return NSSize(width: max(100, ceil(width) + 24 + (image == nil ? 0 : 22)), height: 30)
+        let u = buttonSize.unit
+        if title.isEmpty { return NSSize(width: 40 * u, height: 40 * u) }
+        let renderedTitle = effectiveVariant == .text && !title.hasSuffix("↗") ? title + "  →" : title
+        let width = NSAttributedString(string: renderedTitle, attributes: [.font: NSFont.systemFont(ofSize: 14 * u, weight: .semibold)]).size().width
+        return NSSize(width: max((buttonSize == .compact ? 40 : 100) * u, ceil(width) + 36 * u + (image == nil ? 0 : 22 * u)), height: 40 * u)
     }
+    override func updateTrackingAreas() {
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+        addTrackingArea(area); tracking = area; super.updateTrackingAreas()
+    }
+    override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
     override func draw(_ dirtyRect: NSRect) {
-        let foreground: NSColor = isEnabled ? (usesAccentFill ? .white : .labelColor) : .disabledControlTextColor
-        let background: NSColor
-        if usesAccentFill {
-            background = isEnabled ? (isHighlighted ? fillColor.blended(withFraction: 0.15, of: .black)! : fillColor) : NSColor.disabledControlTextColor.withAlphaComponent(0.35)
-        } else {
-            background = isHighlighted ? NSColor.controlAccentColor.withAlphaComponent(0.15) : usesBorderlessStyle ? .clear : .controlColor
+        let u = buttonSize.unit, kind = effectiveVariant, pressed = isEnabled && isHighlighted
+        let now = ProcessInfo.processInfo.systemUptime
+        let changedHover = updateMotion(&hoverMotion, target: hovering && isEnabled ? 1 : 0, now: now)
+        let changedPress = updateMotion(&pressMotion, target: pressed ? 1 : 0, now: now)
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if (changedHover || changedPress) && !reduceMotion && animationTimer == nil {
+            let timer = Timer(timeInterval: 1.0 / 60, target: self, selector: #selector(animationTick(_:)), userInfo: nil, repeats: true)
+            RunLoop.main.add(timer, forMode: .common); animationTimer = timer
         }
-        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 7, yRadius: 7)
-        background.setFill(); shape.fill()
-        if !usesAccentFill && !usesBorderlessStyle { NSColor.separatorColor.setStroke(); shape.lineWidth = 0.5; shape.stroke() }
-        let label = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: foreground])
-        let size = label.size(), iconWidth: CGFloat = image == nil ? 0 : (title.isEmpty ? 16 : 22)
-        let start = (bounds.width - size.width - iconWidth) / 2
-        if let image {
-            let icon = image.copy() as! NSImage; icon.size = NSSize(width: 16, height: 16)
-            let rect = NSRect(x: start, y: (bounds.height - 16) / 2, width: 16, height: 16)
-            let tinted = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { area in
-                icon.draw(in: area); foreground.setFill(); area.fill(using: .sourceIn); return true
+        let hoverColor = reduceMotion ? hoverMotion.target : hoverMotion.value(now: now, duration: 0.16)
+        let hoverShadow = reduceMotion ? hoverMotion.target : hoverMotion.value(now: now, duration: 0.14)
+        let pressColor = reduceMotion ? pressMotion.target : pressMotion.value(now: now, duration: 0.16)
+        let pressShadow = reduceMotion ? pressMotion.target : pressMotion.value(now: now, duration: 0.14)
+        let pressMove = reduceMotion ? pressMotion.target : pressMotion.value(now: now, duration: 0.12)
+        func color(_ rgb: UInt32, alpha: CGFloat = 1) -> NSColor {
+            NSColor(srgbRed: CGFloat((rgb >> 16) & 255) / 255, green: CGFloat((rgb >> 8) & 255) / 255, blue: CGFloat(rgb & 255) / 255, alpha: alpha)
+        }
+        let dark = kind == .primary
+        let darkAppearance = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let adaptiveDark = darkAppearance && (kind == .secondary || kind == .tertiary)
+        let darkFace = dark || adaptiveDark
+        var top: NSColor = color(dark ? 0x404859 : adaptiveDark ? (kind == .tertiary ? 0x3B3B3B : 0x4A4A4A) : kind == .tertiary ? 0xF3F4F6 : 0xFFFFFF)
+        var bottom: NSColor = color(dark ? 0x273042 : adaptiveDark ? (kind == .tertiary ? 0x2C2C2C : 0x353535) : kind == .tertiary ? 0xE7E9EC : 0xF4F5F7)
+        top = top.blended(withFraction: 0.08 * hoverColor, of: .white)!
+        bottom = bottom.blended(withFraction: 0.08 * hoverColor, of: .white)!
+        let originalTop = top, originalBottom = bottom
+        top = originalTop.blended(withFraction: pressColor, of: originalBottom)!
+        bottom = originalBottom.blended(withFraction: pressColor, of: originalTop)!
+        let face = bounds.insetBy(dx: u, dy: 2 * u).offsetBy(dx: 0, dy: -pressMove * u)
+        let shape = NSBezierPath(roundedRect: face, xRadius: 10 * u, yRadius: 10 * u)
+        let filled = kind == .primary || kind == .secondary || kind == .tertiary
+        NSGraphicsContext.saveGraphicsState()
+        if !isEnabled { NSGraphicsContext.current?.cgContext.setAlpha(0.5) }
+        if filled {
+            // Draw contact and lift separately, with dimensions scaled by the label size.
+            for (blur, depth, opacity) in [
+                (CGFloat(2) - pressShadow, CGFloat(1), darkFace ? CGFloat(0.18) : CGFloat(0.06)),
+                ((CGFloat(10) + 6 * hoverShadow) * (1 - pressShadow) + pressShadow,
+                 (CGFloat(4) + 4 * hoverShadow) * (1 - pressShadow) + pressShadow,
+                 (darkFace ? CGFloat(0.28) : CGFloat(0.09)) * (1 - pressShadow))] {
+                NSGraphicsContext.saveGraphicsState()
+                let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(opacity)
+                shadow.shadowBlurRadius = blur * u; shadow.shadowOffset = NSSize(width: 0, height: -depth * u); shadow.set()
+                bottom.setFill(); shape.fill(); NSGraphicsContext.restoreGraphicsState()
             }
-            tinted.draw(in: rect)
+            NSGradient(starting: top, ending: bottom)?.draw(in: shape, angle: 90)
+            (dark ? color(0x12161F) : adaptiveDark ? color(0x202020) : NSColor.black.withAlphaComponent(kind == .secondary ? 0.14 : 0.1)).setStroke()
+            shape.lineWidth = u; shape.stroke()
+            NSGraphicsContext.saveGraphicsState(); shape.addClip()
+            let highlight = NSBezierPath(); highlight.move(to: NSPoint(x: face.minX + u, y: face.maxY - u)); highlight.line(to: NSPoint(x: face.maxX - u, y: face.maxY - u)); highlight.lineWidth = u
+            NSColor.white.withAlphaComponent((darkFace ? 0.18 : 0.9) * (1 - pressShadow)).setStroke(); highlight.stroke()
+            if pressShadow > 0 {
+                NSGraphicsContext.saveGraphicsState()
+                let inner = NSShadow(); inner.shadowColor = NSColor.black.withAlphaComponent((darkFace ? 0.4 : 0.14) * pressShadow)
+                inner.shadowBlurRadius = 2 * u; inner.shadowOffset = NSSize(width: 0, height: -u); inner.set()
+                NSColor.black.setFill(); NSRect(x: face.minX, y: face.maxY, width: face.width, height: 3 * u).fill()
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            let shade = NSBezierPath(); shade.move(to: NSPoint(x: face.minX + u, y: face.minY + u)); shade.line(to: NSPoint(x: face.maxX - u, y: face.minY + u)); shade.lineWidth = u
+            NSColor.black.withAlphaComponent(darkFace ? 0.22 : 0.06).setStroke(); shade.stroke(); NSGraphicsContext.restoreGraphicsState()
+            if !darkFace && pressShadow > 0 {
+                let line = NSBezierPath(); line.move(to: NSPoint(x: face.minX + 3 * u, y: face.minY - u)); line.line(to: NSPoint(x: face.maxX - 3 * u, y: face.minY - u)); line.lineWidth = u
+                NSColor.white.withAlphaComponent(0.9 * pressShadow).setStroke(); line.stroke()
+            }
+        } else if kind == .ghost && isEnabled {
+            NSColor.labelColor.withAlphaComponent(0.06 * hoverColor + 0.07 * pressColor).setFill(); shape.fill()
+            if pressShadow > 0 {
+                NSGraphicsContext.saveGraphicsState(); shape.addClip()
+                let inset = NSShadow(); inset.shadowColor = NSColor.black.withAlphaComponent(0.14 * pressShadow)
+                inset.shadowBlurRadius = 2 * u; inset.shadowOffset = NSSize(width: 0, height: -u); inset.set()
+                NSColor.black.setFill(); NSRect(x: face.minX, y: face.maxY, width: face.width, height: 3 * u).fill()
+                NSGraphicsContext.restoreGraphicsState()
+            }
         }
-        label.draw(at: CGPoint(x: start + iconWidth, y: (bounds.height - size.height) / 2))
-        if window?.firstResponder === self { NSColor.keyboardFocusIndicatorColor.setStroke(); let ring = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6); ring.lineWidth = 2; ring.stroke() }
+        // Dim the material independently; applying the same opacity again to the
+        // system's already-dimmed text makes disabled links illegible in dark mode.
+        NSGraphicsContext.restoreGraphicsState()
+        let foreground: NSColor
+        if isEnabled { foreground = darkFace ? .white : filled ? color(0x303640) : .labelColor }
+        else { foreground = darkFace ? NSColor.white.withAlphaComponent(0.65) : filled ? color(0x303640, alpha: 0.65) : .secondaryLabelColor }
+        let font = NSFont.systemFont(ofSize: 14 * u, weight: .semibold)
+        var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: foreground]
+        if kind == .text { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        if dark { let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.28); shadow.shadowOffset = NSSize(width: 0, height: -u); attributes[.shadow] = shadow }
+        let hasLinkArrow = kind == .text && !title.isEmpty
+        let labelText = hasLinkArrow && title.hasSuffix("↗") ? String(title.dropLast()).trimmingCharacters(in: .whitespaces) : title
+        let label = NSAttributedString(string: labelText, attributes: attributes)
+        var arrowAttributes = attributes; arrowAttributes.removeValue(forKey: .underlineStyle)
+        let arrow = NSAttributedString(string: title.hasSuffix("↗") ? "↗" : "→", attributes: arrowAttributes)
+        let arrowWidth: CGFloat = hasLinkArrow ? arrow.size().width + 6 * u : 0
+        let size = label.size(), iconWidth: CGFloat = image == nil ? 0 : (title.isEmpty ? 16 * u : 22 * u)
+        let start = alignment == .left ? 12 * u : (bounds.width - size.width - iconWidth - arrowWidth) / 2, offset = -pressMove * u
+        if let image {
+            let icon = image.copy() as! NSImage; icon.size = NSSize(width: 16 * u, height: 16 * u)
+            let rect = NSRect(x: start, y: (bounds.height - 16 * u) / 2 + offset, width: 16 * u, height: 16 * u)
+            let tinted = NSImage(size: rect.size, flipped: false) { area in icon.draw(in: area); foreground.setFill(); area.fill(using: .sourceIn); return true }; tinted.draw(in: rect)
+        }
+        label.draw(at: CGPoint(x: start + iconWidth, y: (bounds.height - size.height) / 2 + offset))
+        if hasLinkArrow { arrow.draw(at: CGPoint(x: start + iconWidth + size.width + 6 * u + 2 * u * hoverColor, y: (bounds.height - arrow.size().height) / 2 + offset)) }
+        if window?.firstResponder === self { NSColor.keyboardFocusIndicatorColor.setStroke(); let ring = NSBezierPath(roundedRect: bounds.insetBy(dx: 2 * u, dy: 2 * u), xRadius: 8 * u, yRadius: 8 * u); ring.lineWidth = 2 * u; ring.stroke() }
     }
     override func becomeFirstResponder() -> Bool { let result = super.becomeFirstResponder(); needsDisplay = true; return result }
     override func resignFirstResponder() -> Bool { let result = super.resignFirstResponder(); needsDisplay = true; return result }

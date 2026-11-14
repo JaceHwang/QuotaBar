@@ -115,7 +115,7 @@ import QuotaCore
         XCTAssertFalse(list.isHidden);XCTAssertTrue(detail.isHidden)
         try table(view).selectRowIndexes(IndexSet(integer:0),byExtendingSelection:false);view.layoutSubtreeIfNeeded()
         XCTAssertTrue(list.isHidden);XCTAssertFalse(detail.isHidden);XCTAssertFalse(try button(view,"messages.back").isHidden)
-        XCTAssertEqual(try button(view,"messages.back").frame.height,30,accuracy:0.1)
+        XCTAssertEqual(try button(view,"messages.back").frame.height,40,accuracy:0.1)
         router.currentMessageEpoch="later"
         XCTAssertTrue(tree(view).compactMap { $0 as? NSTextField }.contains { $0.stringValue.contains("历史会话") })
         var opened=0;router.openDetails={opened += 1};try button(view,"messages.latest").performClick(nil);XCTAssertEqual(opened,1)
@@ -202,14 +202,14 @@ import QuotaCore
             XCTAssertEqual(router.messageUnreadCount,2)
             let rep=try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in:view.bounds));window.appearance?.performAsCurrentDrawingAppearance { view.cacheDisplay(in:view.bounds,to:rep) }
             let action=try button(view,"messages.allRead"), rect=action.convert(action.bounds,to:view), scale=CGFloat(rep.pixelsWide)/view.bounds.width
-            var whitePixels=0, bluePixels=0
+            var whitePixels=0, slatePixels=0
             for y in Int((rect.minY+4)*scale)..<Int((rect.maxY-4)*scale) { for x in Int((rect.minX+6)*scale)..<Int((rect.maxX-6)*scale) {
                 if let c=rep.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB) {
                     if c.redComponent>0.85 && c.greenComponent>0.85 && c.blueComponent>0.85 { whitePixels += 1 }
-                    if c.blueComponent>0.45 && c.blueComponent>c.redComponent*1.4 && c.blueComponent>c.greenComponent*1.1 { bluePixels += 1 }
+                    if c.redComponent<0.35 && c.greenComponent<0.38 && c.blueComponent<0.45 && c.blueComponent>=c.redComponent { slatePixels += 1 }
                 }
             } }
-            XCTAssertGreaterThan(bluePixels,100,"Test must sample the blue all-read button in \(language.rawValue), \(appearance.rawValue)")
+            XCTAssertGreaterThan(slatePixels,100,"Test must sample the slate all-read button in \(language.rawValue), \(appearance.rawValue)")
             XCTAssertGreaterThan(whitePixels,20,"All-read label must be visible in \(language.rawValue), \(appearance.rawValue)")
             if let dir=ProcessInfo.processInfo.environment["QUOTABAR_TEST_ARTIFACTS"] {
                 try FileManager.default.createDirectory(atPath:dir,withIntermediateDirectories:true)

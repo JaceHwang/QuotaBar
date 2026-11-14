@@ -94,7 +94,7 @@ private final class MessageRowView: NSTableRowView {
     private func configure(_ button: NSButton, title: String, id: String, action: Selector) {
         button.title = title; button.target = self; button.action = action; button.bezelStyle = .rounded; button.font = .systemFont(ofSize: 12, weight: .semibold)
         button.identifier = .init(id); button.setAccessibilityLabel(title)
-        // SettingsAccentButton requires its natural width and 30pt height. Match
+        // SettingsAccentButton requires its natural width and 40pt height. Match
         // those before attaching to this manually framed window to avoid mask conflicts.
         button.setFrameSize(button.intrinsicContentSize)
     }
@@ -182,17 +182,17 @@ private final class MessageRowView: NSTableRowView {
         brand.isHidden = width < 600; heading.frame = NSRect(x: width < 600 ? 58 : (width-240)/2, y: 13, width: width < 600 ? max(100,width-80) : 240, height: 28)
         let actionWidth = max(100, ceil(allRead.intrinsicContentSize.width))
         unreadCount.frame = NSRect(x: margin, y: 65, width: max(80, width-2*margin-actionWidth-12), height: 20)
-        allRead.frame = NSRect(x: width-margin-actionWidth, y: 58, width: actionWidth, height: 30)
+        allRead.frame = NSRect(x: width-margin-actionWidth, y: 53, width: actionWidth, height: 40)
         var top: CGFloat = 102
         if !errorLabel.isHidden {
             errorLabel.preferredMaxLayoutWidth = max(100,width-2*margin)
             let needed = errorLabel.cell?.cellSize(forBounds: NSRect(x: 0,y: 0,width: width-2*margin,height: 200)).height ?? 32
             let h = min(96,max(32,ceil(needed))); errorLabel.frame = NSRect(x:margin,y:top,width:width-2*margin,height:h)
-            retry.frame = NSRect(x:margin,y:top+h+4,width:retry.intrinsicContentSize.width,height:30); top += h+46
+            retry.frame = NSRect(x:margin,y:top+h+4,width:retry.intrinsicContentSize.width,height:40); top += h+56
         }
         let compact = width < 760, detailVisible = !compact || (showingDetail && selectedKey != nil)
         back.isHidden = !compact || !detailVisible
-        if !back.isHidden { back.frame = NSRect(x:margin,y:top,width:back.intrinsicContentSize.width,height:30); top += 36 }
+        if !back.isHidden { back.frame = NSRect(x:margin,y:top,width:back.intrinsicContentSize.width,height:40); top += 46 }
         let bodyHeight = max(50,height-top-48), bodyWidth = max(100,width-2*margin)
         let leftWidth = compact ? bodyWidth : min(340,max(280,bodyWidth*0.38))
         listScroll.isHidden = compact && detailVisible; detailScroll.isHidden = !detailVisible; divider.isHidden = compact
@@ -211,7 +211,7 @@ private final class MessageRowView: NSTableRowView {
             if let label = part as? NSTextField {
                 label.preferredMaxLayoutWidth = textWidth
                 h = max(18,ceil(label.cell?.cellSize(forBounds:NSRect(x:0,y:0,width:textWidth,height:100000)).height ?? 18)); w = textWidth
-            } else { h = 30; w = min(textWidth,ceil(part.intrinsicContentSize.width)) }
+            } else { h = part.intrinsicContentSize.height; w = min(textWidth,ceil(part.intrinsicContentSize.width)) }
             part.frame = NSRect(x:18,y:y,width:w,height:h); y += h+12
         }
         detail.setFrameSize(NSSize(width:documentWidth,height:max(detailScroll.contentSize.height,y+6)))
