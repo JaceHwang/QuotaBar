@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0-beta.7](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.6...v1.7.0-beta.7) (2026-11-14)
+
+
+### Features
+
+* refine tactile button styles across platforms ([7811bf3](https://github.com/JaceHwang/QuotaBar/commit/7811bf3a9ac6a0de66533cc2a570bcb9dd746e1c))
+
 ## [1.7.0-beta.6](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.5...v1.7.0-beta.6) (2026-11-10)
 
 
