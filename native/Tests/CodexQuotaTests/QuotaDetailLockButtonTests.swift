@@ -18,7 +18,7 @@ final class QuotaDetailLockButtonTests: XCTestCase {
         XCTAssertEqual(button.accessibilityLabel(), "取消固定浮窗")
         XCTAssertEqual(button.state, .on)
         XCTAssertEqual(button.layer?.cornerRadius, 13)
-        XCTAssertNotEqual(button.layer?.backgroundColor, NSColor.clear.cgColor)
+        XCTAssertEqual(button.variant, .tertiary)
 
         button.performClick(nil)
         XCTAssertEqual(activationCount, 1)

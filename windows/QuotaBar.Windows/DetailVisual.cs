@@ -1,8 +1,8 @@
 namespace QuotaBar.Windows;
 
 // Visual metrics and palette retained from the Windows plugin v0.4.1.
-internal sealed record DetailPalette(Brush Primary,Brush Secondary,Brush Surface,Brush Border,Brush Track,Brush Badge) {
-    public static DetailPalette For(bool dark) => SystemParameters.HighContrast ? new(SystemColors.WindowTextBrush,SystemColors.GrayTextBrush,SystemColors.WindowBrush,SystemColors.ActiveBorderBrush,SystemColors.ControlBrush,SystemColors.HighlightBrush) : dark ? new(Rgb(230,230,230),Rgb(154,154,154),Rgb(30,30,30),Rgb(63,63,63),Rgb(58,58,58),Rgb(10,132,255)) : new(Rgb(23,23,23),Rgb(112,112,112),Brushes.White,Rgb(208,208,208),Rgb(231,231,231),Rgb(0,122,255));
+internal sealed record DetailPalette(Brush Primary,Brush Secondary,Brush Surface,Brush Border,Brush Track,Brush Badge,bool Dark) {
+    public static DetailPalette For(bool dark) => SystemParameters.HighContrast ? new(SystemColors.WindowTextBrush,SystemColors.GrayTextBrush,SystemColors.WindowBrush,SystemColors.ActiveBorderBrush,SystemColors.ControlBrush,SystemColors.HighlightBrush,dark) : dark ? new(Rgb(230,230,230),Rgb(154,154,154),Rgb(30,30,30),Rgb(63,63,63),Rgb(58,58,58),Rgb(10,132,255),true) : new(Rgb(23,23,23),Rgb(112,112,112),Brushes.White,Rgb(208,208,208),Rgb(231,231,231),Rgb(0,122,255),false);
     static Brush Rgb(byte r,byte g,byte b)=>new SolidColorBrush(Color.FromRgb(r,g,b));
 }
 internal static class DetailVisual {
@@ -10,10 +10,10 @@ internal static class DetailVisual {
     public static Border Separator(DetailPalette p)=>new() { Height=1,Background=p.Border,Opacity=.6 };
     public static Button Button(string content,Action action,string name,DetailPalette p,bool glyph=false,bool active=false) {
         var button=Ui.Button(content,action,name); button.FontFamily=new FontFamily(glyph?"Segoe Fluent Icons, Segoe MDL2 Assets":"Segoe UI"); button.FontSize=glyph?13:11;
-        button.Foreground=active?p.Badge:p.Secondary; button.Background=Brushes.Transparent; button.BorderThickness=new Thickness(0); button.Margin=new Thickness(0); button.Padding=new Thickness(6,4,6,4); button.MinHeight=26; button.Cursor=Cursors.Hand;
-        var chrome=new FrameworkElementFactory(typeof(Border)); chrome.Name="Chrome"; chrome.SetValue(Border.CornerRadiusProperty,new CornerRadius(8)); chrome.SetValue(Border.BackgroundProperty,active?new SolidColorBrush(Color.FromArgb(31,10,132,255)):Brushes.Transparent); chrome.SetValue(Border.PaddingProperty,new Thickness(6,4,6,4));
-        var presenter=new FrameworkElementFactory(typeof(ContentPresenter)); presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty,HorizontalAlignment.Center); presenter.SetValue(ContentPresenter.VerticalAlignmentProperty,VerticalAlignment.Center); chrome.AppendChild(presenter);
-        var template=new ControlTemplate(typeof(Button)) { VisualTree=chrome }; var hover=new Trigger { Property=System.Windows.Controls.Button.IsMouseOverProperty,Value=true }; hover.Setters.Add(new Setter(Border.BackgroundProperty,new SolidColorBrush(Color.FromArgb(24,128,128,128)),"Chrome")); template.Triggers.Add(hover); button.Template=template; return button;
+        SettingsVisual.ApplyVariant(button,active?SettingsVisual.ButtonVariant.Tertiary:glyph?SettingsVisual.ButtonVariant.Ghost:SettingsVisual.ButtonVariant.Text,p.Dark);
+        if(!active) button.Foreground=p.Secondary;
+        button.BorderThickness=new Thickness(0); button.Margin=new Thickness(0); button.Padding=new Thickness(6,4,6,4); button.MinHeight=26; button.Cursor=Cursors.Hand;
+        return button;
     }
 }
 internal sealed class DetailProgress : FrameworkElement {

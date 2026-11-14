@@ -140,6 +140,7 @@ class DevelopmentSyncTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls(), [
             "run --project windows/QuotaBar.Core.Tests --configuration Release",
+            "run --project windows/QuotaBar.Windows.Tests/Portable/Tactile/TactilePortable.Tests.csproj --configuration Release",
             "build windows/QuotaBar.Windows --configuration Release",
             "build windows/QuotaBar.Setup --configuration Release",
             "run --project windows/QuotaBar.Windows.Tests --configuration Release",
@@ -148,7 +149,7 @@ class DevelopmentSyncTests(unittest.TestCase):
     def test_windows_device_records_failure_and_attempts_remaining_checks(self):
         result = self.run_device_adapter("MINGW64_NT-10.0", status="9")
         self.assertEqual(result.returncode, 9, result.stderr)
-        self.assertEqual(len(self.calls()), 4)
+        self.assertEqual(len(self.calls()), 5)
 
     def test_macos_device_keeps_existing_complete_verification(self):
         result = self.run_device_adapter("Darwin")
@@ -176,7 +177,7 @@ class DevelopmentSyncTests(unittest.TestCase):
         result = subprocess.run([BASH, str(project / "check-full")], cwd=self.root,
                                 env=env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 8, result.stderr)
-        self.assertEqual(self.calls(), ["swift", "python", "python", "signing"] + ["dotnet"] * 4)
+        self.assertEqual(self.calls(), ["swift", "python", "python", "signing"] + ["dotnet"] * 5)
 
 
 if __name__ == "__main__":

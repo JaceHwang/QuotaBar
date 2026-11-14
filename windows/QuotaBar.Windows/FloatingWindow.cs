@@ -62,6 +62,7 @@ internal sealed class FloatingWindow : Window {
         // A 2/255 backing remains nonzero after unavailable-state dimming while
         // appearing transparent; the configured surface itself still reaches zero.
         Background=alpha==0?new SolidColorBrush(dark?Color.FromArgb(2,0,0,0):Color.FromArgb(2,255,255,255)):Brushes.Transparent;
+        SettingsVisual.ApplyVariant(close,SettingsVisual.ButtonVariant.Ghost,dark);
         close.Foreground=fg; close.ToolTip=copy.Text("Close floating button","关闭悬浮按钮","關閉懸浮按鈕");
         System.Windows.Automation.AutomationProperties.SetName(close,(string)close.ToolTip);
         foreach(var child in content.Children.Cast<UIElement>().Where(v=>v!=close).ToArray()) content.Children.Remove(child);

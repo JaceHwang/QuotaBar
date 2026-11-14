@@ -99,7 +99,7 @@ final class FloatingQuotaButton: NSObject {
     let preferences: FloatingQuotaPreferences
     private let panel: NSPanel
     let interaction = FloatingQuotaInteractionView(frame: .zero)
-    let closeButton = NSButton(frame: .zero)
+    let closeButton = SettingsAccentButton(frame: .zero)
     var onClose: (() -> Void)?
     private let label = NSTextField(labelWithString: "")
     private let icon = QuotaThemeIconView(frame: .zero)
@@ -137,6 +137,7 @@ final class FloatingQuotaButton: NSObject {
             moodIcon.mood = active && moodEnabled ? .recovered : currentMood
             moodIcon.isHidden = !moodEnabled && !active
         }
+        closeButton.buttonSize = .compact; closeButton.usesAutomaticHeight = false; closeButton.usesAccentFill = false; closeButton.variant = .ghost
         closeButton.isBordered = false
         closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close floating button")
         closeButton.imageScaling = .scaleProportionallyDown

@@ -78,6 +78,7 @@ internal sealed class MessageCenterWindow : Window {
   SizeChanged+=(_,_)=>LayoutPanes();router.MessageCenterChanged+=Refresh;Closed+=(_,_)=>router.MessageCenterChanged-=Refresh;
   SettingsVisual.ApplyScrollbars(root,dark);SettingsVisual.ApplyButtons(root,dark);Refresh();
  }
+ internal void RefreshSystemButtonStyles() => SettingsVisual.ApplyButtons(this,dark);
  Button Button(string title,string tag,Action action) { var b=Ui.Button(title,()=> { action();Refresh(); });b.Tag=tag;return b; }
  void Open(Row row) { SelectedKey=row.Record.Key;showingDetail=true;router.MarkMessageRead(row.Record.Key);Refresh(); }
  public void Refresh() {

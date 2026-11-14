@@ -5,6 +5,72 @@ import QuotaCore
 
 @MainActor final class SettingsGuideTests: XCTestCase {
     func tree(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(tree) }
+    func testSharedButtonUsesStandardTactileMetrics() {
+        let button = SettingsAccentButton(frame: .zero)
+        button.title = "Continue"
+        XCTAssertEqual(button.intrinsicContentSize.height, 40, accuracy: 0.01)
+        let labelWidth = NSAttributedString(string: button.title, attributes: [.font: NSFont.systemFont(ofSize: 14, weight: .semibold)]).size().width
+        XCTAssertGreaterThanOrEqual(button.intrinsicContentSize.width, labelWidth + 36)
+    }
+    func testPrimaryButtonFaceUsesNeutralSlate() throws {
+        let button = SettingsAccentButton(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
+        let bitmap = try XCTUnwrap(button.bitmapImageRepForCachingDisplay(in: button.bounds))
+        button.cacheDisplay(in: button.bounds, to: bitmap)
+        let color = try XCTUnwrap(bitmap.colorAt(x: 12, y: 20)?.usingColorSpace(.sRGB))
+        XCTAssertLessThan(abs(color.blueComponent - color.redComponent), 0.16, "Primary face should be neutral slate, not saturated blue")
+        XCTAssertLessThan(color.redComponent, 0.4)
+    }
+    func testPrimaryButtonIsLitFromAbove() throws {
+        let button = SettingsAccentButton(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
+        let bitmap = try XCTUnwrap(button.bitmapImageRepForCachingDisplay(in: button.bounds))
+        button.cacheDisplay(in: button.bounds, to: bitmap)
+        let top = try XCTUnwrap(bitmap.colorAt(x: 12, y: 10)?.usingColorSpace(.sRGB))
+        let bottom = try XCTUnwrap(bitmap.colorAt(x: 12, y: 30)?.usingColorSpace(.sRGB))
+        XCTAssertGreaterThan(top.redComponent, bottom.redComponent)
+    }
+    func testSecondaryButtonUsesQuietDarkSurfaceInDarkAppearance() throws {
+        let button = SettingsAccentButton(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
+        button.usesAccentFill = false
+        let appearance = try XCTUnwrap(NSAppearance(named: .darkAqua)); button.appearance = appearance
+        let bitmap = try XCTUnwrap(button.bitmapImageRepForCachingDisplay(in: button.bounds))
+        appearance.performAsCurrentDrawingAppearance { button.cacheDisplay(in: button.bounds, to: bitmap) }
+        let face = try XCTUnwrap(bitmap.colorAt(x: 12, y: 20)?.usingColorSpace(.sRGB))
+        XCTAssertLessThan(face.redComponent, 0.4, "Secondary controls should blend into a dark surface")
+        XCTAssertLessThan(abs(face.redComponent - face.blueComponent), 0.03, "The face remains neutral")
+    }
+    func testLargeButtonScalesWithItsLabel() {
+        let button = SettingsAccentButton(frame: .zero)
+        button.buttonSize = .lg
+        button.title = "Continue"
+        XCTAssertEqual(button.intrinsicContentSize.height, 40 * 16.0 / 14.0, accuracy: 0.01)
+    }
+    func testPressedPrimaryReversesLight() throws {
+        let button = SettingsAccentButton(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
+        button.highlight(true)
+        let bitmap = try XCTUnwrap(button.bitmapImageRepForCachingDisplay(in: button.bounds))
+        button.cacheDisplay(in: button.bounds, to: bitmap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        button.cacheDisplay(in: button.bounds, to: bitmap)
+        let top = try XCTUnwrap(bitmap.colorAt(x: 12, y: 10)?.usingColorSpace(.sRGB))
+        let bottom = try XCTUnwrap(bitmap.colorAt(x: 12, y: 30)?.usingColorSpace(.sRGB))
+        XCTAssertLessThan(top.redComponent, bottom.redComponent)
+    }
+    func testDisabledTextButtonRemainsReadableInDarkAppearance() throws {
+        let button = SettingsAccentButton(frame: NSRect(x: 0, y: 0, width: 180, height: 40))
+        button.variant = .text; button.title = "Unavailable"; button.isEnabled = false
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 180, pixelsHigh: 40, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = context
+        NSColor(srgbRed: 0.10, green: 0.10, blue: 0.10, alpha: 1).setFill(); button.bounds.fill()
+        try XCTUnwrap(NSAppearance(named: .darkAqua)).performAsCurrentDrawingAppearance { button.draw(button.bounds) }
+        context.flushGraphics()
+        var brightest: CGFloat = 0
+        for y in 0..<40 { for x in 0..<180 {
+            if let pixel = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) { brightest = max(brightest, pixel.redComponent) }
+        } }
+        XCTAssertGreaterThan(brightest, 0.55, "Disabled text must remain distinguishable on a dark surface")
+    }
     func testSettingsActionsShareBarkMetricsAndDetailBrand() throws {
         let defaults = UserDefaults(suiteName: "Uniform.\(UUID())")!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -19,9 +85,9 @@ import QuotaCore
             let actions = tree(shell.pageContents[page]).compactMap { $0 as? NSButton }.filter { !($0 is NSPopUpButton) }
             for button in actions {
                 XCTAssertTrue(button is SettingsAccentButton, "Unstyled settings action: \(button.title)")
-                XCTAssertEqual(button.frame.height, 30, accuracy: 1, "Action height: \(button.title)")
+                XCTAssertEqual(button.frame.height, 40, accuracy: 1, "Action height: \(button.title)")
                 if !button.title.isEmpty {
-                    let expected = NSAttributedString(string: button.title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold)]).size().width + 24
+                    let expected = NSAttributedString(string: button.title, attributes: [.font: NSFont.systemFont(ofSize: 14, weight: .semibold)]).size().width + 36
                     XCTAssertGreaterThanOrEqual(button.frame.width + 1, max(100, expected), "Label padding: \(button.title)")
                 }
             }

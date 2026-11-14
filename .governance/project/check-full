@@ -11,6 +11,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-standalone-install.py || st
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-macos-startup-cleanup.py || status=$?
 bash tests/test-signing-identity.sh || status=$?
 dotnet run --project windows/QuotaBar.Core.Tests --configuration Release || status=$?
+dotnet run --project windows/QuotaBar.Windows.Tests/Portable/Tactile/TactilePortable.Tests.csproj --configuration Release || status=$?
 dotnet build windows/QuotaBar.Windows --configuration Release || status=$?
 dotnet build windows/QuotaBar.Setup --configuration Release || status=$?
 dotnet build windows/QuotaBar.Windows.Tests --configuration Release || status=$?

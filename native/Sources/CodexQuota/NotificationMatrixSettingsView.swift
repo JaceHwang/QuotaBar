@@ -46,8 +46,8 @@ import QuotaCore
         for (index, channel) in NotificationChannel.allCases.enumerated() {
             let header = QuotaSettingsStyle.column(3); header.alignment = .centerX
             header.addArrangedSubview(QuotaSettingsStyle.label(channelTitle(channel), size: 12, secondary: true))
-            let button = NSButton(title: copy.text("All", "全选", "全選"), target: self, action: #selector(selectColumn(_:)))
-            button.bezelStyle = .roundRect; button.controlSize = .small; button.font = .systemFont(ofSize: 11)
+            let button = SettingsAccentButton(title: copy.text("All", "全选", "全選"), target: self, action: #selector(selectColumn(_:)))
+            button.buttonSize = .compact; button.usesAccentFill = false; button.variant = .tertiary
             button.tag = index; button.identifier = .init("notification.selectAll.\(channel.rawValue)")
             button.setAccessibilityLabel(copy.text("Select all \(masterTitle(channel)) categories", "全选\(masterTitle(channel))类别", "全選\(masterTitle(channel))類別"))
             columnActions.append(button); header.addArrangedSubview(button); headers.append(header)
