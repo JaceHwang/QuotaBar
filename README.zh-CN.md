@@ -10,7 +10,7 @@
 
 [English](README.md) · **简体中文**
 
-[下载 v1.6.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0) · [安装说明](#安装) · [文档索引](docs/README.md)
+[下载 v1.7.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0) · [安装说明](#安装) · [文档索引](docs/README.md)
 
 </div>
 
@@ -54,7 +54,7 @@ macOS 菜单栏显示剩余额度和重置日期，也可切换为单色图标�
 
 截图中的 1.0.0 和 999.0.0 是测试版本，用来展示更新控件。1.6.0 修复 macOS 下载进度和退出交接，保留安全的失败阶段与系统错误码；Windows 助手在报告就绪前可用最多 120 秒核验、解压安装包。这里的 120 秒就绪期限与启动后 10 秒检查是两个独立阶段。详见[应用内更新与回退说明](docs/IN_APP_UPDATES.zh-CN.md)。
 
-当前源码新增“内测体验”：默认关闭，开启前需要两次确认；开启后可收到较新的内测或正式更新，仍需手动选择安装。关闭后不再提供内测更新；已经安装的内测版会保留，直到有更高版本的正式版可升级。GitHub 内测包为公开预发布，未提供下载权限限制。本功能尚未包含在上方 1.6.0 正式安装包中。
+1.7.0 包含“内测体验”：默认关闭，开启前需要两次确认；开启后可收到较新的内测或正式更新，仍需手动选择安装。关闭后不再提供内测更新；已经安装的内测版会保留，直到有更高版本的正式版可升级。GitHub 内测包为公开预发布，未提供下载权限限制。
 
 ### 让悬浮按钮融入桌面
 
@@ -72,12 +72,12 @@ Windows 拖动位置与偏好跨重启保存；macOS 设置窗口支持最小化
 
 ## 安装
 
-两端共用 **v1.6.0**。请从[发布页](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0)下载安装包及校验文件。
+两端共用 **v1.7.0**。请从[发布页](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0)下载安装包及校验文件。
 
 | 平台 | 下载 | 系统与签名 |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/codex-quota-v1.6.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，未完成 Developer ID 公证。 |
-| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/QuotaBar-1.6.0-windows-x64.zip) | Windows 11 x64，安装包未签名。 |
+| macOS Apple Silicon | [DMG 安装包](https://github.com/JaceHwang/QuotaBar/releases/download/v1.7.0/codex-quota-v1.7.0-macos-arm64.dmg) | 声明支持 macOS 14+，已在 macOS 27.0 实测。本地签名，未完成 Developer ID 公证。 |
+| Windows x64 | [安装器 ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.7.0/QuotaBar-1.7.0-windows-x64.zip) | Windows 11 x64，安装包未签名。 |
 
 macOS 校验 `CODEX-QUOTA-SHA256SUMS.txt`、打开 DMG 后，使用发布附带的安装器：
 
@@ -87,7 +87,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 标准位置是 `/Applications/QuotaBar.app`。Windows 校验 `QUOTABAR-WINDOWS-SHA256SUMS.txt`，完整解压 ZIP 后运行 `QuotaBar/setup/QuotaBar.Setup.exe`，标准位置为 `%LOCALAPPDATA%\Programs\QuotaBar`。升级保留隔离账户和设置；可从 Finder 或 Windows 开始菜单重新打开。选择“退出”才会停止应用与运行时。
 
-低于 1.4.0 的版本需先手动安装一次，以获得更新助手。应用内更新要求使用标准每用户安装位置。详见 [macOS 安装说明](docs/MACOS_STANDALONE.zh-CN.md)和 [Windows 安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
+低于 1.4.0 的版本需先手动安装一次，以获得更新助手。应用内更新要求使用各平台的标准安装位置。详见 [macOS 安装说明](docs/MACOS_STANDALONE.zh-CN.md)和 [Windows 安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
 
 ### 验证范围
 

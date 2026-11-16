@@ -10,7 +10,7 @@ An independent quota app for macOS and Windows: quota at a glance, configurable 
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download v1.6.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0) · [Installation](#installation) · [Documentation](docs/README.md)
+[Download v1.7.0](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0) · [Installation](#installation) · [Documentation](docs/README.md)
 
 </div>
 
@@ -54,7 +54,7 @@ In **About app**, choose Update now to download an official release, verify its 
 
 The screenshot uses fixture versions 1.0.0 and 999.0.0 to exercise the update controls. Version 1.6.0 fixes macOS download progress and shutdown handoff, retains safe failure diagnostics, and lets the Windows helper take up to 120 seconds to verify/extract the package before declaring it ready. This readiness limit is separate from the 10-second startup check. [Update and recovery guide](docs/IN_APP_UPDATES.zh-CN.md).
 
-The current source adds an opt-in beta experience. It is off by default and requires two confirmations; after opting in, newer beta or stable updates can be offered, but installation still requires an explicit action. Opting out stops beta offers without downgrading an already installed beta. GitHub prerelease packages are public. This feature is not included in the v1.6.0 downloads above.
+Version 1.7.0 includes an opt-in beta experience. It is off by default and requires two confirmations; after opting in, newer beta or stable updates can be offered, but installation still requires an explicit action. Opting out stops beta offers without downgrading an already installed beta. GitHub prerelease packages are public.
 
 ### A floating control that fits your desktop
 
@@ -72,12 +72,12 @@ The account is separate from Codex desktop. Quota normally refreshes about every
 
 ## Installation
 
-Both platforms share **v1.6.0**. Download packages and checksums from the [release page](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.6.0).
+Both platforms share **v1.7.0**. Download packages and checksums from the [release page](https://github.com/JaceHwang/QuotaBar/releases/tag/v1.7.0).
 
 | Platform | Download | Support and signing |
 | --- | --- | --- |
-| macOS Apple Silicon | [DMG](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/codex-quota-v1.6.0-macos-arm64.dmg) | macOS 14+ declared; device-tested on macOS 27.0. Locally signed, not Developer ID notarized. |
-| Windows x64 | [Installer ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.6.0/QuotaBar-1.6.0-windows-x64.zip) | Windows 11 x64. Unsigned package. |
+| macOS Apple Silicon | [DMG](https://github.com/JaceHwang/QuotaBar/releases/download/v1.7.0/codex-quota-v1.7.0-macos-arm64.dmg) | macOS 14+ declared; device-tested on macOS 27.0. Locally signed, not Developer ID notarized. |
+| Windows x64 | [Installer ZIP](https://github.com/JaceHwang/QuotaBar/releases/download/v1.7.0/QuotaBar-1.7.0-windows-x64.zip) | Windows 11 x64. Unsigned package. |
 
 For macOS, verify `CODEX-QUOTA-SHA256SUMS.txt`, open the DMG and use the release's installer:
 
@@ -87,7 +87,7 @@ python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/Quota
 
 The standard location is `/Applications/QuotaBar.app`. For Windows, verify `QUOTABAR-WINDOWS-SHA256SUMS.txt`, extract the whole ZIP and run `QuotaBar/setup/QuotaBar.Setup.exe`; the standard location is `%LOCALAPPDATA%\Programs\QuotaBar`. Upgrades preserve the isolated account and settings. Reopen from Finder or the Windows Start menu. Use Quit to stop the app and its runtime.
 
-Versions before 1.4.0 need a one-time manual installation to obtain the update helper. In-app updates require the standard per-user installation. [macOS installation](docs/MACOS_STANDALONE.zh-CN.md) · [Windows installation](docs/WINDOWS_STANDALONE.zh-CN.md).
+Versions before 1.4.0 need a one-time manual installation to obtain the update helper. In-app updates require the standard installation location for each platform. [macOS installation](docs/MACOS_STANDALONE.zh-CN.md) · [Windows installation](docs/WINDOWS_STANDALONE.zh-CN.md).
 
 ### Validation scope
 
