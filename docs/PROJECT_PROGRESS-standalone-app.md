@@ -1293,3 +1293,45 @@ Pages更新作业43355065796通过，公网updates.json的beta通道两平台均
 ### 2026-11-15 拟物按钮测试版发布准备
 
 用户授权推送并发布测试版。以 codex/prerelease/beta 的 dc7e9a5 为基线，先提交按钮改造和测试，通过功能 PR 与准确提交的双平台 CI 后再按 Release Please 生成版本。既有 macOS 实机结果对应未提交工作区快照，Windows 用户设备尚未运行本次代码；两端物理设备证据与 CI 分开记录。禁止覆盖已发布资产。
+
+### 2026-11-16 Windows 提醒矩阵控件显示
+
+基于 beta.7（2abd377）在 codex/fix/reminder-controls 调整 Windows 提醒页：列全选及阈值增删按钮改为紧凑尺寸，输入框与单位和操作按钮垂直对齐；保留原有操作、无障碍名称、主题及键盘焦点。项目进度工具和 .project-board/board.md 在本环境不可用。governance doctor 通过；构建首次尝试因本机默认仅有 .NET 8/9、项目需要 .NET 10 失败。尚未完成原生 UI 截图验收、CI、候选打包或发布；下一步安装独立 .NET 10 SDK 后运行 Windows 测试及检查不同窗口宽度。
+
+用户授权本地安装用于实机测试。独立安装的 .NET SDK 10.0.404 经微软发布元数据 SHA-512 校验；Windows 应用构建零错误，Core 套件通过。Windows 原生套件首轮运行经过提醒矩阵和设置截图，最终在 Quit 子进程浮窗鼠标命中断言失败；复跑在浮窗拖动断言失败，均保留为未通过的实机自动化结果。检查原生测试生成的浅色提醒页截图，紧凑按钮和阈值输入对齐。
+
+官方 beta.7 更新包 SHA-256 6a6089a8f52a86021604f00af7783f0b055e617eb62c194366cb421c20162312 及包清单逐文件核验通过；官方 Codex 运行时下载超时，故以该官方包为基础仅替换本地重建的 QuotaBar.dll，生成带明确 construction 说明的 local-development-candidate。候选 ZIP SHA-256 dd93ee3ec42dbbdaa4f443b46a0d8a11399109293feba4f1436fb12fc6d96086，包内容、来源、PE 和 ZIP 检查通过。事务安装器 install 退出 0，备份 backup-11e4dd9f-b62b-46f0-9679-95013c636434；安装后 791 项文件摘要与候选一致，preferences、notification-policy、update-channel 摘要未变。实际进程 PID 6464、phase=Ready、has_quota=True、floating_visible=True。当前为本机候选，待用户对实际提醒页测试；未提交、推送、公开发布，未完成全部原生 UI 回归。
+
+### 2026-11-16 Windows 按钮手形光标
+
+用户要求应用按钮悬停时使用手形指针。核对 Windows 应用的 Button 创建均经 Ui.Button，统一将其光标改为 Cursors.Hand；原有详情按钮手形、浮窗拖动 SizeAll 和调整大小 SizeNS 保持。基于上一轮同一分支及未提交的提醒页改动继续，未修改 macOS。治理 doctor、Windows Release 构建（0 错误）、共享按钮的手形光标及应用设置样式后点击行为聚焦检查、候选包完整性检查通过；上一轮完整 Windows 原生套件的浮窗鼠标命中/拖动失败记录仍有效，本轮未重跑完整套件。
+
+沿用用户本机测试授权，将基于已核验官方 beta.7 包并替换本地构建 QuotaBar.dll 的开发候选安装到本机；候选 ZIP SHA-256 a5e9fe26aeed7beae24be96e66512d02f843c599b1fac131e78ab15cba77842c。事务安装成功，旧包备份 backup-dc0d6d23-11fc-4502-809b-d0bdbf7cd703；安装后 791 项文件摘要匹配，preferences、notification-policy、update-channel 摘要未变；PID 37384，Ready，has_quota=True，floating_visible=True。尚未完成人工逐页悬停验收或双平台 CI；未提交、推送或发布。
+
+### 2026-11-16 macOS 按钮手形光标
+
+用户要求同步 macOS。SettingsAccentButton 统一注册 pointingHand 光标区域，覆盖设置、消息、提醒气泡及相关操作；悬浮按钮关闭区由 arrow 改为 pointingHand，悬浮主体 openHand/closedHand 拖动和详情面板 resizeUpDown 保持。既有详情链接已设 pointingHand；系统复选框及系统标题栏沿用原生行为。Windows 工作区执行治理 doctor、.governance/project/check-fast 和 diff 检查通过；本机无 macOS/AppKit 或 Swift 工具链，尚未编译、执行 AppKit 测试、实机验证或安装 macOS 候选。需要在 macOS 原生设备验证光标切换和拖动；尚未提交、推送或发布。进度跟踪工具及看板文件仍不可用。
+
+### 2026-11-16 草稿同步准备
+
+用户授权将本次提醒页紧凑布局和双端按钮手形光标提交远端草稿，目标基线为 beta.7 2abd377。同步前治理 doctor、快速检查、Core 测试、Windows 触觉按钮便携测试以及 Windows 应用和安装器构建通过；Windows 原生套件在退出清理子进程的全透明浮窗命中区断言失败，外层退出清理断言随之失败，故本机完整检查未通过，按草稿同步记录并等待 CI。macOS 编译、AppKit 测试与实机验收待有 macOS 设备执行。此前本地 Windows 候选来源为带未提交工作区的 beta.7 源码快照，不等同于草稿提交的精确构建。项目进度工具和看板不可用。
+
+### 2026-11-16 Windows Actions 候选实机验收
+
+按用户要求验收 GitHub Actions 运行 43802030965 的 quotabar-windows-candidate，来源提交 47c4637f2f63968086316a64f221be77d6dcccb3；该运行的 Windows 和 macOS CI 作业均成功，不能代替物理设备结果。Actions 制品 ZIP SHA-256 e224f596ee7487d9d8651055e4fab5ed4e9b54a9aa722f5904ff460e469b52bc 与 GitHub 记录一致，内层候选 ZIP SHA-256 bfac5ecafce85ddeb2d0d6df4cde576bddb536ddb7e3dce04daf95380833da84；128 项源码按 Git 提交字节核对一致，包完整性、PE、运行时和 ZIP 验证通过。初次按 Windows 工作区文件直接核验因 CRLF 换行差异失败，改用提交对象原始字节后通过，保留这一记录。
+
+Windows 11 build 26200 上事务安装精确候选成功，旧安装备份 backup-fb88aedb-b9d5-4980-9602-64f403833095；791 项安装文件匹配，安装后 preferences、notification-policy、update-channel 摘要与安装前一致。进程 PID 25348 处于 Ready、has_quota=True、floating_visible=True。实际设置页确认紧凑按钮和阈值布局，额度偏低及 Bank 添加按钮均打开空白输入；低额度输入 Escape 取消，Bank 空输入失焦后取消，原有 Bank 72/24 小时保留。点击气泡列全选时，界面显示“提醒设置读取或保存失败。句柄无效。”，勾选仍保持，策略文件摘要与安装前一致；此前页面还显示“无法保存提醒状态，本次未发提醒”。因此提醒设置保存相关验收未通过，不推断故障根因或是否由本次改动引入。未发送真实通知，未实机验证手形光标及全部窗口宽度；CI 通过不能覆盖上述本机失败。当前安装保留该 Actions 开发候选，后续应调查本机无效句柄并重验设置保存。进度工具和看板不可用。
+
+### 2026-11-16 Windows 提醒状态无效句柄修复与实机验证
+
+用户要求排查并实机验证。Windows 11 build 26200 的真实 QuotaBar 数据目录使用独立测试文件复现：File.Move 覆盖和无目标重命名均返回 0x80070006，File.Replace 返回 0x80070497；File.Copy 可用。原通知策略、体验状态、额度告警和 Bark 回执保存均使用 File.Move，因此本机不能保存提醒策略及提醒状态。定位为该设备文件系统操作行为与应用缺少兼容路径的组合；未归因到具体驱动或系统组件。测试文件均独立创建并清理。
+
+新增共享 ReminderFileCommit，仅 ERROR_INVALID_HANDLE 时采用备份后复制；写入失败恢复原文件，恢复失败保留备份并阻止后续覆盖，已有备份时检查当前内容有效性。通知策略、体验、告警及 Bark 去重回执使用此路径，正常情况下保留原有重命名语义。注入错误回归覆盖策略及阈值重载、非目标错误、写入中断回滚、恢复失败后跨重启保护、体验与告警状态及 Bark 去重/失败保护。真实数据目录的独立文件验证四类存储保存、重载及 Bark 去重通过；完整 Core 套件、Windows 原生 UI 套件（包括此前失败的透明浮窗和退出流程）通过。
+
+以已核验 Actions 43802030965 候选为基础，仅替换本地重建的应用和 setup QuotaBar.Core.dll，构造 local-development-candidate，sourceCommit 47c4637、workingTreeDirty=true，ZIP SHA-256 1693c696fd47b287d169fe2a566498305d942a6f166cbcdebd5e183616865864；来源快照、791 项文件、PE 和 ZIP 校验通过。安装前在 .dist/reminder-persistence-fix/pretest-data 保存并核对现有偏好与状态文件，事务安装备份 backup-d0f0c24b-3ee2-4af1-8db4-ae3fff4b4365。安装后 PID 43244，Ready、has_quota=True、floating_visible=True。
+
+实机设置页气泡列全选切换成功，取消后重启仍保持取消，再恢复全选并再次重启保持；新增 10% 阈值成功并删除。测试导致隐藏 lowRemainingThreshold 标量由40变10，已通过 UI 添加40再删除恢复至40；最终规则、渠道、阈值、暂停及 Bank 72/24 渠道与测试前语义一致。preferences、update-channel、Bark 回执摘要未变，页面未再显示无效句柄或提醒状态保存失败。未发送真实通知，未对有配置的手机通道进行端到端推送；未在 macOS 或 CI 运行此工作区改动。修复与验收记录尚未提交或推送，安装为本机开发候选。
+
+### 2026-11-16 提醒修复草稿同步准备
+
+用户授权推送本工作区全部改动，继续使用现有草稿 PR #84 和 codex/fix/reminder-controls。推送前再次执行 QUOTABAR_DRAFT_SYNC=1 governance check sync：快速检查、Core 与提醒存储回归、Windows 应用及安装器构建、原生 UI 套件（含透明浮窗与退出）通过。已安装的本地候选仍为 47c4637 加未提交源码快照，实机验证不冒充精确提交构建；完整手机推送及 macOS 实机仍待验证。项目进度工具和看板文件不可用，现有路线图记录继续保留。

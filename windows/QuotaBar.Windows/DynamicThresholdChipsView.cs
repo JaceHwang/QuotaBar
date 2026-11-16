@@ -17,7 +17,7 @@ internal sealed class DynamicThresholdChipsView : WrapPanel {
  }
  void Render() {
   rebuilding=true;
-  var desired=new List<UIElement>(); title.Margin=new Thickness(0,0,8,4); desired.Add(title);
+  var desired=new List<UIElement>(); title.Margin=new Thickness(0,0,8,4); title.VerticalAlignment=VerticalAlignment.Center; desired.Add(title);
   var values=read();
   var previous=Children.OfType<Border>().ToDictionary(b=>b.Tag!.ToString()!);
   TextBox? blank=null;
@@ -26,7 +26,7 @@ internal sealed class DynamicThresholdChipsView : WrapPanel {
    if(previous.TryGetValue(id,out var chip)) desired.Add(chip);
    else desired.Add(CreateChip(value,out _));
   }
-  if(values.Length==0&&!adding) { var hint=Ui.Text(copy.Text("No thresholds","暂无阈值","暫無閾值"),11,SettingsVisual.Muted(dark)); hint.Margin=new Thickness(0,3,6,4); desired.Add(hint); }
+  if(values.Length==0&&!adding) { var hint=Ui.Text(copy.Text("No thresholds","暂无阈值","暫無閾值"),11,SettingsVisual.Muted(dark)); hint.Margin=new Thickness(0,0,6,4); hint.VerticalAlignment=VerticalAlignment.Center; desired.Add(hint); }
   if(adding) {
    if(previous.TryGetValue("new",out var pending)) desired.Add(pending);
    else desired.Add(CreateChip(null,out blank));
@@ -49,8 +49,8 @@ internal sealed class DynamicThresholdChipsView : WrapPanel {
   if(blank is {} input) input.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,new Action(()=> { if(adding&&input.Parent!=null) { input.Focus(); input.SelectAll(); } }));
  }
  Border CreateChip(int? original,out TextBox editor) {
-  var row=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,6,4) };
-  var input=new TextBox { Text=original?.ToString()??"",Width=maximum>99?40:26,MinHeight=24,Padding=new Thickness(2,1,2,1),VerticalContentAlignment=VerticalAlignment.Center,Background=Ui.Surface(dark),Foreground=Ui.Foreground(dark),Tag="notification.threshold."+key+"."+(original?.ToString()??"new") };
+  var row=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,6,4),VerticalAlignment=VerticalAlignment.Center };
+  var input=new TextBox { Text=original?.ToString()??"",Width=maximum>99?40:30,Height=28,MinHeight=28,VerticalAlignment=VerticalAlignment.Center,Padding=new Thickness(2,1,2,1),VerticalContentAlignment=VerticalAlignment.Center,Background=Ui.Surface(dark),Foreground=Ui.Foreground(dark),Tag="notification.threshold."+key+"."+(original?.ToString()??"new") };
   System.Windows.Automation.AutomationProperties.SetName(input,title.Text+" · "+(original?.ToString()??copy.Text("New threshold","新阈值","新閾值"))+unit);
   input.ToolTip=copy.Text($"Whole number 1–{maximum}; Enter to save, Escape to cancel.",$"1–{maximum} 的整数；回车保存，Esc 取消。",$"1–{maximum} 的整數；Enter 儲存，Esc 取消。");
   var finished=false;

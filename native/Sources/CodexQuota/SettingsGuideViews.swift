@@ -152,6 +152,10 @@ import AppKit
         let width = NSAttributedString(string: renderedTitle, attributes: [.font: NSFont.systemFont(ofSize: 14 * u, weight: .semibold)]).size().width
         return NSSize(width: max((buttonSize == .compact ? 40 : 100) * u, ceil(width) + 36 * u + (image == nil ? 0 : 22 * u)), height: 40 * u)
     }
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
     override func updateTrackingAreas() {
         if let tracking { removeTrackingArea(tracking) }
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)

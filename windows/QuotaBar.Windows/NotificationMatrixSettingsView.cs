@@ -28,7 +28,7 @@ internal sealed class NotificationMatrixSettingsView : StackPanel {
   AddRow(grid,0,Ui.Text(copy.Text("Reminder content","提醒内容","提醒內容"),13,fg));
   foreach(var channel in Enum.GetValues<NotificationChannel>()) {
    var heading=new StackPanel { HorizontalAlignment=HorizontalAlignment.Center };
-   heading.Children.Add(Ui.Text(ChannelTitle(channel),12,muted));
+   var channelLabel=Ui.Text(ChannelTitle(channel),12,muted); channelLabel.TextAlignment=TextAlignment.Center; channelLabel.Margin=new Thickness(0,0,0,3); heading.Children.Add(channelLabel);
    var select=Ui.Button(copy.Text("Select all","全选","全選"),()=> { var p=owner.Notifications.PolicyPreferences; if(p.EnabledChannels.Contains(channel)) owner.Notifications.ConfigurePolicy(p.ToggleColumn(channel)); Refresh(); });
    select.Tag="notification.selectAll."+Key(channel); columnActions[channel]=select;
    System.Windows.Automation.AutomationProperties.SetName(select,ChannelTitle(channel)+" · "+copy.Text("Select all","全选","全選"));
