@@ -12,9 +12,11 @@ if(args.Contains("--update-channel-tests")) { UpdateChannelStoreTests.Run();retu
 if(args.Contains("--installer-compatibility-tests")) { InstallerCompatibilityTests.Run();return 0; }
 if(args.Contains("--update-resume-tests")) { await UpdateResumeTests.Run();return 0; }
 if(args.Contains("--update-cache-tests")) { await UpdateDownloadTests.CacheTests();return 0; }
+if(args.Contains("--reminder-persistence-tests")) { ReminderPersistenceTests.Run();return 0; }
 if(args.Contains("--windows-reliability-settings")) { WindowsReliabilityTests.Settings();return 0; }
 if(args.Contains("--windows-reliability-readiness")) { await WindowsReliabilityTests.Readiness();return 0; }
 UpdateChannelStoreTests.Run();
+ReminderPersistenceTests.Run();
 await UpdateResumeTests.Run();
 WindowsReliabilityTests.Settings();
 await WindowsReliabilityTests.Readiness();

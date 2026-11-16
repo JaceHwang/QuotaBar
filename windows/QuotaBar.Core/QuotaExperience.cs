@@ -128,7 +128,17 @@ public sealed class QuotaExperienceEngine(ExperienceState state,bool suppressFir
         return result;
     }
 }
-public sealed class QuotaExperienceStore(string path) {
+public sealed class QuotaExperienceStore {
+    readonly string path;
+    readonly ReminderFileCommit commit;
+    public QuotaExperienceStore(string path):this(path,File.Move) { }
+    internal QuotaExperienceStore(string path,Action<string,string,bool> moveFile,Action<string,string,bool>? copyFile=null) {
+        this.path=path; commit=new(path,ValidJson,moveFile,copyFile??File.Copy);
+    }
+    static bool ValidJson(string json) {
+        var state=JsonSerializer.Deserialize<ExperienceState>(json);
+        return state is { Schema:1,Receipts:not null } && !string.IsNullOrEmpty(state.Epoch) && state.Receipts.Count<=2048 && state.Receipts.Values.All(r=>r is not null);
+    }
     public bool Corrupted { get; private set; }
     public ExperienceState Load() {
         if(!File.Exists(path)) return new();
@@ -145,7 +155,7 @@ public sealed class QuotaExperienceStore(string path) {
     public void Save(ExperienceState state) {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         var temp=path+"."+Guid.NewGuid()+".tmp";
-        try { File.WriteAllText(temp,JsonSerializer.Serialize(state)); File.Move(temp,path,true); }
+        try { File.WriteAllText(temp,JsonSerializer.Serialize(state)); commit.Commit(temp); }
         finally { if(File.Exists(temp)) File.Delete(temp); }
     }
 }

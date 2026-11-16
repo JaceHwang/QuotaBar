@@ -1315,3 +1315,23 @@ Pages更新作业43355065796通过，公网updates.json的beta通道两平台均
 ### 2026-11-16 草稿同步准备
 
 用户授权将本次提醒页紧凑布局和双端按钮手形光标提交远端草稿，目标基线为 beta.7 2abd377。同步前治理 doctor、快速检查、Core 测试、Windows 触觉按钮便携测试以及 Windows 应用和安装器构建通过；Windows 原生套件在退出清理子进程的全透明浮窗命中区断言失败，外层退出清理断言随之失败，故本机完整检查未通过，按草稿同步记录并等待 CI。macOS 编译、AppKit 测试与实机验收待有 macOS 设备执行。此前本地 Windows 候选来源为带未提交工作区的 beta.7 源码快照，不等同于草稿提交的精确构建。项目进度工具和看板不可用。
+
+### 2026-11-16 Windows Actions 候选实机验收
+
+按用户要求验收 GitHub Actions 运行 43802030965 的 quotabar-windows-candidate，来源提交 47c4637f2f63968086316a64f221be77d6dcccb3；该运行的 Windows 和 macOS CI 作业均成功，不能代替物理设备结果。Actions 制品 ZIP SHA-256 e224f596ee7487d9d8651055e4fab5ed4e9b54a9aa722f5904ff460e469b52bc 与 GitHub 记录一致，内层候选 ZIP SHA-256 bfac5ecafce85ddeb2d0d6df4cde576bddb536ddb7e3dce04daf95380833da84；128 项源码按 Git 提交字节核对一致，包完整性、PE、运行时和 ZIP 验证通过。初次按 Windows 工作区文件直接核验因 CRLF 换行差异失败，改用提交对象原始字节后通过，保留这一记录。
+
+Windows 11 build 26200 上事务安装精确候选成功，旧安装备份 backup-fb88aedb-b9d5-4980-9602-64f403833095；791 项安装文件匹配，安装后 preferences、notification-policy、update-channel 摘要与安装前一致。进程 PID 25348 处于 Ready、has_quota=True、floating_visible=True。实际设置页确认紧凑按钮和阈值布局，额度偏低及 Bank 添加按钮均打开空白输入；低额度输入 Escape 取消，Bank 空输入失焦后取消，原有 Bank 72/24 小时保留。点击气泡列全选时，界面显示“提醒设置读取或保存失败。句柄无效。”，勾选仍保持，策略文件摘要与安装前一致；此前页面还显示“无法保存提醒状态，本次未发提醒”。因此提醒设置保存相关验收未通过，不推断故障根因或是否由本次改动引入。未发送真实通知，未实机验证手形光标及全部窗口宽度；CI 通过不能覆盖上述本机失败。当前安装保留该 Actions 开发候选，后续应调查本机无效句柄并重验设置保存。进度工具和看板不可用。
+
+### 2026-11-16 Windows 提醒状态无效句柄修复与实机验证
+
+用户要求排查并实机验证。Windows 11 build 26200 的真实 QuotaBar 数据目录使用独立测试文件复现：File.Move 覆盖和无目标重命名均返回 0x80070006，File.Replace 返回 0x80070497；File.Copy 可用。原通知策略、体验状态、额度告警和 Bark 回执保存均使用 File.Move，因此本机不能保存提醒策略及提醒状态。定位为该设备文件系统操作行为与应用缺少兼容路径的组合；未归因到具体驱动或系统组件。测试文件均独立创建并清理。
+
+新增共享 ReminderFileCommit，仅 ERROR_INVALID_HANDLE 时采用备份后复制；写入失败恢复原文件，恢复失败保留备份并阻止后续覆盖，已有备份时检查当前内容有效性。通知策略、体验、告警及 Bark 去重回执使用此路径，正常情况下保留原有重命名语义。注入错误回归覆盖策略及阈值重载、非目标错误、写入中断回滚、恢复失败后跨重启保护、体验与告警状态及 Bark 去重/失败保护。真实数据目录的独立文件验证四类存储保存、重载及 Bark 去重通过；完整 Core 套件、Windows 原生 UI 套件（包括此前失败的透明浮窗和退出流程）通过。
+
+以已核验 Actions 43802030965 候选为基础，仅替换本地重建的应用和 setup QuotaBar.Core.dll，构造 local-development-candidate，sourceCommit 47c4637、workingTreeDirty=true，ZIP SHA-256 1693c696fd47b287d169fe2a566498305d942a6f166cbcdebd5e183616865864；来源快照、791 项文件、PE 和 ZIP 校验通过。安装前在 .dist/reminder-persistence-fix/pretest-data 保存并核对现有偏好与状态文件，事务安装备份 backup-d0f0c24b-3ee2-4af1-8db4-ae3fff4b4365。安装后 PID 43244，Ready、has_quota=True、floating_visible=True。
+
+实机设置页气泡列全选切换成功，取消后重启仍保持取消，再恢复全选并再次重启保持；新增 10% 阈值成功并删除。测试导致隐藏 lowRemainingThreshold 标量由40变10，已通过 UI 添加40再删除恢复至40；最终规则、渠道、阈值、暂停及 Bank 72/24 渠道与测试前语义一致。preferences、update-channel、Bark 回执摘要未变，页面未再显示无效句柄或提醒状态保存失败。未发送真实通知，未对有配置的手机通道进行端到端推送；未在 macOS 或 CI 运行此工作区改动。修复与验收记录尚未提交或推送，安装为本机开发候选。
+
+### 2026-11-16 提醒修复草稿同步准备
+
+用户授权推送本工作区全部改动，继续使用现有草稿 PR #84 和 codex/fix/reminder-controls。推送前再次执行 QUOTABAR_DRAFT_SYNC=1 governance check sync：快速检查、Core 与提醒存储回归、Windows 应用及安装器构建、原生 UI 套件（含透明浮窗与退出）通过。已安装的本地候选仍为 47c4637 加未提交源码快照，实机验证不冒充精确提交构建；完整手机推送及 macOS 实机仍待验证。项目进度工具和看板文件不可用，现有路线图记录继续保留。
