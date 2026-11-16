@@ -1,6 +1,16 @@
 using System.Text.Json;
 namespace QuotaBar.Core;
-public sealed class QuotaWarningStore(string path) {
+public sealed class QuotaWarningStore {
+ readonly string path;
+ readonly ReminderFileCommit commit;
+ public QuotaWarningStore(string path):this(path,File.Move) { }
+ internal QuotaWarningStore(string path,Action<string,string,bool> moveFile,Action<string,string,bool>? copyFile=null) {
+  this.path=path; commit=new(path,ValidJson,moveFile,copyFile??File.Copy);
+ }
+ static bool ValidJson(string json) {
+  var state=JsonSerializer.Deserialize<QuotaWarningState>(json);
+  return state is { Schema:1,Periods.Count:<=2 } && state.Periods.Values.All(p=>p is not null);
+ }
  public QuotaWarningState Load() {
   if(!File.Exists(path)) return new();
   try {
@@ -13,7 +23,7 @@ public sealed class QuotaWarningStore(string path) {
  }
  public void Save(QuotaWarningState value) {
   Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!); var temp=path+"."+Guid.NewGuid()+".tmp";
-  try { File.WriteAllText(temp,JsonSerializer.Serialize(value)); File.Move(temp,path,true); }
+  try { File.WriteAllText(temp,JsonSerializer.Serialize(value)); commit.Commit(temp); }
   finally { if(File.Exists(temp)) File.Delete(temp); }
  }
 }

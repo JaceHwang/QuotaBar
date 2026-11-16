@@ -8,8 +8,16 @@ if(args.Contains("app-server") && Environment.GetEnvironmentVariable("QUOTABAR_P
     while(await Console.In.ReadLineAsync() is not null) { }
     return 0;
 }
+if(args.Contains("--update-channel-tests")) { UpdateChannelStoreTests.Run();return 0; }
+if(args.Contains("--installer-compatibility-tests")) { InstallerCompatibilityTests.Run();return 0; }
+if(args.Contains("--update-resume-tests")) { await UpdateResumeTests.Run();return 0; }
+if(args.Contains("--update-cache-tests")) { await UpdateDownloadTests.CacheTests();return 0; }
+if(args.Contains("--reminder-persistence-tests")) { ReminderPersistenceTests.Run();return 0; }
 if(args.Contains("--windows-reliability-settings")) { WindowsReliabilityTests.Settings();return 0; }
 if(args.Contains("--windows-reliability-readiness")) { await WindowsReliabilityTests.Readiness();return 0; }
+UpdateChannelStoreTests.Run();
+ReminderPersistenceTests.Run();
+await UpdateResumeTests.Run();
 WindowsReliabilityTests.Settings();
 await WindowsReliabilityTests.Readiness();
 var tests = new (string Name, Action Run)[] {
@@ -214,6 +222,8 @@ try { await AccountRegressionTests.Run(); }
 catch(Exception e) { failed++; Console.Error.WriteLine("FAIL account regressions: "+e.Message); }
 try { InstallerTests.Run(); Console.WriteLine("PASS install, upgrade, rollback, failure recovery and uninstall"); }
 catch(Exception e) { failed++; Console.Error.WriteLine("FAIL install transaction: "+e.Message); }
+try { InstallerCompatibilityTests.Run(); }
+catch(Exception e) { failed++; Console.Error.WriteLine("FAIL installer compatibility: "+e.Message); }
 try { await RuntimeIntegrationTests.InheritedPipeExit(); }
 catch(Exception e) { failed++; Console.Error.WriteLine("FAIL inherited runtime pipe cleanup: "+e.Message); }
 if(Environment.GetEnvironmentVariable("QUOTABAR_TEST_RUNTIME") is string executable) {

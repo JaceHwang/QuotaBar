@@ -23,12 +23,15 @@ internal static class Program {
         System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
         Task.Run(BarkTests.Run).GetAwaiter().GetResult();
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        if(args.Contains("--beta-experience")) { BetaExperienceNativeTests.Run(app);app.Shutdown();return 0; }
+        TactileButtonNativeTests.Run();
         FloatingControlsTests.Run(app);
         NotificationMatrixTests.TestPolicyFailureRecovery(app);
         NotificationMatrixTests.TestInitialMigrationFailureRecovery(app);
         NotificationMatrixTests.TestMessageCenterRouting(app);
         MessageCenterNativeTests.Run(app);
         BetaExperienceNativeTests.Run(app);
+        AccountQuotaOverviewNativeTests.Run(app);
         NotificationMatrixTests.Run(app);
         NotificationMatrixTests.TestWarningProducer(app);
         NotificationMatrixTests.TestDynamicBankProducer(app);
@@ -153,7 +156,7 @@ internal static class Program {
                     var buttons=Tree(content).OfType<Button>().ToArray();
                     var primary=buttons.Single(b=>Equals(b.Tag,"notification.primary")); var secondary=buttons.Single(b=>Equals(b.Tag,"notification.acknowledge"));
                     var focusTrigger=primary.Template.Triggers.OfType<Trigger>().Single(t=>t.Property==UIElement.IsKeyboardFocusedProperty);
-                    Check(focusTrigger.Setters.OfType<Setter>().Any(s=>s.Property==Border.BorderThicknessProperty && Equals(s.Value,new Thickness(2))),"primary keyboard focus has visible border even when normal border is zero");
+                    Check(focusTrigger.Setters.OfType<Setter>().Any(s=>s.Property==Border.BorderBrushProperty),"primary keyboard focus exposes a visible border");
                     Check(Math.Abs(primary.ActualWidth/secondary.ActualWidth-1.2)<.01,"reference button ratio");
                     var primaryRect=primary.TransformToAncestor(content).TransformBounds(new Rect(0,0,primary.ActualWidth,primary.ActualHeight));
                     var secondaryRect=secondary.TransformToAncestor(content).TransformBounds(new Rect(0,0,secondary.ActualWidth,secondary.ActualHeight));
@@ -240,6 +243,7 @@ internal static class Program {
                     var moodEncoder=new PngBitmapEncoder(); moodEncoder.Frames.Add(BitmapFrame.Create(moodBitmap)); using(var moodFile=File.Create(Path.Combine(output,"settings-b-"+(dark?"dark":"light")+".png"))) moodEncoder.Save(moodFile);
                     var navigation=Tree(settings).OfType<Button>().Where(b=>b.Tag is string tag && tag.StartsWith("settings-nav-")).ToArray();
                     Check(navigation.Select(b=>b.Tag?.ToString()).SequenceEqual(new[]{"settings-nav-account","settings-nav-display","settings-nav-moods","settings-nav-mobile","settings-nav-updates"}),"about is last and legacy update route preserved");
+                    Check((navigation.Single(b=>Equals(b.Tag,"settings-nav-moods")).Background as SolidColorBrush)?.Color==(dark?Color.FromRgb(44,44,44):Color.FromRgb(231,233,236)),"selected navigation uses the neutral tertiary material");
                     Check(Tree(settings).OfType<Button>().Single(b=>b.Tag?.ToString()=="settings-website").IsEnabled==false,"unpublished website disabled");
                     Check(!Tree(settings).OfType<AboutBatteryIllustration>().Any(),"settings uses application ring branding");
                     Check(Tree(settings).OfType<System.Windows.Controls.Image>().Count(i=>i.Source?.ToString()?.Contains("quotabar-icon.png")==true)==2,"sidebar and about share application logo");
@@ -272,16 +276,23 @@ internal static class Program {
                             foreach(var action in pageActions) {
                                 var eye=action.Tag?.ToString()=="bark-reveal";
                                 var compact=action.Tag is string actionTag && (actionTag.StartsWith("notification.threshold.") || actionTag.StartsWith("notification.selectAll."));
-                                Check(action.Height==(compact?24:30) && action.MinHeight==(compact?24:30) && action.FontSize==13 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
-                                Check(action.MinWidth==(compact?24:eye?30:100) && action.Padding==new Thickness(compact?5:eye?0:12,0,compact?5:eye?0:12,0),"settings actions share content-fit metrics");
+                                Check(action.Height==(compact?28:40) && action.MinHeight==(compact?28:40) && action.FontSize==(compact?12:14) && action.FontWeight==FontWeights.SemiBold,"settings actions use appropriate typography and height");
+                                var selectAll=action.Tag is string selectTag && selectTag.StartsWith("notification.selectAll.");
+                                Check(action.MinWidth==(compact?28:eye?40:100) && action.Padding==new Thickness(selectAll?6:compact||eye?0:18,0,selectAll?6:compact||eye?0:18,0),"settings actions use content-fit metrics");
                                 Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
-                                if(action.IsEnabled) Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(0,101,216) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"enabled settings actions share blue and white");
+                                if(action.IsEnabled) {
+                                    var currentActionTag=action.Tag?.ToString();
+                                    if(currentActionTag is "settings-account-logout" or "settings-update-notes" or "bark-reveal") Check(action.Background==Brushes.Transparent,"ghost and text actions use a transparent surface");
+                                    else if(SettingsVisual.IsSecondaryAccountAction(action) || currentActionTag=="settings-update-later") Check((action.Foreground as SolidColorBrush)?.Color==(dark?Colors.White:Color.FromRgb(48,54,64)) && (action.Background as SolidColorBrush)?.Color==(dark?Color.FromRgb(53,53,53):Colors.White),"secondary actions adapt to the current theme");
+                                    else if(currentActionTag=="settings-update-skip" || compact) Check((action.Foreground as SolidColorBrush)?.Color==(dark?Colors.White:Color.FromRgb(48,54,64)) && (action.Background as SolidColorBrush)?.Color==(dark?Color.FromRgb(44,44,44):Color.FromRgb(231,233,236)),"tertiary actions use a quiet gray surface");
+                                    else Check((action.Background as SolidColorBrush)?.Color==Color.FromRgb(39,48,66) && (action.Foreground as SolidColorBrush)?.Color==Colors.White,"primary settings actions share slate and white");
+                                }
                                 action.ApplyTemplate();
                                 var actionFrame=action.Template.FindName("frame",action) as Border;
-                                Check(actionFrame?.CornerRadius==new CornerRadius(7),"settings actions share rounded corners");
-                                if(!action.IsEnabled) Check((actionFrame?.Background as SolidColorBrush)?.Color==Color.FromRgb(138,148,163),"disabled settings actions use muted fill");
-                                if(eye) Check(action.Width==30,"reveal action is square");
-                                if(action.Content is TextBlock label) Check(label.FontSize==13 && label.FontWeight==FontWeights.SemiBold && (label.Foreground as SolidColorBrush)?.Color==Colors.White,"custom action content matches shared typography");
+                                Check(actionFrame?.CornerRadius==new CornerRadius(10),"settings actions share rounded corners");
+                                if(!action.IsEnabled) Check(action.Opacity<1,"disabled settings actions use muted opacity");
+                                if(eye) Check(action.Width==40,"reveal action is square");
+                                if(action.Content is TextBlock label) Check(label.FontSize==14 && label.FontWeight==FontWeights.SemiBold && Equals(label.Foreground,action.Foreground),"custom action content matches shared typography");
                                 Check(!string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(action)),"settings action keeps accessible name");
                             }
                             if(key is "updates" or "mobile") {
@@ -371,6 +382,12 @@ internal static class Program {
                 owner.Save(new Preferences { Theme=dark?"dark":"light",Language=language,AutomaticUpdates=false },false);
                 owner.Updates.Check(true); var end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Checking&&DateTime.UtcNow<end) Pump();
                 owner.ShowUpdateSettings(); var settings=app.Windows.OfType<SettingsWindow>().Single(w=>w.IsVisible); settings.Width=840; settings.Height=560; settings.ShowAbout(); Pump();
+                var actionRow=Tree(settings).OfType<WrapPanel>().Single(p=>Equals(p.Tag,"settings-update-actions"));
+                settings.UpdateLayout(); Pump();
+                foreach(var action in actionRow.Children.OfType<Button>().Where(b=>b.IsVisible)) {
+                    var bounds=action.TransformToAncestor(actionRow).TransformBounds(new Rect(action.RenderSize));
+                    Check(bounds.Right<=actionRow.ActualWidth+1,$"update action remains in bounds at minimum width: {language}");
+                }
                 var label=language=="en"?"Update now":"立即更新";
                 var updateInstallButton=Tree(settings).OfType<Button>().Single(b=>b.Content?.ToString()==label); updateInstallButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 end=DateTime.UtcNow.AddSeconds(5); while(owner.Updates.Installer.Operation.Progress.Phase!=phase&&DateTime.UtcNow<end) Pump();
@@ -437,6 +454,7 @@ internal static class Program {
         var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cleaned=false; var exitAfterCleanup=false;
         var app=new Application { ShutdownMode=ShutdownMode.OnExplicitShutdown };
+        TactileButtonNativeTests.Run();
         FloatingControlsTests.Run(app);
         using var owner=new Coordinator(app,root,new HttpClient(new AvailableFeedHandler()),new BarkTests.Secrets(),new BarkTests.AcceptedTransport(),async (_,_,cancel)=> {
             entered.SetResult();

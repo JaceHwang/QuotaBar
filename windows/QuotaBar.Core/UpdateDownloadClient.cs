@@ -22,14 +22,20 @@ public sealed class UpdateDownloadClient(IUpdateTransport transport) {
         var release=TrustedUpdateRelease.Parse(new UTF8Encoding(false,true).GetString(metadata),new UTF8Encoding(false,true).GetString(tag),version,platform,currentVersion,allowBeta);
         cancel.ThrowIfCancellationRequested();
         if(Directory.Exists(cache) && (File.GetAttributes(cache)&FileAttributes.ReparsePoint)!=0) throw new IOException("Linked update cache");
-        Directory.CreateDirectory(cache); var directory=Path.Combine(cache,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
+        Directory.CreateDirectory(cache);
+        using var assets=new UpdateDownloadCache(cache);
+        var cachedArchive=await assets.Get(release.Package,transport,n=>progress?.Invoke(n,release.Package.Size),cancel);
+        var cachedProof=await assets.Get(release.Provenance,transport,_=>{},cancel);
+        VerifyProvenance(await File.ReadAllBytesAsync(cachedProof,cancel),release);
+        cancel.ThrowIfCancellationRequested();
+        var directory=Path.Combine(cache,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
         try {
             var free=new DriveInfo(Path.GetPathRoot(Path.GetFullPath(cache))!).AvailableFreeSpace;
             if(free<release.Package.Size+release.Provenance.Size+64L*1024*1024) throw new IOException("Insufficient update space");
             var archive=Path.Combine(directory,release.Package.Name); var proof=Path.Combine(directory,release.Provenance.Name);
-            await transport.Download(release.Package,archive,n=>progress?.Invoke(n,release.Package.Size),cancel);
+            File.Copy(cachedArchive,archive);
             cancel.ThrowIfCancellationRequested(); await VerifyFile(archive,release.Package,cancel);
-            await transport.Download(release.Provenance,proof,_=>{},cancel);
+            File.Copy(cachedProof,proof);
             cancel.ThrowIfCancellationRequested(); await VerifyFile(proof,release.Provenance,cancel);
             VerifyProvenance(await File.ReadAllBytesAsync(proof,cancel),release);
             cancel.ThrowIfCancellationRequested(); return new(release,directory,archive,proof);
@@ -67,22 +73,42 @@ public sealed class UpdateHttpTransport : IUpdateTransport,IDisposable {
     public async Task Download(UpdateAsset asset,string destination,Action<long> progress,CancellationToken cancel) {
         var url=asset.Url;
         if(url.Host!="github.com" || !url.AbsolutePath.StartsWith($"/{TrustedUpdateRelease.Repository}/releases/download/",StringComparison.Ordinal) || url.Query.Length!=0 || !TrustedUpdateRelease.AllowedDownloadRedirect(url)) throw new IOException("Untrusted download");
-        try {
-            for(var redirects=0;redirects<=10;redirects++) {
-                using var response=await client.GetAsync(url,HttpCompletionOption.ResponseHeadersRead,cancel);
-                if((int)response.StatusCode is 301 or 302 or 303 or 307 or 308) {
-                    if(redirects==10 || response.Headers.Location is not { } location) throw new IOException("Invalid redirect");
-                    url=location.IsAbsoluteUri?location:new Uri(url,location);
-                    if(!TrustedUpdateRelease.AllowedDownloadRedirect(url)) throw new IOException("Untrusted redirect"); continue;
-                }
-                if(response.StatusCode!=HttpStatusCode.OK || response.Content.Headers.ContentLength>asset.Size) throw new IOException("Update download unavailable");
-                await using var input=await response.Content.ReadAsStreamAsync(cancel); await using var output=new FileStream(destination,FileMode.CreateNew,FileAccess.Write,FileShare.None,65536,true);
-                var buffer=new byte[65536]; long total=0; int count;
-                while((count=await input.ReadAsync(buffer,cancel))>0) { total+=count; if(total>asset.Size) throw new IOException("Oversized update download"); await output.WriteAsync(buffer.AsMemory(0,count),cancel); progress(total); }
-                if(total!=asset.Size) throw new IOException("Incomplete update download"); return;
+        cancel.ThrowIfCancellationRequested();
+        if(File.Exists(destination) && (File.GetAttributes(destination)&FileAttributes.ReparsePoint)!=0) throw new IOException("Linked download file");
+        var offset=File.Exists(destination)?new FileInfo(destination).Length:0;
+        if(offset>asset.Size) offset=0;
+        if(offset==asset.Size) { progress(offset);return; }
+        for(var redirects=0;redirects<=10;redirects++) {
+            using var request=new HttpRequestMessage(HttpMethod.Get,url);
+            request.Headers.AcceptEncoding.ParseAdd("identity");
+            if(offset>0) request.Headers.Range=new System.Net.Http.Headers.RangeHeaderValue(offset,null);
+            using var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,cancel);
+            if((int)response.StatusCode is 301 or 302 or 303 or 307 or 308) {
+                if(redirects==10 || response.Headers.Location is not { } location) throw new IOException("Invalid redirect");
+                url=location.IsAbsoluteUri?location:new Uri(url,location);
+                if(!TrustedUpdateRelease.AllowedDownloadRedirect(url)) throw new IOException("Untrusted redirect"); continue;
             }
-            throw new IOException("Too many update redirects");
-        } catch { try { File.Delete(destination); } catch(IOException) { } catch(UnauthorizedAccessException) { } throw; }
+            if(response.StatusCode==HttpStatusCode.RequestedRangeNotSatisfiable && offset>0) { offset=0;continue; }
+            if(response.Content.Headers.ContentEncoding.Any(value=>!value.Equals("identity",StringComparison.OrdinalIgnoreCase))) throw new IOException("Encoded update download");
+            if(response.StatusCode==HttpStatusCode.PartialContent) {
+                var range=response.Content.Headers.ContentRange;
+                if(offset==0 || range is null || !range.Unit.Equals("bytes",StringComparison.OrdinalIgnoreCase) || range.From!=offset || range.To!=asset.Size-1 || range.Length!=asset.Size) throw new IOException("Invalid resumed download range");
+            } else if(response.StatusCode==HttpStatusCode.OK) {
+                offset=0;
+            } else throw new IOException("Update download unavailable");
+            if(response.Content.Headers.ContentLength>asset.Size-offset) throw new IOException("Oversized update download");
+            await using var input=await response.Content.ReadAsStreamAsync(cancel);
+            await using var output=new FileStream(destination,FileMode.OpenOrCreate,FileAccess.Write,FileShare.None,65536,true);
+            if(offset==0) output.SetLength(0);
+            else if(output.Length!=offset) throw new IOException("Download file changed during request");
+            output.Position=offset;
+            progress(offset);
+            var buffer=new byte[65536]; long total=offset; int count;
+            while((count=await input.ReadAsync(buffer,cancel))>0) { total+=count; if(total>asset.Size) throw new IOException("Oversized update download"); await output.WriteAsync(buffer.AsMemory(0,count),cancel); progress(total); }
+            if(total!=asset.Size) throw new IOException("Incomplete update download"); return;
+        }
+        throw new IOException("Too many update redirects");
     }
+
     public void Dispose()=>client.Dispose();
 }

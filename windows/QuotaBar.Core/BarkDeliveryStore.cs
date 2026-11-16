@@ -3,12 +3,13 @@ namespace QuotaBar.Core;
 public sealed class BarkDeliveryStore {
  sealed record Receipt([property:System.Text.Json.Serialization.JsonRequired] BarkEventIdentity Identity,[property:System.Text.Json.Serialization.JsonRequired] DateTimeOffset At,[property:System.Text.Json.Serialization.JsonRequired] bool Accepted);
  sealed record State([property:System.Text.Json.Serialization.JsonRequired] int Schema,[property:System.Text.Json.Serialization.JsonRequired] List<Receipt> Receipts,[property:System.Text.Json.Serialization.JsonRequired] bool NeedsBaseline);
- readonly object gate=new(); readonly string path;
+ readonly object gate=new(); readonly string path; readonly ReminderFileCommit commit;
  State state=new(1,[],false); bool error; bool preservationFailed;
  public bool NeedsBaseline { get { lock(gate) return state.NeedsBaseline; } }
  public bool HasPersistenceError { get { lock(gate) return error; } }
- public BarkDeliveryStore(string path) {
-  this.path=path;
+ public BarkDeliveryStore(string path):this(path,File.Move) { }
+ internal BarkDeliveryStore(string path,Action<string,string,bool> moveFile,Action<string,string,bool>? copyFile=null) {
+  this.path=path; commit=new(path,ValidJson,moveFile,copyFile??File.Copy);
   if(!File.Exists(path)) {
    var parent=Path.GetDirectoryName(Path.GetFullPath(path))!;
    try { if(Directory.Exists(parent)&&Directory.EnumerateFiles(parent,Path.GetFileName(path)+".corrupt-*").Any()) { state=state with { NeedsBaseline=true }; Persist(state); } }
@@ -16,13 +17,15 @@ public sealed class BarkDeliveryStore {
    return;
   }
   try { if(new FileInfo(path).Length>1048576) throw new JsonException(); var loaded=JsonSerializer.Deserialize<State>(File.ReadAllText(path));
-   if(loaded is null||loaded.Schema!=1||loaded.Receipts is null||loaded.Receipts.Count>256||loaded.Receipts.Any(r=>r is null||r.Identity is null||r.Identity.Id is null||r.Identity.Generation is null)||loaded.Receipts.Select(r=>r.Identity).Distinct().Count()!=loaded.Receipts.Count) throw new JsonException(); state=loaded;
+   if(!Valid(loaded)) throw new JsonException(); state=loaded!;
   } catch(Exception e) when(e is JsonException or IOException or UnauthorizedAccessException) { state=state with { NeedsBaseline=true }; try { File.Move(path,path+".corrupt-"+Guid.NewGuid()); Persist(state); } catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { error=true; preservationFailed=true; } }
  }
+ static bool Valid(State? loaded)=>loaded is { Schema:1,Receipts:not null }&&loaded.Receipts.Count<=256&&!loaded.Receipts.Any(r=>r is null||r.Identity is null||r.Identity.Id is null||r.Identity.Generation is null)&&loaded.Receipts.Select(r=>r.Identity).Distinct().Count()==loaded.Receipts.Count;
+ static bool ValidJson(string json)=>Valid(JsonSerializer.Deserialize<State>(json));
  bool Persist(State next) {
   if(preservationFailed) return false;
   var temp=path+"."+Guid.NewGuid()+".tmp";
-  try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!); File.WriteAllBytes(temp,JsonSerializer.SerializeToUtf8Bytes(next)); File.Move(temp,path,true); state=next; error=false; return true; }
+  try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!); File.WriteAllBytes(temp,JsonSerializer.SerializeToUtf8Bytes(next)); commit.Commit(temp); state=next; error=false; return true; }
   catch(Exception e) when(e is IOException or UnauthorizedAccessException) { error=true; return false; }
   finally { try { if(File.Exists(temp)) File.Delete(temp); } catch(IOException) { } catch(UnauthorizedAccessException) { } }
  }

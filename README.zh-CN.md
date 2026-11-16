@@ -85,7 +85,7 @@ macOS 校验 `CODEX-QUOTA-SHA256SUMS.txt`、打开 DMG 后，使用发布附带�
 python3 install-macos-standalone.py install --candidate '/Volumes/QuotaBar/QuotaBar.app'
 ```
 
-标准位置是 `~/Applications/QuotaBar.app`。Windows 校验 `QUOTABAR-WINDOWS-SHA256SUMS.txt`，完整解压 ZIP 后运行 `QuotaBar/setup/QuotaBar.Setup.exe`，标准位置为 `%LOCALAPPDATA%\Programs\QuotaBar`。升级保留隔离账户和设置；可从 Finder 或 Windows 开始菜单重新打开。选择“退出”才会停止应用与运行时。
+标准位置是 `/Applications/QuotaBar.app`。Windows 校验 `QUOTABAR-WINDOWS-SHA256SUMS.txt`，完整解压 ZIP 后运行 `QuotaBar/setup/QuotaBar.Setup.exe`，标准位置为 `%LOCALAPPDATA%\Programs\QuotaBar`。升级保留隔离账户和设置；可从 Finder 或 Windows 开始菜单重新打开。选择“退出”才会停止应用与运行时。
 
 低于 1.4.0 的版本需先手动安装一次，以获得更新助手。应用内更新要求使用标准每用户安装位置。详见 [macOS 安装说明](docs/MACOS_STANDALONE.zh-CN.md)和 [Windows 安装说明](docs/WINDOWS_STANDALONE.zh-CN.md)。
 

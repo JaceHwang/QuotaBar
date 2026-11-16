@@ -42,7 +42,7 @@ internal sealed class UpdateController : IDisposable {
             ApplicationUpdatePhase.Preparing=>Text("Preparing update…","正在准备更新…","正在準備更新…"),
             ApplicationUpdatePhase.HandingOff or ApplicationUpdatePhase.Installing=>Text("Installing and restarting…","正在安装并重启…","正在安裝並重新啟動…"),
             ApplicationUpdatePhase.Succeeded=>Text("Update installed successfully.","更新安装成功。","更新安裝成功。"),
-            ApplicationUpdatePhase.RolledBack=>Text("The new version could not start. Your previous version was restored.","新版未能正常启动，已恢复旧版本。","新版未能正常啟動，已恢復舊版本。"),
+            ApplicationUpdatePhase.RolledBack=>Text("The update failed. Your previous version was restored.","更新失败，已恢复旧版本。","更新失敗，已恢復舊版本。"),
             ApplicationUpdatePhase.Cancelled=>Text("Download cancelled; current version unchanged.","已取消下载，当前版本未变更。","已取消下載，目前版本未變更。"),
             ApplicationUpdatePhase.Failed=>Text("Update failed. Retry or install manually from the release page. Use the standard per-user installation.","更新失败，可重试或从更新页面手动安装。请使用标准每用户安装目录。","更新失敗，可重試或從更新頁面手動安裝。請使用標準每使用者安裝目錄。"),
             _=>""

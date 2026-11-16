@@ -98,6 +98,9 @@ public struct QuotaDetailContent: Equatable, Sendable {
     public let tokenUsage: QuotaTokenUsagePresentation?
     public let quotaWindows: [QuotaWindowPresentation]
     public let rows: [QuotaDetailRow]
+    public let windowResetRows: [QuotaDetailRow]
+    public let bankRows: [QuotaDetailRow]
+    public let creditsSummary: String?
 
     public init(
         title: String,
@@ -109,7 +112,10 @@ public struct QuotaDetailContent: Equatable, Sendable {
         informationEntry: QuotaInformationEntry,
         tokenUsage: QuotaTokenUsagePresentation? = nil,
         quotaWindows: [QuotaWindowPresentation] = [],
-        rows: [QuotaDetailRow]
+        rows: [QuotaDetailRow],
+        windowResetRows: [QuotaDetailRow] = [],
+        bankRows: [QuotaDetailRow] = [],
+        creditsSummary: String? = nil
     ) {
         self.title = title
         self.remainingPercent = remainingPercent
@@ -121,6 +127,9 @@ public struct QuotaDetailContent: Equatable, Sendable {
         self.tokenUsage = tokenUsage
         self.quotaWindows = quotaWindows
         self.rows = rows
+        self.windowResetRows = windowResetRows
+        self.bankRows = bankRows
+        self.creditsSummary = creditsSummary
     }
 }
 
@@ -175,6 +184,8 @@ public struct QuotaDetailFormatter: Sendable {
                 )
             )
         }
+        let windowResetRows = rows.filter { $0.valueStyle == .resetCountdown }
+        let bankStart = rows.count
         if let bank = snapshot.bank {
             rows.append(
                 .init(
@@ -225,12 +236,9 @@ public struct QuotaDetailFormatter: Sendable {
             rows.append(.init(label: copy.bankAvailable, value: copy.noData))
         }
 
-        rows.append(
-            .init(
-                label: "Credits",
-                value: displayCredits(snapshot.credits, copy: copy)
-            )
-        )
+        let bankRows = Array(rows.dropFirst(bankStart))
+        let creditsSummary = displayCredits(snapshot.credits, copy: copy)
+        rows.append(.init(label: "Credits", value: creditsSummary))
 
         rows.append(
             .init(
@@ -278,7 +286,10 @@ public struct QuotaDetailFormatter: Sendable {
                     )
                 }
             ].compactMap { $0 },
-            rows: rows
+            rows: rows,
+            windowResetRows: windowResetRows,
+            bankRows: bankRows,
+            creditsSummary: creditsSummary
         )
     }
 

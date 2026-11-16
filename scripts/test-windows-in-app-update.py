@@ -40,15 +40,16 @@ for mode in os.environ.get('QUOTABAR_UPDATE_TEST_MODES','receipt-failure,cancel,
         def asset(p): return dict(name=p.name,url='https://github.com/JaceHwang/QuotaBar/releases/download/v'+version+'/'+p.name,size=p.stat().st_size,sha256=digest(p))
         release=dict(version=version,platform='windows-x64',sourceCommit='b'*40,package=asset(archive),provenance=asset(proof_path))
         if beta and mode!='beta-denied': channel.write_text(json.dumps(dict(schema=1,betaEnabled=True)))
-        parent=subprocess.Popen([str(target/'QuotaBar.exe')]); time.sleep(2)
+        parent=subprocess.Popen([str(target/'QuotaBar.exe')],cwd=target); time.sleep(2)
         job=dict(schema=1,operationID=uuid.uuid4().hex,target=str(target),parentPID=parent.pid,nonce='a'*64,expiresAt=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(time.time()+(-1 if mode=='expired' else 600))),release=release)
         (directory/'job.json').write_text(json.dumps(job)); shutil.copytree(target/'setup',directory/'current-setup')
         if mode=='corrupt': (candidate/'QuotaBar.exe').write_bytes(b'bad')
         if mode=='receipt-failure': (directory/'succeeded.json').mkdir()
         log=(directory/'helper.log').open('w+b')
-        helper=subprocess.Popen([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',str(directory)],stdout=log,stderr=subprocess.STDOUT)
+        helper=subprocess.Popen([str(directory/'current-setup/QuotaBar.Setup.exe'),'update',os.path.relpath(directory,target)],cwd=target,stdout=log,stderr=subprocess.STDOUT)
         if mode in ('corrupt','expired','beta-denied'):
             helper.wait(timeout=30); assert helper.returncode!=0 and not (directory/'ready.json').exists(); assert parent.poll() is None
+            assert json.loads((directory/'failure.json').read_text())['stage']=='preparing','relative job failure log missing'
         else:
             wait(directory/'ready.json',helper)
             if mode=='beta-revoked': channel.write_text(json.dumps(dict(schema=1,betaEnabled=False)))

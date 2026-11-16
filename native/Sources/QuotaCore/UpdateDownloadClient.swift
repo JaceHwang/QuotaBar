@@ -47,17 +47,21 @@ public struct UpdateDownloadClient: Sendable {
         let release = try TrustedUpdateRelease.parse(releaseJSON: metadata, tagJSON: tag, version: version, platform: platform, currentVersion: currentVersion, allowBeta: allowBeta)
         try Task.checkCancellation()
         let fm = FileManager.default
-        if fm.fileExists(atPath: cache.path), try fm.attributesOfItem(atPath: cache.path)[.type] as? FileAttributeType == .typeSymbolicLink { throw CocoaError(.fileWriteInvalidFileName) }
-        try fm.createDirectory(at: cache, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let assets = try UpdateDownloadCache(root: cache)
+        defer { withExtendedLifetime(assets) {} }
+        let cachedArchive = try await assets.get(release.package, transport: transport) { progress($0, release.package.size) }
+        let cachedProof = try await assets.get(release.provenance, transport: transport) { _ in }
+        try UpdateFileIntegrity.provenance(Data(contentsOf: cachedProof), release: release)
+        try Task.checkCancellation()
         let directory = cache.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         do {
             let free = (try fm.attributesOfFileSystem(forPath: directory.path)[.systemFreeSize] as? NSNumber)?.int64Value ?? 0
             guard free > release.package.size + release.provenance.size + 64 * 1024 * 1024 else { throw CocoaError(.fileWriteOutOfSpace) }
             let archive = directory.appendingPathComponent(release.package.name), proof = directory.appendingPathComponent(release.provenance.name)
-            try await transport.download(release.package, to: archive, progress: { progress($0, release.package.size) })
+            try fm.copyItem(at: cachedArchive, to: archive)
             try Task.checkCancellation(); try UpdateFileIntegrity.verify(archive, asset: release.package)
-            try await transport.download(release.provenance, to: proof, progress: { _ in })
+            try fm.copyItem(at: cachedProof, to: proof)
             try Task.checkCancellation(); try UpdateFileIntegrity.verify(proof, asset: release.provenance)
             try UpdateFileIntegrity.provenance(Data(contentsOf: proof), release: release)
             try Task.checkCancellation()
@@ -77,7 +81,10 @@ private final class UpdateTransferGuard: NSObject, URLSessionTaskDelegate, URLSe
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         lock.lock(); redirects += 1; let count = redirects; lock.unlock()
         guard !api, count <= 10, let url = request.url, TrustedUpdateRelease.allowedDownloadRedirect(url) else { completionHandler(nil); task.cancel(); return }
-        completionHandler(request)
+        var redirected = request
+        redirected.setValue(task.currentRequest?.value(forHTTPHeaderField: "Range"), forHTTPHeaderField: "Range")
+        redirected.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        completionHandler(redirected)
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         if totalBytesWritten > maximum || totalBytesExpectedToWrite > maximum { downloadTask.cancel(); return }
@@ -106,31 +113,64 @@ public final class UpdateHTTPTransport: UpdateTransport, @unchecked Sendable {
     }
     public func download(_ asset: UpdateAsset, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
         guard asset.url.host == "github.com", asset.url.path.hasPrefix("/\(TrustedUpdateRelease.repository)/releases/download/"), asset.url.query == nil, TrustedUpdateRelease.allowedDownloadRedirect(asset.url) else { throw URLError(.unsupportedURL) }
-        var request = URLRequest(url: asset.url); request.setValue("QuotaBar", forHTTPHeaderField: "User-Agent")
-        let (bytes, response) = try await session.bytes(for: request, delegate: UpdateTransferGuard(maximum: asset.size))
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-              response.expectedContentLength <= asset.size else { throw URLError(.badServerResponse) }
-        // Stream bytes explicitly: async download(for:) does not deliver download progress
-        // to its per-task delegate on macOS.
-        try Data().write(to: destination, options: .withoutOverwriting)
-        let output = try FileHandle(forWritingTo: destination)
-        var complete = false
-        defer { try? output.close(); if !complete { try? FileManager.default.removeItem(at: destination) } }
-        var buffer = Data(); buffer.reserveCapacity(65536)
-        var received: Int64 = 0
-        progress(0)
-        for try await byte in bytes {
-            try Task.checkCancellation()
-            guard received < asset.size else { throw URLError(.dataLengthExceedsMaximum) }
-            buffer.append(byte); received += 1
-            if buffer.count == 65536 {
-                try output.write(contentsOf: buffer); buffer.removeAll(keepingCapacity: true)
-                progress(received)
-            }
+        let fm = FileManager.default
+        try Task.checkCancellation(); try UpdateDownloadCache.rejectLink(destination)
+        var offset = ((try? fm.attributesOfItem(atPath: destination.path)[.size]) as? NSNumber)?.int64Value ?? 0
+        if offset > asset.size { offset = 0 }
+        if offset == asset.size {
+            do { try UpdateFileIntegrity.verify(destination, asset: asset); progress(offset); return }
+            catch is CancellationError { throw CancellationError() }
+            catch { try fm.removeItem(at: destination); offset = 0 }
         }
-        if !buffer.isEmpty { try output.write(contentsOf: buffer) }
-        try output.close()
-        try Task.checkCancellation(); try UpdateFileIntegrity.verify(destination, asset: asset)
-        progress(received); complete = true
+        for attempt in 0...1 {
+            var request = URLRequest(url: asset.url)
+            request.setValue("QuotaBar", forHTTPHeaderField: "User-Agent")
+            request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+            if offset > 0 { request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range") }
+            let (bytes, response) = try await session.bytes(for: request, delegate: UpdateTransferGuard(maximum: asset.size))
+            guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            if http.statusCode == 416 && offset > 0 && attempt == 0 { offset = 0; continue }
+            let encoding = http.value(forHTTPHeaderField: "Content-Encoding")?.lowercased() ?? "identity"
+            guard encoding == "identity" else { throw URLError(.badServerResponse) }
+            if http.statusCode == 206 {
+                let expected = "bytes \(offset)-\(asset.size - 1)/\(asset.size)"
+                guard offset > 0, http.value(forHTTPHeaderField: "Content-Range")?.lowercased() == expected else { throw URLError(.badServerResponse) }
+            } else if http.statusCode == 200 { offset = 0 }
+            else { throw URLError(.badServerResponse) }
+            guard response.expectedContentLength <= asset.size - offset else { throw URLError(.dataLengthExceedsMaximum) }
+            try UpdateDownloadCache.rejectLink(destination)
+            if !fm.fileExists(atPath: destination.path) { try Data().write(to: destination, options: .withoutOverwriting) }
+            let output = try FileHandle(forWritingTo: destination)
+            defer { try? output.close() }
+            if offset == 0 { try output.truncate(atOffset: 0) }
+            else {
+                guard try output.seekToEnd() == UInt64(offset) else { throw URLError(.cannotWriteToFile) }
+            }
+            var buffer = Data(); buffer.reserveCapacity(65536)
+            var received = offset
+            progress(received)
+            do {
+                for try await byte in bytes {
+                    try Task.checkCancellation()
+                    guard received < asset.size else { throw URLError(.dataLengthExceedsMaximum) }
+                    buffer.append(byte); received += 1
+                    if buffer.count == 65536 {
+                        try output.write(contentsOf: buffer); buffer.removeAll(keepingCapacity: true)
+                        progress(received)
+                    }
+                }
+                if !buffer.isEmpty { try output.write(contentsOf: buffer); buffer.removeAll() }
+            } catch {
+                if !buffer.isEmpty { try? output.write(contentsOf: buffer) }
+                throw error
+            }
+            guard received == asset.size else { throw URLError(.networkConnectionLost) }
+            try output.close(); try Task.checkCancellation()
+            do { try UpdateFileIntegrity.verify(destination, asset: asset) }
+            catch is CancellationError { throw CancellationError() }
+            catch { try? fm.removeItem(at: destination); throw error }
+            progress(received); return
+        }
+        throw URLError(.badServerResponse)
     }
 }

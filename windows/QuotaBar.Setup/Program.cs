@@ -21,7 +21,12 @@ try {
         case "update":
             if(args.Length!=2) throw new IOException("Expected managed update job");
             var directory=UpdateLocations.DirectoryPath(args[1]); var job=UpdateInstallJob.Read(directory);
-            ApplicationUpdateTransaction.Run(job,directory,installer,(exe,arguments)=> { var p=new ProcessStartInfo(exe) { UseShellExecute=false }; foreach(var a in arguments) p.ArgumentList.Add(a); Process.Start(p); });
+            args[1]=directory;
+            var inheritedDirectory=Environment.CurrentDirectory;
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+            try { File.AppendAllText(Path.Combine(directory,"helper-context.log"),$"PID={Environment.ProcessId} inheritedCWD={inheritedDirectory} effectiveCWD={Environment.CurrentDirectory}{Environment.NewLine}"); }
+            catch(Exception logError) when(logError is IOException or UnauthorizedAccessException) { }
+            ApplicationUpdateTransaction.Run(job,directory,installer,(exe,arguments)=> { var p=new ProcessStartInfo(exe) { UseShellExecute=false,WorkingDirectory=target }; foreach(var a in arguments) p.ArgumentList.Add(a); Process.Start(p); });
             break;
         case "install":
             var index=Array.IndexOf(args,"--candidate");
@@ -35,7 +40,13 @@ try {
     }
     return 0;
 } catch(Exception e) when(e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException or COMException) {
-    Console.Error.WriteLine("QuotaBar setup failed: "+e.Message); return 1;
+    if(command=="update" && args.Length==2) {
+        try {
+            var directory=UpdateLocations.DirectoryPath(args[1]);
+            if(!File.Exists(Path.Combine(directory,"failure.json"))) UpdateInstallJob.Read(directory).RecordFailure("preparing",e,directory);
+        } catch(Exception loggingError) when(loggingError is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+    }
+    Console.Error.WriteLine("QuotaBar setup failed: "+e); return 1;
 }
 bool StartupEnabled() { using var key=Registry.CurrentUser.OpenSubKey(runKey); return key?.GetValue("QuotaBar") is string; }
 void StopOwned() {
