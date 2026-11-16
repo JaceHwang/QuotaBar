@@ -14,7 +14,7 @@ internal static class Ui {
     }
     public static TextBlock Text(string text,double size=13,Brush? brush=null) => new() { Text=text,FontSize=size,Foreground=brush??Brushes.Black,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center };
     public static Button Button(string text,Action action,string? accessibleName=null) {
-        var button=new Button { Content=text,Foreground=SystemColors.ControlTextBrush,Padding=new Thickness(10,5,10,5),Margin=new Thickness(3),MinHeight=28,Cursor=Cursors.Arrow };
+        var button=new Button { Content=text,Foreground=SystemColors.ControlTextBrush,Padding=new Thickness(10,5,10,5),Margin=new Thickness(3),MinHeight=28,Cursor=Cursors.Hand };
         AutomationProperties.SetName(button,accessibleName??text); button.ToolTip=accessibleName;
         button.Click+=(_,e)=> { e.Handled=true; action(); }; return button;
     }

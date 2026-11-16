@@ -1293,3 +1293,25 @@ Pages更新作业43355065796通过，公网updates.json的beta通道两平台均
 ### 2026-11-15 拟物按钮测试版发布准备
 
 用户授权推送并发布测试版。以 codex/prerelease/beta 的 dc7e9a5 为基线，先提交按钮改造和测试，通过功能 PR 与准确提交的双平台 CI 后再按 Release Please 生成版本。既有 macOS 实机结果对应未提交工作区快照，Windows 用户设备尚未运行本次代码；两端物理设备证据与 CI 分开记录。禁止覆盖已发布资产。
+
+### 2026-11-16 Windows 提醒矩阵控件显示
+
+基于 beta.7（2abd377）在 codex/fix/reminder-controls 调整 Windows 提醒页：列全选及阈值增删按钮改为紧凑尺寸，输入框与单位和操作按钮垂直对齐；保留原有操作、无障碍名称、主题及键盘焦点。项目进度工具和 .project-board/board.md 在本环境不可用。governance doctor 通过；构建首次尝试因本机默认仅有 .NET 8/9、项目需要 .NET 10 失败。尚未完成原生 UI 截图验收、CI、候选打包或发布；下一步安装独立 .NET 10 SDK 后运行 Windows 测试及检查不同窗口宽度。
+
+用户授权本地安装用于实机测试。独立安装的 .NET SDK 10.0.404 经微软发布元数据 SHA-512 校验；Windows 应用构建零错误，Core 套件通过。Windows 原生套件首轮运行经过提醒矩阵和设置截图，最终在 Quit 子进程浮窗鼠标命中断言失败；复跑在浮窗拖动断言失败，均保留为未通过的实机自动化结果。检查原生测试生成的浅色提醒页截图，紧凑按钮和阈值输入对齐。
+
+官方 beta.7 更新包 SHA-256 6a6089a8f52a86021604f00af7783f0b055e617eb62c194366cb421c20162312 及包清单逐文件核验通过；官方 Codex 运行时下载超时，故以该官方包为基础仅替换本地重建的 QuotaBar.dll，生成带明确 construction 说明的 local-development-candidate。候选 ZIP SHA-256 dd93ee3ec42dbbdaa4f443b46a0d8a11399109293feba4f1436fb12fc6d96086，包内容、来源、PE 和 ZIP 检查通过。事务安装器 install 退出 0，备份 backup-11e4dd9f-b62b-46f0-9679-95013c636434；安装后 791 项文件摘要与候选一致，preferences、notification-policy、update-channel 摘要未变。实际进程 PID 6464、phase=Ready、has_quota=True、floating_visible=True。当前为本机候选，待用户对实际提醒页测试；未提交、推送、公开发布，未完成全部原生 UI 回归。
+
+### 2026-11-16 Windows 按钮手形光标
+
+用户要求应用按钮悬停时使用手形指针。核对 Windows 应用的 Button 创建均经 Ui.Button，统一将其光标改为 Cursors.Hand；原有详情按钮手形、浮窗拖动 SizeAll 和调整大小 SizeNS 保持。基于上一轮同一分支及未提交的提醒页改动继续，未修改 macOS。治理 doctor、Windows Release 构建（0 错误）、共享按钮的手形光标及应用设置样式后点击行为聚焦检查、候选包完整性检查通过；上一轮完整 Windows 原生套件的浮窗鼠标命中/拖动失败记录仍有效，本轮未重跑完整套件。
+
+沿用用户本机测试授权，将基于已核验官方 beta.7 包并替换本地构建 QuotaBar.dll 的开发候选安装到本机；候选 ZIP SHA-256 a5e9fe26aeed7beae24be96e66512d02f843c599b1fac131e78ab15cba77842c。事务安装成功，旧包备份 backup-dc0d6d23-11fc-4502-809b-d0bdbf7cd703；安装后 791 项文件摘要匹配，preferences、notification-policy、update-channel 摘要未变；PID 37384，Ready，has_quota=True，floating_visible=True。尚未完成人工逐页悬停验收或双平台 CI；未提交、推送或发布。
+
+### 2026-11-16 macOS 按钮手形光标
+
+用户要求同步 macOS。SettingsAccentButton 统一注册 pointingHand 光标区域，覆盖设置、消息、提醒气泡及相关操作；悬浮按钮关闭区由 arrow 改为 pointingHand，悬浮主体 openHand/closedHand 拖动和详情面板 resizeUpDown 保持。既有详情链接已设 pointingHand；系统复选框及系统标题栏沿用原生行为。Windows 工作区执行治理 doctor、.governance/project/check-fast 和 diff 检查通过；本机无 macOS/AppKit 或 Swift 工具链，尚未编译、执行 AppKit 测试、实机验证或安装 macOS 候选。需要在 macOS 原生设备验证光标切换和拖动；尚未提交、推送或发布。进度跟踪工具及看板文件仍不可用。
+
+### 2026-11-16 草稿同步准备
+
+用户授权将本次提醒页紧凑布局和双端按钮手形光标提交远端草稿，目标基线为 beta.7 2abd377。同步前治理 doctor、快速检查、Core 测试、Windows 触觉按钮便携测试以及 Windows 应用和安装器构建通过；Windows 原生套件在退出清理子进程的全透明浮窗命中区断言失败，外层退出清理断言随之失败，故本机完整检查未通过，按草稿同步记录并等待 CI。macOS 编译、AppKit 测试与实机验收待有 macOS 设备执行。此前本地 Windows 候选来源为带未提交工作区的 beta.7 源码快照，不等同于草稿提交的精确构建。项目进度工具和看板不可用。

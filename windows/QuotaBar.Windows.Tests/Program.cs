@@ -276,8 +276,9 @@ internal static class Program {
                             foreach(var action in pageActions) {
                                 var eye=action.Tag?.ToString()=="bark-reveal";
                                 var compact=action.Tag is string actionTag && (actionTag.StartsWith("notification.threshold.") || actionTag.StartsWith("notification.selectAll."));
-                                Check(action.Height==40 && action.MinHeight==40 && action.FontSize==14 && action.FontWeight==FontWeights.SemiBold,"settings actions share typography and height");
-                                Check(action.MinWidth==(compact||eye?40:100) && action.Padding==new Thickness(compact||eye?0:18,0,compact||eye?0:18,0),"settings actions share content-fit metrics");
+                                Check(action.Height==(compact?28:40) && action.MinHeight==(compact?28:40) && action.FontSize==(compact?12:14) && action.FontWeight==FontWeights.SemiBold,"settings actions use appropriate typography and height");
+                                var selectAll=action.Tag is string selectTag && selectTag.StartsWith("notification.selectAll.");
+                                Check(action.MinWidth==(compact?28:eye?40:100) && action.Padding==new Thickness(selectAll?6:compact||eye?0:18,0,selectAll?6:compact||eye?0:18,0),"settings actions use content-fit metrics");
                                 Check(action.HorizontalAlignment==HorizontalAlignment.Left && action.HorizontalContentAlignment==HorizontalAlignment.Center,"settings actions fit content and center labels");
                                 if(action.IsEnabled) {
                                     var currentActionTag=action.Tag?.ToString();

@@ -62,7 +62,7 @@ final class FloatingQuotaInteractionView: NSView {
         return self
     }
     override func resetCursorRects() { super.resetCursorRects(); addCursorRect(bounds, cursor: .openHand)
-        if let closeControl, !closeControl.isHidden { addCursorRect(closeControl.frame, cursor: .arrow) }
+        if let closeControl, !closeControl.isHidden { addCursorRect(closeControl.frame, cursor: .pointingHand) }
     }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

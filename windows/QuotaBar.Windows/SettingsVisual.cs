@@ -52,10 +52,11 @@ internal static class SettingsVisual {
             } else {
                 var compact=button.Tag is string compactTag&&(compactTag.StartsWith("notification.threshold.")||compactTag.StartsWith("notification.selectAll."));
                 var icon=button.Tag?.ToString()=="bark-reveal";
-                button.Height=40; button.MinHeight=40; button.MinWidth=compact||icon?40:100;
+                button.Height=compact?28:40; button.MinHeight=compact?28:40; button.MinWidth=compact?28:icon?40:100;
                 button.Width=icon?40:double.NaN;
-                button.FontSize=14; button.FontWeight=FontWeights.SemiBold;
-                button.Padding=new Thickness(compact||icon?0:18,0,compact||icon?0:18,0);
+                button.FontSize=compact?12:14; button.FontWeight=FontWeights.SemiBold;
+                var compactLabel=button.Tag is string actionTag && actionTag.StartsWith("notification.selectAll.");
+                button.Padding=new Thickness(compactLabel?6:compact||icon?0:18,0,compactLabel?6:compact||icon?0:18,0);
                 button.HorizontalAlignment=HorizontalAlignment.Left;
                 button.HorizontalContentAlignment=HorizontalAlignment.Center;
                 button.VerticalContentAlignment=VerticalAlignment.Center;
