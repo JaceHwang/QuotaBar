@@ -4,9 +4,32 @@ internal static class SettingsVisual {
     static readonly ControlTemplate RoundedButtonTemplate=(ControlTemplate)XamlReader.Parse("""
 <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button">
  <Border x:Name="frame" CornerRadius="7" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True"/></Border>
- <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="frame" Property="Background" Value="#8A94A3"/><Setter Property="Opacity" Value="0.65"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="frame" Property="BorderBrush" Value="#4488DD"/><Setter TargetName="frame" Property="BorderThickness" Value="2"/></Trigger></ControlTemplate.Triggers>
+ <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.85"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="frame" Property="Opacity" Value="0.7"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="frame" Property="Background" Value="#8A94A3"/><Setter Property="Opacity" Value="0.65"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="frame" Property="BorderBrush" Value="{Binding Foreground,RelativeSource={RelativeSource TemplatedParent}}"/><Setter TargetName="frame" Property="BorderThickness" Value="2"/></Trigger></ControlTemplate.Triggers>
 </ControlTemplate>
 """);
+    internal enum ButtonVariant { Primary, Secondary, Tertiary, Ghost, Text }
+    internal enum ButtonSize { Compact, Md, Lg }
+    // Separate cached templates respect Windows' reduced-motion setting when applied.
+    static readonly ControlTemplate[] AnimatedButtons=CreateButtons(true,false);
+    static readonly ControlTemplate[] StillButtons=CreateButtons(false,false);
+    static readonly ControlTemplate[] DarkAnimatedButtons=CreateButtons(true,true);
+    static readonly ControlTemplate[] DarkStillButtons=CreateButtons(false,true);
+    static ControlTemplate[] CreateButtons(bool animate,bool dark) => [
+        TactileButtonVisuals.Filled(ButtonVariant.Primary,animate,dark),
+        TactileButtonVisuals.Filled(ButtonVariant.Secondary,animate,dark),
+        TactileButtonVisuals.Filled(ButtonVariant.Tertiary,animate,dark),
+        TactileButtonVisuals.Ghost(animate),TactileButtonVisuals.Text(animate)
+    ];
+    internal static void ApplyVariant(Button button,ButtonVariant variant,bool dark) {
+        button.Template=SystemParameters.HighContrast?RoundedButtonTemplate:(dark?(SystemParameters.ClientAreaAnimation?DarkAnimatedButtons:DarkStillButtons):(SystemParameters.ClientAreaAnimation?AnimatedButtons:StillButtons))[(int)variant];
+        button.Background=SystemParameters.HighContrast?(variant==ButtonVariant.Primary?SystemColors.HighlightBrush:SystemColors.WindowBrush):variant switch { ButtonVariant.Primary=>new SolidColorBrush(Color.FromRgb(39,48,66)),ButtonVariant.Secondary=>dark?new SolidColorBrush(Color.FromRgb(53,53,53)):Brushes.White,ButtonVariant.Tertiary=>dark?new SolidColorBrush(Color.FromRgb(44,44,44)):new SolidColorBrush(Color.FromRgb(231,233,236)),_=>Brushes.Transparent };
+        button.Foreground=SystemParameters.HighContrast?(variant==ButtonVariant.Primary?SystemColors.HighlightTextBrush:SystemColors.WindowTextBrush):variant==ButtonVariant.Primary || (dark && variant is ButtonVariant.Secondary or ButtonVariant.Tertiary)?Brushes.White:variant is ButtonVariant.Ghost or ButtonVariant.Text?Ui.Foreground(dark):new SolidColorBrush(Color.FromRgb(48,54,64));
+    }
+    internal static void ApplySize(Button button,ButtonSize size) {
+        var u=size==ButtonSize.Compact?0.8:size==ButtonSize.Md?1.0:16.0/14.0;
+        button.Height=40; button.MinHeight=40; button.FontSize=14; button.Padding=new Thickness(18,0,18,0);
+        button.LayoutTransform=new ScaleTransform(u,u);
+    }
     public static void ApplyScrollbars(FrameworkElement root,bool dark) {
         var style=(Style)XamlReader.Parse("""
 <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ScrollBar">
@@ -24,31 +47,43 @@ internal static class SettingsVisual {
         if(root is Button button) {
             button.Template=RoundedButtonTemplate;
             if(button.Tag is string tag && tag.StartsWith("settings-nav-")) {
-                button.BorderBrush=new SolidColorBrush(Color.FromArgb(55,128,128,128));
+                var selected=button.Resources["TactileNavigationSelected"] is true;
+                ApplyVariant(button,selected?ButtonVariant.Tertiary:ButtonVariant.Ghost,dark);
             } else {
                 var compact=button.Tag is string compactTag&&(compactTag.StartsWith("notification.threshold.")||compactTag.StartsWith("notification.selectAll."));
                 var icon=button.Tag?.ToString()=="bark-reveal";
-                button.Height=compact?24:30; button.MinHeight=compact?24:30; button.MinWidth=compact?24:icon?30:100;
-                button.Width=icon?30:double.NaN;
-                button.FontSize=13; button.FontWeight=FontWeights.SemiBold;
-                button.Padding=new Thickness(compact?5:icon?0:12,0,compact?5:icon?0:12,0);
+                button.Height=compact?28:40; button.MinHeight=compact?28:40; button.MinWidth=compact?28:icon?40:100;
+                button.Width=icon?40:double.NaN;
+                button.FontSize=compact?12:14; button.FontWeight=FontWeights.SemiBold;
+                var compactLabel=button.Tag is string actionTag && actionTag.StartsWith("notification.selectAll.");
+                button.Padding=new Thickness(compactLabel?6:compact||icon?0:18,0,compactLabel?6:compact||icon?0:18,0);
                 button.HorizontalAlignment=HorizontalAlignment.Left;
                 button.HorizontalContentAlignment=HorizontalAlignment.Center;
                 button.VerticalContentAlignment=VerticalAlignment.Center;
                 button.BorderThickness=new Thickness(0); button.BorderBrush=Brushes.Transparent;
-                Primary(button);
+                var variant=button.Tag?.ToString() switch {
+                    "settings-account-logout" or "bark-reveal" => ButtonVariant.Ghost,
+                    "settings-update-notes" => ButtonVariant.Text,
+                    "settings-update-later" => ButtonVariant.Secondary,
+                    "settings-update-skip" => ButtonVariant.Tertiary,
+                    _ when compact => ButtonVariant.Tertiary,
+                    _ when IsSecondaryAccountAction(button) => ButtonVariant.Secondary,
+                    _ => ButtonVariant.Primary
+                };
+                ApplyVariant(button,variant,dark);
                 // Explicit foregrounds on custom content otherwise override the shared button style.
                 if(button.Content is TextBlock label) {
-                    label.FontSize=13; label.FontWeight=FontWeights.SemiBold;
-                    label.Foreground=Brushes.White; label.TextWrapping=TextWrapping.NoWrap;
+                    label.FontSize=14; label.FontWeight=FontWeights.SemiBold;
+                    label.Foreground=button.Foreground; label.TextWrapping=TextWrapping.NoWrap;
                 }
-                if(button.Content is System.Windows.Shapes.Path glyph) glyph.Stroke=Brushes.White;
+                if(button.Content is System.Windows.Shapes.Path glyph) glyph.Stroke=button.Foreground;
             }
         }
         foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) ApplyButtons(child,dark);
     }
-    public static void Primary(Button button) { button.Background=new SolidColorBrush(Color.FromRgb(0,101,216)); button.Foreground=Brushes.White; }
-    public static Brush Muted(bool dark)=>new SolidColorBrush(dark?Color.FromRgb(170,175,187):Color.FromRgb(110,116,130));
+    internal static bool IsSecondaryAccountAction(Button button)=>button.Tag is string tag && tag is "settings-account-details" or "settings-account-cancel" or "settings-account-logout" or "settings-account-reload";
+    public static void Primary(Button button) { ApplyVariant(button,ButtonVariant.Primary,false); }
+    public static Brush Muted(bool dark)=>SystemParameters.HighContrast?SystemColors.WindowTextBrush:new SolidColorBrush(dark?Color.FromRgb(170,175,187):Color.FromRgb(110,116,130));
     public static Border Card(UIElement child,bool dark,Thickness? padding=null)=>new() { Child=child,Background=Ui.Surface(dark),BorderBrush=new SolidColorBrush(Color.FromArgb(40,128,128,128)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=padding??new Thickness(16),Margin=new Thickness(0,0,0,10) };
     public static UIElement NavigationLabel(int index,string title,Brush foreground) {
         var geometries=new[]{"M 8,1 A 3,3 0 1 0 8,7 A 3,3 0 1 0 8,1 M 2,15 C 2,8 14,8 14,15 Z", "M 1,2 L 15,2 L 15,12 L 1,12 Z M 8,12 L 8,15 M 5,15 L 11,15", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 5,6 L 5,7 M 11,6 L 11,7 M 4,10 Q 8,15 12,10", "M 4,1 L 12,1 L 12,15 L 4,15 Z M 7,12 L 9,12", "M 8,1 A 7,7 0 1 0 8,15 A 7,7 0 1 0 8,1 M 8,7 L 8,12 M 8,4 L 8,5"};

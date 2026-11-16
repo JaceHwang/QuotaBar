@@ -27,6 +27,7 @@ try:
     assert plist['CFBundleIdentifier'] == 'com.jace.codex-quota' and plist['CUSStandalone'] is True
     assert plist['CFBundleShortVersionString'] == tag[1:].split('-beta.')[0]
     assert plist['CUSFullVersion'] == tag[1:]
+    assert plist.get('CUSInstallLocation') == '/Applications/QuotaBar.app'
     assert plist['CFBundleDisplayName'] == 'QuotaBar' and plist['CFBundleIconFile'] == 'AppIcon'
     assert (app / 'Contents/Resources/AppIcon.icns').read_bytes()[:4] == b'icns'
     assert digest(app / 'Contents/MacOS' / plist['CFBundleExecutable']) == info['applicationSignedSha256']

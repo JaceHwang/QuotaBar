@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate the standalone layout, runtime boundary and local documentation links."""
-import json,pathlib,re,subprocess
+import json,pathlib,re,shutil,subprocess
 root=pathlib.Path(__file__).resolve().parents[1]
 for name in ['native/Package.swift','native/Sources/CodexQuota/main.swift','scripts/build-macos-standalone.sh','scripts/install-macos-standalone.py','docs/PROJECT_PROGRESS-standalone-app.md','docs/MACOS_STANDALONE.zh-CN.md','docs/validation/macos-standalone.md']:
     assert (root/name).is_file(),name
@@ -31,8 +31,10 @@ for p in [*root.glob('*.md'),*(root/'docs').rglob('*.md')]:
         target=target.split('#',1)[0].split(' "',1)[0]
         if not target:continue
         assert (p.parent/target).exists(),(str(p.relative_to(root)),target)
+shells={name:shutil.which(name) for name in ('bash','sh')}
+assert all(shells.values()), 'bash and sh must be available for syntax validation'
 for p in (root/'scripts').glob('*.sh'):
-    subprocess.run(['bash','-n',str(p)],check=True)
+    subprocess.run([shells['bash'],'-n',str(p)],check=True)
 for p in (root/'.governance/project').iterdir():
-    subprocess.run(['sh','-n',str(p)],check=True)
+    subprocess.run([shells['sh'],'-n',str(p)],check=True)
 print('Standalone layout, host isolation, JSON, privacy, links and shell syntax passed')

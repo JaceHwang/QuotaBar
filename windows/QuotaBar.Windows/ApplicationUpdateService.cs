@@ -27,7 +27,7 @@ internal sealed class ApplicationUpdateService {
             emit(new(ApplicationUpdatePhase.Preparing,0,0,null));
             var current=Path.Combine(AppContext.BaseDirectory,"setup"); var copied=Path.Combine(download.Directory,"current-setup"); Copy(current,copied,cancel);
             var job=new UpdateInstallJob(1,Guid.NewGuid().ToString("N"),UpdateLocations.Target,Environment.ProcessId,Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),DateTimeOffset.UtcNow.AddMinutes(10),download.Release); job.Write(download.Directory);
-            cancel.ThrowIfCancellationRequested(); var start=new ProcessStartInfo(Path.Combine(copied,"QuotaBar.Setup.exe")) { UseShellExecute=false,CreateNoWindow=true };
+            cancel.ThrowIfCancellationRequested(); var start=new ProcessStartInfo(Path.Combine(copied,"QuotaBar.Setup.exe")) { UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=copied };
             start.ArgumentList.Add("update"); start.ArgumentList.Add(download.Directory); helper=Process.Start(start)??throw new IOException("Update helper unavailable");
             await UpdateHelperReadiness.WaitAsync(()=>job.HasReceipt("ready",download.Directory),()=>helper.HasExited,cancel);
             cancel.ThrowIfCancellationRequested();

@@ -35,18 +35,18 @@ import AppKit
         QuotaSettingsStyle.fill(heading, in: connection)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.line(), in: connection)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label("Device Key", size: 13), in: connection)
-        let input = NSView(); input.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        let input = NSView(); input.heightAnchor.constraint(equalToConstant: 40).isActive = true
         for (field, id) in [(keyField as NSTextField, "bark.deviceKey"), (plain, "bark.deviceKey.plain")] {
             field.placeholderString = text("Paste your Device Key", "粘贴 Device Key", "貼上 Device Key")
             field.font = .monospacedSystemFont(ofSize: 13, weight: .regular); field.delegate = self
             field.bezelStyle = .roundedBezel; field.identifier = .init(id); field.setAccessibilityLabel("Bark Device Key")
             field.translatesAutoresizingMaskIntoConstraints = false; input.addSubview(field)
-            NSLayoutConstraint.activate([field.leadingAnchor.constraint(equalTo: input.leadingAnchor), field.trailingAnchor.constraint(equalTo: input.trailingAnchor, constant: -40), field.centerYAnchor.constraint(equalTo: input.centerYAnchor), field.heightAnchor.constraint(equalToConstant: 30)])
+            NSLayoutConstraint.activate([field.leadingAnchor.constraint(equalTo: input.leadingAnchor), field.trailingAnchor.constraint(equalTo: input.trailingAnchor, constant: -50), field.centerYAnchor.constraint(equalTo: input.centerYAnchor), field.heightAnchor.constraint(equalToConstant: 30)])
         }
         keyField.stringValue = controller?.draft ?? ""; plain.isHidden = true
-        eye.title = ""; eye.target = self; eye.action = #selector(reveal); eye.isBordered = false; eye.identifier = .init("bark.reveal")
+        eye.title = ""; eye.variant = .ghost; eye.target = self; eye.action = #selector(reveal); eye.isBordered = false; eye.identifier = .init("bark.reveal")
         eye.image = NSImage(systemSymbolName: "eye", accessibilityDescription: nil); eye.translatesAutoresizingMaskIntoConstraints = false; input.addSubview(eye)
-        NSLayoutConstraint.activate([eye.trailingAnchor.constraint(equalTo: input.trailingAnchor), eye.widthAnchor.constraint(equalToConstant: 30), eye.centerYAnchor.constraint(equalTo: input.centerYAnchor)])
+        NSLayoutConstraint.activate([eye.trailingAnchor.constraint(equalTo: input.trailingAnchor), eye.widthAnchor.constraint(equalToConstant: 40), eye.centerYAnchor.constraint(equalTo: input.centerYAnchor)])
         eye.setAccessibilityLabel(text("Show Key", "显示 Key", "顯示 Key")); eye.toolTip = text("Show Key", "显示 Key", "顯示 Key")
         QuotaSettingsStyle.fill(input, in: connection)
         QuotaSettingsStyle.fill(QuotaSettingsStyle.label(text("Leave blank to keep the saved Key. Use the eye to view it.", "留空保留已保存的 Key；点击眼睛可查看。", "留空保留已儲存的 Key；按眼睛可查看。"), size: 11, secondary: true), in: connection)
@@ -66,7 +66,7 @@ import AppKit
             let bodyLabel = QuotaSettingsStyle.label(body, size: 11, secondary: true); QuotaSettingsStyle.fill(bodyLabel, in: col)
             col.addArrangedSubview(action); steps.addArrangedSubview(col)
         }
-        let download = SettingsLinkButton(text("Get Bark ↗", "获取 Bark ↗", "取得 Bark ↗"), destination: SettingsLinks.barkDownload); download.identifier = .init("bark.download"); download.usesAccentFill = true; download.fillColor = NSColor(srgbRed: 0, green: 101.0 / 255, blue: 216.0 / 255, alpha: 1); download.heightAnchor.constraint(equalToConstant: 30).isActive = true; download.widthAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
+        let download = SettingsLinkButton(text("Get Bark ↗", "获取 Bark ↗", "取得 Bark ↗"), destination: SettingsLinks.barkDownload); download.identifier = .init("bark.download"); download.usesAccentFill = true; download.variant = .primary; download.fillColor = NSColor(srgbRed: 0, green: 101.0 / 255, blue: 216.0 / 255, alpha: 1); download.widthAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
         step(text("① Install Bark", "① 安装 Bark", "① 安裝 Bark"), body: text("On iPhone, find Bark in the App Store. Install and allow notifications.", "在 iPhone 的 App Store 搜索 Bark，安装并允许通知。", "在 iPhone 的 App Store 搜尋 Bark，安裝並允許通知。"), action: download)
         step(text("② Get Device Key", "② 获取 Device Key", "② 取得 Device Key"), body: text("Open Bark. Copy only the Key from its test URL, not the whole URL.", "打开 Bark，只复制测试链接中的 Key，不要复制整个网址。", "開啟 Bark，只複製測試連結中的 Key，不要複製整個網址。"), action: QuotaSettingsStyle.label("api.day.app / Key / test", size: 10, secondary: true))
         step(text("③ Connect & test", "③ 连接并测试", "③ 連線並測試"), body: text("Paste Key → Save → Enable push → Send test.", "粘贴 Key → 保存 → 开启推送 → 发送测试。", "貼上 Key → 儲存 → 開啟推播 → 傳送測試。"), action: testButton())

@@ -2,7 +2,12 @@
 """Exercise the production native helper using isolated homes and signed fixture apps."""
 import contextlib,hashlib,json,os,pathlib,plistlib,shutil,subprocess,sys,tempfile,time,uuid
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-HELPER=pathlib.Path(sys.argv[1]).resolve() if len(sys.argv)>1 else ROOT/'native/.build/debug/QuotaBarUpdater'
+# Keep all fixture installs isolated while production builds retain a fixed global target.
+fixture_build=ROOT/'.dist/mac-update-helper-fixtures'
+subprocess.run(['xcrun','swift','build','--package-path',str(ROOT/'native'),'--scratch-path',str(fixture_build),'--product','QuotaBarUpdater','-Xswiftc','-DQUOTABAR_UPDATE_TESTING'],check=True)
+HELPER=fixture_build/'debug/QuotaBarUpdater'
+if len(sys.argv)>1:
+    raise SystemExit('Use the dedicated fixture helper; production helpers install only in /Applications')
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 def wait(path,process,timeout=25):
     end=time.monotonic()+timeout
@@ -17,7 +22,7 @@ def run(mode, shared=None, requested_version=None):
         root=pathlib.Path(temp).resolve(); home=root/'home'; home.mkdir(exist_ok=True)
         operation=str(uuid.uuid4()); nonce='a'*64
         directory=home/'Library/Caches/com.jace.codex-quota/Updates'/str(uuid.uuid4()); directory.mkdir(parents=True)
-        target=home/'Applications/QuotaBar.app'; target.parent.mkdir(exist_ok=True)
+        target=root/'Applications/QuotaBar.app'; target.parent.mkdir(exist_ok=True)
         # The parent and healthy child are real Mach-O executables at the exact managed app path.
         code=r'''
 #include <unistd.h>
@@ -52,7 +57,7 @@ int main(int argc,char **argv) {
             contents=path/'Contents'; (contents/'MacOS').mkdir(parents=True); (contents/'Helpers').mkdir(); (contents/'Resources').mkdir()
             shutil.copy2(binary,contents/'MacOS/CodexQuota'); shutil.copy2(binary,contents/'Helpers/codex'); shutil.copy2(HELPER,contents/'Helpers/QuotaBarUpdater')
             (contents/'Resources/SOURCE-SNAPSHOT.json').write_text('{}')
-            with (contents/'Info.plist').open('wb') as f: plistlib.dump(dict(CFBundleIdentifier='com.jace.codex-quota',CFBundleExecutable='CodexQuota',CFBundleShortVersionString=version.split('-beta.')[0],CUSFullVersion=version,CFBundleVersion='1',CFBundlePackageType='APPL',LSMinimumSystemVersion='14.0',CUSStandalone=True),f)
+            with (contents/'Info.plist').open('wb') as f: plistlib.dump(dict(CFBundleIdentifier='com.jace.codex-quota',CFBundleExecutable='CodexQuota',CFBundleShortVersionString=version.split('-beta.')[0],CUSFullVersion=version,CFBundleVersion='1',CFBundlePackageType='APPL',LSMinimumSystemVersion='14.0',CUSStandalone=True,CUSInstallLocation="/Applications/QuotaBar.app"),f)
             for item in [contents/'Helpers/codex',contents/'Helpers/QuotaBarUpdater',path]: subprocess.run(['codesign','--force','--sign','-',str(item)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         if not target.exists(): app(target,'1.3.0')
         candidate=directory/'QuotaBar.app'; app(candidate,target_version)
@@ -98,7 +103,7 @@ int main(int argc,char **argv) {
             elif mode=='receipt-failure':
                 assert parent.wait(timeout=15)==0
                 time.sleep(4)
-                assert not (directory/'rolledBack.json').exists(), 'committed update misreported as rollback after receipt write failed'
+                assert not (directory/'rolledBack.json').exists(), 'committed update misreported as rollback after receipt write failed: '+(root/'helper.log').read_text()
                 assert plistlib.loads((target/'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']=='2.0.0'
                 lines=subprocess.check_output(['ps','-axww','-o','command='],text=True).splitlines()
                 assert sum(os.path.realpath(line.split(' ',1)[0])==str(target/'Contents/MacOS/CodexQuota') for line in lines)==1, 'receipt failure restarted an already running updated app'

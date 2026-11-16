@@ -1,6 +1,12 @@
 using System.Text.Json;
 namespace QuotaBar.Core;
-public sealed class NotificationPolicyStore(string path) {
+public sealed class NotificationPolicyStore {
+ readonly string path;
+ readonly ReminderFileCommit commit;
+ public NotificationPolicyStore(string path):this(path,File.Move) { }
+ internal NotificationPolicyStore(string path,Action<string,string,bool> moveFile,Action<string,string,bool>? copyFile=null) {
+  this.path=path; commit=new(path,json=>!NotificationPolicyPreferences.Decode(json).RecoveredInvalidData,moveFile,copyFile??File.Copy);
+ }
  public bool Corrupted { get; private set; }
  public NotificationPolicyPreferences LoadOrMigrate(LegacyNotificationPreferences? legacy) {
   if(File.Exists(path)) {
@@ -14,7 +20,7 @@ public sealed class NotificationPolicyStore(string path) {
  public void Save(NotificationPolicyPreferences value) {
   Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
   var temp=path+"."+Guid.NewGuid()+".tmp";
-  try { File.WriteAllText(temp,JsonSerializer.Serialize(value,NotificationPolicyPreferences.JsonOptions)); File.Move(temp,path,true); Corrupted=false; }
+  try { File.WriteAllText(temp,JsonSerializer.Serialize(value,NotificationPolicyPreferences.JsonOptions)); commit.Commit(temp); Corrupted=false; }
   finally { if(File.Exists(temp)) File.Delete(temp); }
  }
 }

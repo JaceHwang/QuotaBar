@@ -6,25 +6,32 @@ internal sealed class SettingsWindow : Window {
     BarkSettingsView? mobile;
     public void UpdateMobileStatus()=>mobile?.Refresh();
     TextBlock? updateStatus,updateNotes;
-    StackPanel? updateActions;
+    WrapPanel? updateActions;
     Button? updateCheck,installButton,cancelInstallButton;
     CheckBox? betaToggle;
     TextBlock? betaState;
     bool synchronizingBeta;
+    bool changingBeta;
+    internal Func<int,bool>? ConfirmBetaOverride { get; set; }
     public void ShowAbout() { selectedPage="updates"; Build(); }
     TextBlock status=Ui.Text("");
     TextBlock accountName=Ui.Text("");
+    AccountQuotaOverview? accountOverview;
     ProgressBar? updateProgress;
     readonly Dictionary<string,Button> accountActions=new();
     string selectedPage="moods";
     public SettingsWindow(Coordinator owner) {
-        this.owner=owner; Icon=Ui.ApplicationIcon; Title="QuotaBar"; Width=920; Height=800; MinWidth=840; MinHeight=560;
+        this.owner=owner; Icon=Ui.ApplicationIcon; Title="QuotaBar"; Width=1100; Height=800; MinWidth=840; MinHeight=560;
         MaxHeight=Math.Max(380,SystemParameters.WorkArea.Height-40); MinHeight=Math.Min(MinHeight,MaxHeight); Height=Math.Min(Height,MaxHeight); WindowStartupLocation=WindowStartupLocation.CenterScreen; Content=shell; Deactivated+=(_,_)=>mobile?.HideSecret(); IsVisibleChanged+=(_,_)=> { if(!IsVisible) mobile?.HideSecret(); }; Closed+=(_,_)=>mobile?.HideSecret(); Build();
     }
     public void UpdateStatus() {
         accountName.Text=owner.Identity?.PreferredName??owner.Copy.Text("No account","暂无账户","尚無帳號");
         status.Text=owner.Copy.PhaseLabel(owner.State.Phase)+(owner.Snapshot?.Plan is { Length:>0 } plan?" · "+plan:"")+(owner.State.LastSuccess is { } t?"\n"+t.ToLocalTime().ToString("HH:mm:ss"):"");
         var signedIn=owner.Identity is not null && owner.State.Phase is not (Phase.NeedsLogin or Phase.SigningIn);
+        var stale=owner.Snapshot is { } snapshot && (DateTimeOffset.UtcNow-snapshot.ReceivedAt).TotalSeconds>120;
+        var current=owner.State.Phase==Phase.Ready && !stale;
+        var quotaState=(stale?owner.Copy.Text("Last data is stale","上次数据已过期","上次資料已過期"):owner.Copy.PhaseLabel(owner.State.Phase))+(owner.Snapshot is { } data?" · "+data.ReceivedAt.ToLocalTime().ToString("HH:mm:ss"):"");
+        accountOverview?.Update(signedIn?owner.Snapshot:null,signedIn?owner.Tokens:null,owner.Copy,Platform.IsDark(owner.Preferences),quotaState,current);
         foreach(var (key,button) in accountActions) button.Visibility=(key switch { "login"=>!signedIn && owner.State.Phase is not (Phase.SigningIn or Phase.Loading),"cancel"=>owner.State.Phase==Phase.SigningIn,_=>signedIn })?Visibility.Visible:Visibility.Collapsed;
     }
     public void UpdateUpdateStatus() {
@@ -43,7 +50,7 @@ internal sealed class SettingsWindow : Window {
         if(updateActions is not null) foreach(var button in updateActions.Children.OfType<Button>().Skip(1)) button.IsEnabled=!busy;
         if(updateCheck is not null) updateCheck.IsEnabled=!updates.Checking&&!busy;
         if(updateProgress is not null) { updateProgress.Visibility=updates.Checking||busy?Visibility.Visible:Visibility.Collapsed; updateProgress.IsIndeterminate=state.Phase!=ApplicationUpdatePhase.Downloading; updateProgress.Value=state.Total>0?100d*state.Received/state.Total:0; }
-        if(betaToggle is not null) { synchronizingBeta=true; try { betaToggle.IsChecked=updates.BetaEnabled; betaToggle.IsEnabled=!updates.BetaBusy; } finally { synchronizingBeta=false; } }
+        if(betaToggle is not null) { synchronizingBeta=true; try { betaToggle.IsChecked=updates.BetaEnabled; betaToggle.IsEnabled=!changingBeta && !updates.BetaBusy; } finally { synchronizingBeta=false; } }
         if(betaState is not null) betaState.Text=updates.BetaError??(!updates.BetaEnabled && UpdateController.IsBetaVersion(updates.Version)?copy.Text("Disabled. The installed beta remains until a newer stable update is available.","已关闭。当前内测版会保留，等待更新的正式版。","已關閉。目前內測版會保留，等待更新的正式版。"):updates.BetaEnabled?copy.Text("Enabled","已开启","已開啟"):copy.Text("Disabled","已关闭","已關閉"));
     }
     public void Build() {
@@ -59,11 +66,11 @@ internal sealed class SettingsWindow : Window {
         for(var i=0;i<keys.Length;i++) {
             var key=keys[i]; var button=Ui.Button(labels[i],()=> { selectedPage=key; if(key=="mobile") owner.Mobile.RefreshConfiguration(); Build(); }); button.Tag="settings-nav-"+key; button.HorizontalContentAlignment=HorizontalAlignment.Left; button.Padding=new Thickness(10,8,6,8); button.BorderThickness=new Thickness(0); button.FontSize=13;
             button.Content=SettingsVisual.NavigationLabel(i,labels[i],fg);
-            button.Background=key==selectedPage?new SolidColorBrush(dark?Color.FromRgb(43,81,53):Color.FromRgb(218,242,218)):Brushes.Transparent; button.Foreground=fg; if(key==selectedPage) button.FontWeight=FontWeights.Bold;
+            button.Resources["TactileNavigationSelected"]=key==selectedPage; button.Foreground=fg; if(key==selectedPage) button.FontWeight=FontWeights.Bold;
             System.Windows.Automation.AutomationProperties.SetName(button,labels[i]); navigation.Children.Add(button);
         } sidebar.Children.Add(navigation);
         var sideSurface=new Border { Background=dark?new SolidColorBrush(Color.FromRgb(25,27,32)):new SolidColorBrush(Color.FromRgb(240,242,245)),Child=new ScrollViewer { Content=sidebar,VerticalScrollBarVisibility=ScrollBarVisibility.Auto } }; shell.Children.Add(sideSurface);
-        var pages=new Grid { Margin=new Thickness(24,26,24,18),MaxWidth=640,HorizontalAlignment=HorizontalAlignment.Stretch };
+        var pages=new Grid { Margin=new Thickness(24,26,24,18),MaxWidth=selectedPage=="account"?960:640,HorizontalAlignment=HorizontalAlignment.Stretch };
         var account=AccountView(dark); var display=DisplayView(dark); var moods=MoodsView(dark); var updates=UpdatesView(dark); mobile=new(owner,mobileDraft,dark);
         foreach(var (key,page) in new[]{("account",account),("display",display),("moods",moods),("updates",updates),("mobile",mobile.View)}) { var scroll=new ScrollViewer { Content=page,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Visibility=selectedPage==key?Visibility.Visible:Visibility.Collapsed }; pages.Children.Add(scroll); }
         Grid.SetColumn(pages,1); shell.Children.Add(pages); UpdateStatus(); UpdateUpdateStatus(); SettingsVisual.ApplyButtons(shell,dark);
@@ -72,21 +79,23 @@ internal sealed class SettingsWindow : Window {
         var panel=new StackPanel(); var title=Ui.Text(heading,22,Ui.Foreground(dark)); title.FontWeight=FontWeights.Bold; panel.Children.Add(title); var text=Ui.Text(description,12,SettingsVisual.Muted(dark)); text.Margin=new Thickness(0,8,0,18); panel.Children.Add(text); return panel;
     }
     StackPanel AccountView(bool dark) {
-        var c=owner.Copy; var fg=Ui.Foreground(dark); var page=Page(c.Text("Account","账户","帳戶"),c.Text("Manage your official Codex account and quota.","管理官方 Codex 账号与额度。","管理官方 Codex 帳號與額度。"),dark);
+        var c=owner.Copy; var fg=Ui.Foreground(dark); var page=Page(c.Text("Account & quota","账户与额度","帳戶與額度"),c.Text("Manage your official Codex account and quota.","管理官方 Codex 账号与额度。","管理官方 Codex 帳號與額度。"),dark);
         var panel=new StackPanel(); accountName=Ui.Text("",16,fg); accountName.FontWeight=FontWeights.SemiBold; accountName.Margin=new Thickness(12,0,0,0); accountName.VerticalAlignment=VerticalAlignment.Center;
         var identityRow=new Grid { Margin=new Thickness(0,0,0,10) }; identityRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto }); identityRow.ColumnDefinitions.Add(new());
         var accountIcon=new System.Windows.Shapes.Path { Data=Geometry.Parse("M 16,1 A 15,15 0 1 0 16,31 A 15,15 0 1 0 16,1 M 16,6 A 5,5 0 1 0 16,16 A 5,5 0 1 0 16,6 M 5,26 C 6,16 26,16 27,26"),Stroke=SettingsVisual.Muted(dark),StrokeThickness=1.6,Width=32,Height=32,Stretch=Stretch.Uniform,IsHitTestVisible=false }; identityRow.Children.Add(accountIcon); Grid.SetColumn(accountName,1); identityRow.Children.Add(accountName); panel.Children.Add(identityRow); status=Ui.Text("",12,SettingsVisual.Muted(dark)); status.LineHeight=22; panel.Children.Add(status); page.Children.Add(SettingsVisual.Card(panel,dark));
+        accountOverview=new AccountQuotaOverview(); page.Children.Add(accountOverview);
         accountActions.Clear();
         var actions=new WrapPanel { Margin=new Thickness(0,4,0,14) };
         void Add(string key,string title,Action action,Panel parent) { var button=Ui.Button(title,action); button.Tag="settings-account-"+key; accountActions[key]=button; parent.Children.Add(button); }
         Add("login",c.Text("Sign in","登录","登入"),owner.Login,actions);
         Add("cancel",c.Text("Cancel","取消"),owner.CancelLogin,actions);
-        Add("details",c.Text("Quota details","额度详情","額度詳情"),owner.ToggleTrayDetail,actions);
         Add("refresh",c.Text("Refresh","刷新","重新整理"),owner.Refresh,actions);
+        SettingsVisual.Primary(accountActions["refresh"]);
+        Add("details",c.Text("Quota details","额度详情","額度詳情"),owner.ToggleTrayDetail,actions);
         page.Children.Add(actions);
         var signOut=new WrapPanel { Margin=new Thickness(0,0,0,18) }; Add("logout",c.Text("Sign out","退出账号","登出帳號"),owner.Logout,signOut); page.Children.Add(signOut);
         var maintenance=new StackPanel(); var hint=Ui.Text(c.Text("Restart the bundled runtime if quota updates stop working.","额度持续无法更新时，可重新加载内嵌运行时。","額度持續無法更新時，可重新載入內嵌執行環境。"),12,SettingsVisual.Muted(dark)); hint.TextWrapping=TextWrapping.Wrap; maintenance.Children.Add(hint);
-        maintenance.Children.Add(Ui.Button(c.Text("Reload runtime","重新加载运行时","重新載入執行環境"),owner.Reload));
+        var reload=Ui.Button(c.Text("Reload runtime","重新加载运行时","重新載入執行環境"),owner.Reload); reload.Tag="settings-account-reload"; maintenance.Children.Add(reload);
         page.Children.Add(SettingsVisual.Card(new Expander { Header=c.Text("Troubleshooting","故障排查","疑難排解"),Content=maintenance,Foreground=fg },dark));
         var privacy=Ui.Text(c.Text("Credentials stay in a local isolated account folder.","凭据保存在本机隔离账号目录。","憑證儲存在本機隔離帳號目錄。"),12,SettingsVisual.Muted(dark)); privacy.TextWrapping=TextWrapping.Wrap; page.Children.Add(privacy); return page;
     }
@@ -128,12 +137,21 @@ internal sealed class SettingsWindow : Window {
         var statusRow=new Grid { Margin=new Thickness(0,10,0,6) }; statusRow.ColumnDefinitions.Add(new()); statusRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto });
         updateStatus=Ui.Text("",12,fg); updateStatus.TextWrapping=TextWrapping.Wrap; updateStatus.Margin=new Thickness(0,0,12,0); updateStatus.VerticalAlignment=VerticalAlignment.Center; statusRow.Children.Add(updateStatus); updateCheck=Ui.Button(c.Text("Check for updates","检查更新","檢查更新"),()=>owner.Updates.Check(true)); updateCheck.VerticalAlignment=VerticalAlignment.Center; SettingsVisual.Primary(updateCheck); Grid.SetColumn(updateCheck,1); statusRow.Children.Add(updateCheck); panel.Children.Add(statusRow);
         updateProgress=new ProgressBar { IsIndeterminate=true,Height=3,Margin=new Thickness(0,8,0,8),Visibility=Visibility.Collapsed }; panel.Children.Add(updateProgress);
-        updateActions=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10) }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); updateActions.Children.Add(Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open)); updateActions.Children.Add(Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze)); updateActions.Children.Add(Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip)); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
+        updateActions=new WrapPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,10),Tag="settings-update-actions" }; installButton=Ui.Button(c.Text("Update now","立即更新","立即更新"),owner.Updates.Install); SettingsVisual.Primary(installButton); updateActions.Children.Add(installButton); var notesAction=Ui.Button(c.Text("View release notes","查看更新内容","查看更新內容"),owner.Updates.Open); notesAction.Tag="settings-update-notes"; updateActions.Children.Add(notesAction); var laterAction=Ui.Button(c.Text("Remind later","稍后提醒","稍後提醒"),owner.Updates.Snooze); laterAction.Tag="settings-update-later"; updateActions.Children.Add(laterAction); var skipAction=Ui.Button(c.Text("Skip version","跳过此版本","跳過此版本"),owner.Updates.Skip); skipAction.Tag="settings-update-skip"; updateActions.Children.Add(skipAction); panel.Children.Add(updateActions); cancelInstallButton=Ui.Button(c.Text("Cancel download","取消下载","取消下載"),owner.Updates.CancelInstall); panel.Children.Add(cancelInstallButton); updateNotes=Ui.Text("",12,fg); updateNotes.TextWrapping=TextWrapping.Wrap; updateNotes.Margin=new Thickness(0,6,0,0); panel.Children.Add(updateNotes); page.Children.Add(SettingsVisual.Card(panel,dark));
         var betaPanel=new StackPanel();
         betaToggle=SettingsVisual.Toggle(c.Text("Beta experience","内测体验","內測體驗"),owner.Updates.BetaEnabled,fg,async on=> {
-            if(synchronizingBeta) return;
-            synchronizingBeta=true; try { if(betaToggle is not null) betaToggle.IsChecked=owner.Updates.BetaEnabled; } finally { synchronizingBeta=false; }
-            await owner.Updates.SetBetaAsync(on,ConfirmBeta); UpdateUpdateStatus();
+            if(synchronizingBeta || changingBeta) return;
+            changingBeta=true;
+            try {
+                // Finish WPF's IsChecked change before resetting the control or
+                // opening modal dialogs, which run a nested dispatcher loop.
+                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+                if(!IsVisible) return;
+                synchronizingBeta=true;
+                try { if(betaToggle is not null) betaToggle.IsChecked=owner.Updates.BetaEnabled; }
+                finally { synchronizingBeta=false; }
+                await owner.Updates.SetBetaAsync(on,ConfirmBetaOverride??ConfirmBeta);
+            } finally { changingBeta=false; UpdateUpdateStatus(); }
         });
         betaToggle.Tag="settings.betaExperience";
         var betaRow=new Grid(); betaRow.ColumnDefinitions.Add(new() { Width=GridLength.Auto }); betaRow.ColumnDefinitions.Add(new());

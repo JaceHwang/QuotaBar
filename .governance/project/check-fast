@@ -2,8 +2,17 @@
 set -eu
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$repo_root"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) PYTHON_BIN=${PYTHON_BIN:-python} ;;
+  *) PYTHON_BIN=${PYTHON_BIN:-python3} ;;
+esac
+export PYTHON_BIN
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUTF8=1
 bash tests/test-repository-governance.sh
-python3 scripts/validate-standalone-repo.py
+"$PYTHON_BIN" scripts/validate-standalone-repo.py
 
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-update-feed.py
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-release-tag-routing.py
+"$PYTHON_BIN" scripts/test-update-feed.py
+"$PYTHON_BIN" scripts/test-release-tag-routing.py
+"$PYTHON_BIN" scripts/test-development-sync.py
+"$PYTHON_BIN" scripts/test-release-ci.py

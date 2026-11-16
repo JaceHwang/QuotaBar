@@ -65,6 +65,7 @@ final class FloatingQuotaButtonTests: XCTestCase {
         button.onClose = { closes += 1 }
         button.show(summary: nil, theme: .light, tooltip: "Loading", fallback: "Loading", dimmed: false)
         XCTAssertTrue(button.closeButton.isHidden)
+        XCTAssertEqual(button.closeButton.variant, .ghost, "Floating close remains a quiet icon action")
         let frame = button.frame
         button.interaction.onHover?(true)
         XCTAssertFalse(button.closeButton.isHidden)

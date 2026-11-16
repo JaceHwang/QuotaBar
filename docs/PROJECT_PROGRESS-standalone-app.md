@@ -1049,3 +1049,329 @@ Mac 开发候选 candidate-20261105-110930 基于当前未提交工作树（基�
 用户授权提交推送并发布测试版。功能eea0e51及标题修复e330721已推送，功能草稿PR68保留；Release Please版本PR69生成1.7.0-beta.1并合并a4e2f91，精确tag一致。最新版本PR双端完整CI41989518850及治理41989525413成功，补齐Windows原生UI和内测助手场景。Mac发布41991141192、Windows41991147544成功，10项公开资产，预发布且非latest，正式latest仍1.6.0。校验清单与GitHub全部digest、元数据和来源证明一致；大包本地重复下载慢而停止，不宣称本地完整重验。详见docs/releases/v1.7.0-beta.1.md。
 
 首次测试从发布页安装；默认分支尚未集成双渠道生成器，线上清单仍正式渠道。本次未合并功能到main、未发布支持Beta的正式版、未将本机开发候选替换为公开Beta。后续安排线上生成器集成、支持Beta的正式客户端及设备反馈。
+
+### 2026-11-05 Beta 在线发现修复与部署
+
+用户反馈本机开启内测仍检测不到，实查本机偏好为true、版本1.6.0开发候选，线上schema1仅stable。用户授权处理后，真实资产新生成器输出双端stable1.6.0、beta1.7.0-beta.1，14项测试通过；PR68双端CI41992057033及41992050049、治理均成功后合并main为626b6002bc45ff82e10e56cfdcc3f393bb736eb2。Pages41993697193构建部署成功，公网两平台渠道版本核验通过。本机实际点击检查更新显示「可用更新 内测版1.7.0-beta.1」和立即更新按钮，没有发起安装。同步修正Beta发布说明并重新生成清单，以移除已过时的未部署说明；未发布正式安装包，latest仍1.6.0。MemoraX查询超时，使用源码和部署证据继续。
+
+### 2026-11-05 本机Beta更新失败诊断
+
+用户反馈更新失败。实际界面错误为downloading: NSURLErrorDomain(-1001)，当前仍运行1.6.0开发候选；失败在下载阶段，尚未进入安装。源码下载请求等待超时30秒、资源总时限900秒；Beta DMG117641362字节。随后对同一官方资产的1MiB范围请求返回HTTP206，3.20秒完成、约327KB/s，证明此刻链路可用但不证明完整包持续下载可靠。没有依据将失败归因版本、签名或安装助手；不修改安全校验、不自动重试安装。下一步可用户点击重试；若持续超时，采集持续下载证据再评估空闲超时、断点续传与有界重试。
+
+### 2026-11-05 消息列表选中文字不可见修复
+
+用户确认跳过效果图，按现有 C 阴影卡片设计修复：选中行使用淡蓝背景、蓝色边框，文字保持随浅深主题变化的语义颜色；保留未读加粗和阴影，点击后标为已读的行为不变。原因是自定义行只绘制蓝框，却沿用 AppKit 深色选中背景语义，导致文字变白。新增回归先复现失败，再通过重写行的 interiorBackgroundStyle 修复。消息中心 15 项测试通过；实际查看简体中文浅/深色渲染，标题、摘要、时间清晰，三语言截图均已生成；强调及非强调状态断言通过。仅修改 macOS 源码，Windows 未改、未重测；尚未打包安装、提交或发布，此前公开 Beta 不包含本次修复。
+
+本机生效验收补充：用户反馈未生效后，将修复构建为 candidate-20261105-171717，完整 macOS 测试、发布构建、签名、隔离启动及 DMG 校验通过。事务安装至 ~/Applications/QuotaBar.app 并重启，安装后可执行文件与候选一致；账号、通知策略及内测偏好指纹均保持。实际打开消息中心并选中用户截图中的 Beta 更新消息，截图确认淡蓝底、蓝框及标题/摘要/时间清晰可见；本机修复已生效。未提交或公开发布。
+
+### 2026-11-05 Windows 内测开关实机反馈
+
+用户报告两次确认后仍关闭。检查发现设置开关在 Checked 属性变更调用栈内重置 IsChecked 并进入模态确认，存在属性变更/嵌套消息循环重入风险；原原生测试仅直接调用控制器，未覆盖实际 Checked 路径。本轮将确认流程延后到 WPF 属性变更结束，并对重复交互加锁；原生回归改为触发实际开关、运行嵌套 dispatcher、检查两步确认及持久化。Windows 测试工程跨编译通过；本机为 macOS，尚未执行 Windows 原生回归，不据此宣称实机修复。待完整治理检查及 Windows CI 验证，未发布新安装包。MemoraX 查询返回 HTTP401，继续依据源码。
+
+Windows 开关修复验证补充：提交 275787d 已推送 codex/fix/notification-selection-beta-toggle（包含此前已在 Mac 安装验收的消息选中态修复）。本地完整治理检查通过；CI42009067852的 Windows「Native Windows UI smoke and rendering」步骤成功，新增真实 Checked 路径、两次确认、重入刷新和持久化断言已在 Windows 执行通过。该 CI 后续打包及安装事务尚在运行；未发布新 Beta，用户设备未安装修复包，不宣称用户实机已解决。
+
+### 2026-11-05 v1.7.0-beta.2 已发布
+
+用户明确授权发布测试版。Release Please PR71自动生成1.7.0-beta.2，精确标签a1cb8d3；版本PR双端CI42028831601及治理42028837938全部成功。此前功能CI卸载清理访问拒绝在原任务重跑后全流程成功。Mac42030841425、Windows42030846908发布成功，10项公开资产摘要及元数据来源一致；大包未本地重复完整下载。Pages42031512408部署成功，公网双平台beta1.7.0-beta.2、stable1.6.0，latest仍1.6.0。新包包含Windows内测开关确认时序和Mac消息选中态修复；未自动替换本机为公开Beta，Windows用户设备新版本验收待用户安装。详见docs/releases/v1.7.0-beta.2.md。
+
+### 2026-11-06 macOS 全局安装迁移
+
+用户明确要求将安装位置改为全局 /Applications。安装器默认目标及生产更新助手固定目标已统一为 /Applications/QuotaBar.app；用户目录旧名/新名副本迁移到私有备份，已存在的全局版分别保留。新增全局优先、双副本迁移、迁移失败恢复及旧安装包拒绝回归。安装包的签名Info.plist增加CUSInstallLocation标记，更新校验在替换前拒绝缺少全局路径能力的旧包。账号及配置目录继续使用原有用户数据根。
+
+安装回归14项通过，Swift Core210和AppKit177项通过，快速治理、签名、启动、DMG及141项来源摘要核验通过。完整原生助手夹具测试覆盖成功、取消、超时、回滚、被中断恢复、内测授权/撤销及stable→beta.1→beta.2→stable链。为避免测试触碰真实全局应用，仅助手夹具使用QUOTABAR_UPDATE_TESTING编译标记，将全局目录布局映射到隔离根；生产构建不启用此标记且固定/Applications。Windows源码未改，未重测。
+
+candidate-20261106-110830已通过仓库安装器事务安装到/Applications/QuotaBar.app，PID91540及采集子进程91544路径均来自全局应用。用户目录旧副本已备份并迁出，既有全局版备份仍在。安装二进制与候选一致；账号、通知策略和内测偏好指纹相同。实际界面显示额度充足及当前额度，运行正常。当前和备份应用启动状态查询均返回3，未将其解读成已启用登录启动。此次为已安装的开发候选，产品版本未手改；全局路径适配尚待新版本公开发布。代码尚未提交或推送。MemoraX查询401，依据代码与本机证据完成。
+
+### 2026-11-06 全局迁移后旧Beta包校验失败
+
+用户报告verifying: QuotaCore.UpdatePackageError(4)。核对本机/Applications候选的CUSInstallLocation=/Applications/QuotaBar.app；已下载并解包的公开1.7.0-beta.2缺少该标记。当前校验明确抛invalidIdentity，对应此次错误，尚未进入替换。原因是此前仅本机安装全局适配候选，公开Beta2仍为用户目录旧安装链。修复交付需要发布已验证全局适配的新测试版，保留包身份校验；已向用户请求下一版（预计beta.3）公开发布授权，依据AGENTS公开发布要求。此轮未修改源码或发布。
+
+### 2026-11-06 全局适配测试版发布授权
+
+用户明确确认发布新的测试版。当前目标为通过Release Please生成下一Beta（预计1.7.0-beta.3），包含已在本机验证的全局安装/更新路径、可恢复迁移和签名路径能力标记。先执行最新完整治理和版本PR双端CI，再按精确tag构建两平台公开包及核验线上清单。旧公开Beta仍使用用户目录，首次迁移需新安装器；本机已有全局候选可直接使用新包的应用内更新。
+
+### 2026-11-06 v1.7.0-beta.3 全局路径适配已发布
+
+用户明确授权后，生成Release Please版本PR。PR72自动更新分支产生的超长合并标题被治理拒绝并重建；PR73暴露原取消测试固定延时竞态，改为显式同步门闩后本地6项通过。最终PR74的完整双端CI42156566946及治理42156566858成功，合并/精确tag598ea573。Mac42158062253、Windows42158065544发布成功，10项公开资产摘要及来源核验通过；Mac发包直接校验DMG中的全局路径标记。Pages42158518014部署成功，公网双端beta1.7.0-beta.3、stable1.6.0，latest仍1.6.0。本机实际检查已发现beta.3，保留上次beta.2失败记录，点击重试将使用最新available版本；没有代用户点击安装。公开大包未本机重复下载/安装，CI原生证据与用户设备验收分开记录。详见docs/releases/v1.7.0-beta.3.md。
+
+### 2026-11-06 v1.7.0-beta.3 发布完成与账户页新需求
+
+用户明确授权发布全局适配测试版。全局实现caa9a9b在Beta分支为dc92478，另补发包路径标记断言及取消测试显式同步。GitHub更新PR分支的默认合并标题触发治理限制后关闭PR72重建；PR73发现既有固定延时取消测试竞态，修正后从最新分支生成PR74。PR74版本文件同步1.7.0-beta.3，CI42156566946双端完整成功、治理42156566858成功，合并/tag598ea57395b3aded3709d73cc2beb71f0790ef40。Mac发布42158062253及Windows42158065544成功，10项公开资产摘要与两份校验清单、下载的元数据及来源commit一致；发布验证器已检查DMG内CUSInstallLocation=/Applications/QuotaBar.app。Pages42158518014成功，公网双端beta均1.7.0-beta.3、stable1.6.0，latest1.6.0。大包未本地重复完整下载；本机仍为已验证全局候选，公开beta.3安装验收待实际更新。
+
+用户随后要求将额度详情浮窗部分或全部信息同步到账户设置页，全新UI设计、开发方案及实现。用户明确选择先生成效果图再选择方案。当前按完整额度信息为设计范围收集上下文，兼顾macOS及Windows、浅深主题和现有账号操作；尚未进入新界面编码。详情已有QuotaDetailContent/QuotaDetailFormatter（周期、重置、Bank、Credits、Token及数据时间），账户页当前主要是身份、状态和操作。MemoraX本轮账户复用查询401，使用当前源码继续。
+
+账户页视觉进展：imagegen已生成A清晰概览（双额度卡片、Token/Bank并排）、B信息台账（紧凑对齐表格）和C状态工作台（身份列+状态工作区）三张概念图，均以完整额度详情和现有导航/账号动作为范围，使用示例数据。用户选择问题已发出，等待明确方向；尚未编码或为新页面编写测试。发布记录已保存至docs/releases/v1.7.0-beta.3.md。
+
+### 2026-11-06 账户与额度A概览实现
+
+用户选定A清晰概览，按原始设计并实施请求继续开发。已保存选定概念图、视觉设计和开发计划。macOS将QuotaDetailContent补充分组字段并保留原有rows，以同一格式化快照驱动浮窗和账户页；Windows共用浮窗Token/Bank呈现逻辑。双周期额度、重置时间、当前周期Token统计、全部Bank明细和Credits已接入，缺失第二周期、无Token、离线/过期及退出清除已有处理。宽度不足760pt时下方分区改为纵向，账户页最大960pt，其他页维持640pt。
+
+Mac聚焦回归覆盖正常设置入口、三语言/深浅主题、双/单周期、20条Bank、账号数据清理及窄宽布局，生成并检查隔离数据渲染。完整只读审阅发现Windows按钮主次层级被通用样式覆盖及高对比度额度色问题，已修复。另保留Mac统一30pt按钮规格并提供次级/无填充样式。最新完整governance check all通过，Swift Core211、AppKit180、Windows Core20/20和三工程跨编译通过。Windows新增原生账户页测试已编译，原生CI待运行。Mac新候选尚未安装，本机仍为此前全局候选。此轮未发布新安装包。
+
+账户概览候选验收补充：实现66c47ce已推送，随后合入已发布beta.3基线为86df989，避免开发候选使用旧产品版本号。最新完整治理再次通过。candidate-20261106-221114基于86df989，143项来源、签名、独立启动与DMG通过，已事务安装至/Applications/QuotaBar.app，完整版本1.7.0-beta.3且标记开发候选。真实设置账户页已显示当前周期额度、Token统计和全部Bank/Credits，滚动到下方确认操作与明细可达。可执行文件与候选一致，账号、通知策略和内测偏好指纹保持。Windows CI42231430516原生账户页测试成功，其后完整安装更新事务仍在运行；治理42231430603成功。隔离Mac截图已人工检查；Windows测试截图已下载并人工查看浅/深色布局，发现浅色额度/当前日标签偏亮，已进一步调深新账户页数字并统一展开图表柱条；Windows用户设备验收另行记录。此次账户页功能尚未公开发布。
+
+最终颜色与候选补充：浅色账户页额度数字采用加深的同色系，深色适当提亮；展开图表统一蓝色柱条并使用语义文字，Windows原生测试增加大号数字至少3∶1对比度验证。修正7e1c2ec已推送。最新本地完整检查211 Core/180 AppKit及Windows Core/跨编译均通过。candidate-20261106-222232（143项来源、签名、启动、DMG通过）已更新安装到/Applications/QuotaBar.app，并实际查看真实账户页的两档额度、Token和Bank。可执行文件及账号/通知策略/内测偏好指纹保持一致。主体86df989的完整CI42231430516双端成功；最终7e1c2ec的CI42233179603 Windows原生UI和对比度回归成功，完整作业仍运行，治理42233179946成功。旧主体CI的Windows浅/深色截图已下载并人工检查布局，最终颜色源变化由新增对比度回归验证。公开发行尚待后续授权。
+
+账户概览最终交付：7e1c2ec的[完整CI42233179603](https://github.com/JaceHwang/QuotaBar/actions/runs/42233179603)双端全部成功，包括原生界面、独立启动、候选来源/完整载荷、安装/升级/卸载及应用内更新/健康回退；治理42233179946成功。A方案的设计、开发计划、双端实现、Mac全局候选安装及真实数据验收已完成。当前安装为1.7.0-beta.3开发候选，Token沿用浮窗的当前额度周期统计口径。Windows用户设备验收尚待实际使用反馈，本轮交付的原生验证来自Windows CI。下一步为用户体验设置账户页，后续公开发布依据新的明确授权执行。
+
+最终Windows原生CI的浅/深色账户页截图已下载并逐张检查，大号额度数字、蓝色Token柱图和Bank明细清晰可读，卡片布局与选定A方向一致。开发计划检查项及项目看板已更新并通过校验。
+
+### 2026-11-07 Windows 实机草稿修复集成
+
+用户要求查看远端3f16313对应的Windows实机修复草稿PR，并合入当前账户概览版本。当前分支codex/feat/account-quota-overview，HEAD7e1c2ec；上轮验收文档有两项未提交变更，继续保留。governance doctor通过，hooks active。已fetch origin并核对全部远端分支、PR及提交接口，当前JaceHwang/QuotaBar未找到3f16313，GitHub提交接口返回422。已请求草稿PR链接、编号或正确完整提交号，取得来源后审阅全部改动及依赖，解决与账户页的冲突并执行完整验证。当前尚未修改产品源码或合入其他修复。
+### 2026-11-06 Windows 内测设置保存兼容修复
+
+用户在 Windows 安装 beta.2 后报告“无法保存内测设置”，明确授权修改并在本机生效。范围为 UpdateChannelStore 保存和损坏文件隔离对 ERROR_INVALID_HANDLE (0x80070006) 的兼容，使用既有偏好存储的备份复制策略，保留正常原子替换和其他错误传播。覆盖失败恢复原文件，恢复失败保留有效备份并阻止后续覆盖；重启保持关闭，不自动恢复旧的内测授权。
+
+基于 v1.7.0-beta.2 的独立分支 codex/fix/beta-channel-save。定向错误注入测试先复现保存失败，再通过兼容处理；新增覆盖部分写入、首次保存失败、备份失败、恢复失败后的重试/重启、外部恢复后再次保存和损坏文件隔离失败。独立审阅发现“新文件完整但复制报错、恢复失败”时需要持久恢复标记，先失败回归后修复；标记在兼容写入前刷盘，失败恢复保留，读取保持关闭并保护旧备份。最终复核无新增问题。
+
+完整 Windows Core 套件通过，包括 20/20 行为测试、存储兼容、下载/信任、生命周期及安装事务测试。Windows 实际 WPF 开关开启、关闭、重新开启及错误恢复的原生聚焦测试通过。全量原生 UI 套件未全过，退出测试子进程的浮窗指针拖动断言失败（floating controls: native pointer drag moves transparent background），导致 actual Quit awaits updater cleanup without a runtime 失败，未修改该无关逻辑。Mac 测试未在本机执行。
+
+本地候选 .dist/beta-channel-save/QuotaBar 基于已核验的官方 beta.2 包，仅替换应用和 setup 的 QuotaBar.Core.dll，重新生成本地开发来源及包摘要。Core SHA256 为 17c061802af0af0aa952a5d3c6b1a660fdde449252f9722587f562ca8594fcf4。官方安装器仍因安装事务重命名返回“句柄无效”，采用先完整备份再复制替换，安装后所有文件摘要一致。实际设置界面关闭内测成功，再开启后显示“已开启”，正式设置为 true，兼容备份为之前的 false，未残留恢复标记。已重启验证持久化。旧程序备份在 .dist/beta-channel-save/previous-installation。
+
+项目进度工具不可用，当前检出未包含 .project-board/board.md，依据此路线图和实际源码继续，未生成或手改项目看板。governance doctor 的 hooks、分支和完整快速检查通过。此次只交付本地开发修复候选，不修改产品版本或公开发行记录。
+
+用户追加授权提交、推送并创建远程草稿 PR，目标为当前 codex/prerelease/beta 分支。推送前执行 governance check all，快速检查、14 项更新清单和 4 项标签路由测试通过，完整检查因 Windows 缺少 macOS xcrun 在 Swift 测试入口停止。保留完整 Core 和内测开关原生验证证据，以及全量 Windows UI 的浮窗拖动失败记录，不宣称跨平台全通过。草稿交付不包含合并或发布授权。
+
+2026-11-07集成结果。用户补充远端分支codex/fix/beta-channel-save后，已取得3f16313575d5f33d37e1f1d8e498a6de27495061并审阅，cherry-pick为e6b7924。仅路线图追加记录发生冲突，双方记录均保留，产品源码自动合并。该分支另有9ca7c18的开发同步治理改动，本轮按指定Windows实机修复范围选取3f16313。最新完整governance check all通过，包含新增内测存储错误注入回归、Swift测试与Windows三工程跨编译。当前Mac环境未执行新的Windows原生测试，来源分支的实机证据按历史记录保留。修复已进入当前账户概览分支，后续候选构建及公开发布按授权推进。
+
+2026-11-07用户明确授权发布当前最新功能测试版。范围为账户概览和Windows内测设置保存修复，使用Release Please生成下一Beta版本，执行双平台原生CI、准确标签打包及公开更新源核验。
+### 2026-11-07 双实机代码同步工作流
+
+用户授权按平台执行本地检查、显式草稿同步和远程双平台合并/发布门槛。新增 check local/sync，草稿模式仍要求快速检查成功，拒绝 CI、主分支、预发布分支和标签。本机 Core、应用/安装器构建通过，原生 UI 测试存在 initial floating close hidden 失败，草稿同步明确报告该失败。新增同步/平台路由和精确提交发布 CI 核验测试，补齐 Windows 原生 Python/Git Bash 兼容。操作指南及 PR 实机证据模板已更新。远程规则和草稿 PR 随交付核对，跨平台 CI 与 Mac 实机结果待远程执行。
+
+### 2026-11-07 Windows beta.4 本机更新回滚排查与恢复
+
+用户报告本机下载并安装后显示新版未能正常启动、恢复旧版。最新更新目录 bdd0a945cf284e0eb93f1ab16dbe6f33 对应官方 1.7.0-beta.4（2281d6be3bf127eb6057758c3ab503afdb733571），存在 ready/handoff/rolledBack 回执，无 health 回执，当前安装仍为本地兼容修复的 beta.2。在安装事务目录内用隔离空目录调用 System.IO.Directory.Move，复现 IOException“句柄无效”；事务替换依赖相同调用，通用 rolledBack 文案将安装阶段失败描述为启动失败。原助手未持久化具体异常，无法从该次回执单独恢复原始异常堆栈。
+
+本轮使用已下载官方 beta.4 包恢复本机。核验 ZIP 和外部来源文件的长度与 SHA256、解包来源文件一致性、785 项包文件摘要。完整备份并逐文件核验旧安装至 %LOCALAPPDATA%/Programs/.QuotaBar-install/manual-backup-20261107-180821，随后复制替换安装目录并移除旧版独有文件，安装后全部清单摘要一致。启动 PID31512 来自标准安装路径，运行超过12秒，standalone-state 为 Ready、has_quota=True、floating_visible=True，内测授权仍为 true。
+
+本轮为本机安装恢复，未修改安装器源码。自动更新所依赖的目录重命名兼容问题仍需后续修复及错误注入/事务恢复回归，未据此宣称自动更新链已修复。项目进度技能工具不可用，检出缺少 .project-board/board.md，依据路线图与本机证据记录，未生成看板。
+
+### 2026-11-07 Windows 安装器无效句柄兼容修复
+
+用户明确要求执行安装器修复。沿用现有隔离工作区，创建 codex/fix/windows-installer-handle，基于 9ca7c18；Core 和 Setup 修复前内容与官方 beta.4 一致，保留既有路线图修改。governance doctor 通过。进度技能工具不可用，缺少 .project-board/board.md，继续按路线图和实证记录。
+
+InstallationFileOperations 对 0x80070006 启用带文件摘要清单的复制事务，记录 copy-move.json，在完整副本刷盘及校验完成后记录 complete 并删除源。重启时先恢复复制，再恢复既有安装事务，其他重命名错误继续传播。InstallationState 保留中断写入后的有效临时记录，逻辑删除先删最终文件、后删临时记录。更新任务/回执写入复用无效句柄兼容提交，助手新增 failure.json，包含 preparing/installation/startup 阶段、错误码及异常堆栈。安装与恢复同时失败时保留两项异常。
+
+错误注入回归先复现安装失败，再验证首次安装、升级、健康失败回滚、卸载恢复、备份复制失败重试、复制中断、源清理中断、恢复失败重启、校验损坏及受管路径拒绝。独立审阅发现并修复原始异常被恢复异常覆盖、临时历史残留、健康成功后阶段未重置，以及临时日志过早删除；后者通过实际 Windows 文件独占锁先失败后通过。最终审阅无遗留问题。完整 governance check local 退出 0，包括 Core 全套、20/20 行为测试、应用/安装器构建及原生 Windows UI 套件；本轮浮窗和真实 Quit 测试通过。未在本机执行 Mac 或远程 CI。
+
+本地候选 .dist/installer-handle/QuotaBar 基于校验过的官方 beta.4，替换应用与 setup 的 Core DLL、Setup 可执行文件和程序集，保留官方 beta.4 其余界面及运行时。来源明确标为 local-development-candidate，并分别记录原发行来源和修复源码摘要，未修改产品版本。Core SHA256 为 91f3bda21b82a10052b0ad12edd9251e5cc88d18fe8f22a6ccf0f831dd02a7be。旧安装完整备份于 %LOCALAPPDATA%/Programs/.QuotaBar-install/installer-repair-backup-20261107-185810。修复后的 Setup.exe 已实际完成安装，785 项文件摘要一致，应用 Ready 且额度可用。
+
+实机更新助手第一次使用未修改的官方 beta.4 包。交接及目录替换成功，随后旧 Core 在健康回执的 File.Move 留下完整临时回执，应用未提交 health.json 并退出。新助手正确记录 startup 失败、完成回滚并恢复修复候选，偏好摘要一致。此探测失败记录保留，不能宣称未修改的旧官方包更新成功。正在使用包含两条兼容修复的本地夹具验收完整助手链路；夹具合成发布元数据仅用于现有受信任务入口测试，标记 localTestOnly，不作为公开发行包交付。最终安装将恢复带本地开发来源的候选。源码未提交或推送，未公开发布。
+
+验收完成补充：本地修复夹具的真实 Setup update 入口在当前设备获得 ready、handoff、health、succeeded 回执，助手退出 0，无 rolledBack；包含两条修复的包完成目录替换并持续运行。随后再次通过修复后的 Setup install 恢复带 local-development-candidate 来源的候选，785 项文件摘要及偏好摘要全部一致，最终 PID38756，状态 Ready、has_quota=True、floating_visible=True。验证记录位于 .dist/installer-handle/verification.json，testKind=local-repair-fixture；旧官方包失败探测单独保存在 official-probe-verification.json。最新快速治理检查通过，独立审阅全部问题已关闭。当前为已安装的本机修复候选，未提交、推送或公开发布；未来正式包需同时包含目录与启动回执两条兼容修复，不能把旧官方包探测失败写成更新成功。
+
+### 2026-11-07 安装器修复本地提交授权
+
+用户明确授权提交本次修复。提交范围为安装器/更新回执兼容处理、故障日志、回归测试、修复计划及实机验收记录。提交前 governance doctor 与快速治理检查通过，沿用已完成的完整 Windows 本地检查和修复夹具实机健康回执证据。当前交付为 codex/fix/windows-installer-handle 分支的本地 Git 提交，发行状态为本机开发候选。
+
+### 2026-11-10 在线更新工作目录最小修复与实机验收
+
+用户批准按最小方案实施并实际测试。基于官方 beta.5（d57e8963dcbf1045f9ffc26ce30bd3a915f8fd4b）创建 codex/fix/windows-update-working-directory。治理 doctor 在配置既有 Python/Git Bash 适配后通过。进度技能工具及 .project-board/board.md 不可用，依据路线图、源码及实际回执继续。
+
+客户端显式指定复制助手所在目录为 WorkingDirectory；Setup 的 update 分支在解析任务后规范化原始参数，再切换到自身目录，记录 PID、继承及生效 CWD。恢复旧应用时显式使用安装目录作为应用工作目录。目录移动仅对错误32/33增加20次250ms延迟，错误6继续走既有可恢复复制，其他错误传播。failure.json 补充进程、CWD、移动路径和次数；通用回滚文案改为更新失败。原生助手测试改为父进程和助手均从安装目录启动，并传入相对任务路径，验证准备失败的日志。
+
+短暂占用回归先失败后通过，覆盖32/33释放后成功以及持续占用21次调用、最多5秒延迟后安全失败。独立审阅发现外层 catch 在切换CWD后重新解析相对任务导致日志丢失，使用实际过期相对任务命令先复现，再规范化参数修复，现可返回 preparing 失败日志。审阅复核无剩余问题。完整 Core、Windows应用/安装器构建及原生UI套件通过，包括账户总览、浮窗、退出等待更新清理。governance check all 的快速检查通过，完整检查在 Windows 缺少 xcrun 处退出127；Mac及远程CI尚无本轮结果。
+
+完整备份当前安装至 %LOCALAPPDATA%/Programs/.QuotaBar-install/cwd-repair-backup-20261110-175148，逐文件摘要一致。为首次在线更新，在已安装beta.4中部署修复助手并更新本地来源和包摘要，保留旧客户端。通过真实设置页“立即更新”获取官方beta.5，任务3f76cdab632b4c4c9e2587c084707049获得 ready/handoff/health/succeeded，全部安装文件摘要与官方包一致，偏好摘要一致。助手PID6780日志确认继承CWD为安装目录，生效CWD为更新缓存的current-setup，验证此次自占用路径已解除。官方包来源为release，精确源提交d57e896；此验收使用正式包，非合成发布夹具。证据在 .dist/update-cwd/online-verification.json。
+
+随后通过修复后的安装器部署包含客户端保护、助手保护、有限重试及新文案的beta.5本地开发候选，最终启动和文件核验正在完成。Core SHA256为84b5c32b116ee6c439fa6033d11ff5497e1a0903e373c00f1ce4409bd4d2b46e。当前范围为源码修复和本机安装测试。
+
+验收完成：最终beta.5本地候选安装完成，786项文件摘要和偏好摘要一致，PID4544，standalone-state为Ready、has_quota=True、floating_visible=True。实际设置界面显示beta.5开发候选，账户页确认额度已更新。最终证据在 .dist/update-cwd/final-verification.json。当前修复源码位于codex/fix/windows-update-working-directory，尚未提交、推送或公开发布。真实在线升级验收对应官方beta.5，最终常驻安装对应包含本轮改动的本地候选，两者证据分开保存。原生助手全模式脚本为干净测试账号设计，本轮修改其继承目录和相对任务回归，用户账号以真实在线升级验证主链路；其余恢复分支通过Core回归验证。
+
+设置页另观察到“无法保存提醒状态，本次未发提醒”，记录为独立的提醒状态持久化问题；本轮提醒偏好文件摘要一致，在线更新收到成功回执。
+
+### 2026-11-10 工作目录修复远端提交授权
+
+用户授权将本次改动提交远端。交付包含工作目录双层保护、目录占用有限重试、诊断文案和回归测试及实机证据。beta.5基线推送钩子要求本机执行macOS xcrun，当前Windows无法完成；集成仓库已有9ca7c18原生设备同步工作流，以Windows完整检查和远端双平台CI继续验证。既有在线实机验收结果保持按候选和官方包分别记录。
+
+远端提交验证补充：修复已形成23301dd，既有原生设备同步工作流9ca7c18已集成为17adf7c，路线图冲突核对后保留全部现有记录并去除重复条目。首次普通推送的Core及构建通过，但原生浮窗断言“native pointer down reaches fully transparent dimmed padding”失败，钩子阻止推送。同一二进制完整原生UI套件复跑退出0，包括账户总览、浮窗和真实Quit；随后重新执行普通推送检查。此记录保留首次失败和复跑证据。
+
+### 2026-11-10 Windows 断点续传与安装失败缓存复用
+
+用户要求增加断点续下载，使断网及安装报错后的重试复用已有数据。在codex/feat/resumable-windows-updates实现，基于已推送的工作目录修复分支。governance doctor通过；进度技能工具和.project-board/board.md仍不可用，按路线图和实证记录。
+
+下载资产以官方SHA256为身份保存在Updates/downloads，与每次新建的GUID安装工作目录分离。文件锁覆盖缓存下载、校验及工作目录复制，阻止并发写入。每次重新解析官方发布和tag元数据，完整资产重新校验长度/摘要，来源仍验证版本、标签和提交。取消、传输中断和任务清理保留缓存；安装失败重试获得全新任务目录和凭据。旧版GUID目录中的有效包/来源文件可导入复用。损坏完整文件被删除重取，损坏断点在最终校验失败后清除，允许下次完整重试。
+
+HTTP续传使用Range，严格校验206的起点、终点和总长度；范围单位大小写不敏感。200完整响应重置文件，416后尝试无Range请求。拒绝不匹配范围、压缩响应和不受信重定向；最终摘要和来源校验继续强制执行。公开IUpdateTransport签名保持兼容。
+
+测试先复现缺少Range请求和安装失败重复下载，再验证续传、200重启、416恢复、错误范围、取消保留、截断响应、受信重定向、缓存复用、新任务隔离、旧包导入、缓存损坏恢复及并发写入拒绝。独立审阅无阻塞问题，补充损坏短前缀最终校验失败后可完整重试回归。完整Core和Windows应用/安装器构建、原生UI套件通过，含账户总览、浮窗和真实Quit；范围单位大小写回归先失败再修正，之后完整Core再次通过。Mac未在本机执行。
+
+实网组件验收通过实际UpdateDownloadClient入口解析官方beta.5元数据，导入既有失败更新包；清理自身GUID工作目录后重试，安装包/来源数据请求均为0。独立实网缓存以已校验的1MiB前缀起步，真实下载主动取消后保留3159738字节；新操作确实发送Range bytes=3159738-，完成247401951字节，并核验官方SHA256 b9080a491ba26ff6afa19bba74ee4a018894a6367f010c4d6795daa344614213及发布来源。完成后再次创建新操作，资产数据请求为0。模拟截断覆盖断网语义，实网使用主动取消避免中断设备整体网络。记录位于.dist/resume-probe/results/verification.json。
+
+部署沿用beta.5本地候选和既有工作目录/回执兼容，替换应用与setup的Core DLL，重建本地开发来源及包摘要；产品版本保持beta.5。整份安装已备份到%LOCALAPPDATA%/Programs/.QuotaBar-install/resume-backup-20261110-183445，安装和最终启动核验进行中。当前范围为Windows实现、本机测试和候选部署。
+
+验收完成：断点续传Core已部署到本机beta.5开发候选，PID18632，Ready、has_quota=True、floating_visible=True，786项安装文件及偏好摘要一致。应用与setup的Core SHA256为8ffecef1a2acb46948bcf4550f77f39ef6e9270ddffbfac31a1688a672c45a70。记录位于.dist/resumable-updates/verification.json；当前源码在codex/feat/resumable-windows-updates，尚未提交、推送或公开发布。
+
+### 2026-11-10 断点续传远端提交授权
+
+用户授权提交远端并确认继续。范围为Windows下载续传、已校验资产缓存复用、回归测试、方案及本机验收记录。提交前governance doctor与快速检查通过，已有完整Windows测试和真实GitHub Range续传、零资产重复下载实测证据；普通推送再次执行完整Windows检查。当前按功能分支同步源码，发行状态为本机开发候选。
+
+### 2026-11-10 Windows 更新修复本地整合
+
+用户要求将工作目录修复和断点续传两次提交整合到本地。获取远端后核对，f808161已包含23301dd及设备同步工作流17adf7c，因此以f808161建立本地分支codex/feat/integrate-windows-updates，无需重复合并；未修改main或推送本地分支。该基线同时包含既有beta.5历史。
+
+本机macOS执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check local` 通过，包含Swift测试、安装与启动清理、Windows Core行为和安装事务测试，以及Windows应用、安装器和原生测试项目跨编译；本次未在Windows设备运行原生UI或安装验收。f808161的远端治理作业42809202607通过；CI作业42809202662的Windows阶段在快速校验时失败：Python调用bash命中未安装发行版的WSL，后续Windows原生作业被跳过；macOS阶段查询时仍在运行。下一步需修复Windows CI的Git Bash解析并重新验证，不能以本机跨编译或历史设备证据代替本次CI。
+
+### 2026-11-10 macOS 更新断点续传与缓存复用
+
+用户要求分析Windows提交f808161并在macOS实现相同功能。在本地整合分支实现按官方SHA-256保存更新包和来源文件，重新读取并校验发布和标签元数据；取消、传输中断和安装失败后可复用缓存，每次安装仍创建独立任务目录。支持精确Range续传、200重启、416回退、缓存损坏删除、已验证旧任务导入，以及文件锁防止并发写入；继续校验重定向、包长度、摘要和来源。取消后立即重试会等待旧任务释放缓存锁。
+
+Range和缓存重试回归在旧代码上先失败，修复后通过；审查发现立即重试竞态，新增回归先失败再修复并复核。14项下载测试和7项更新服务测试通过，覆盖主动取消、截断后续传、错误范围、损坏缓存、旧任务导入、并发锁与重试清理。实际GitHub重定向后的产品端到端续传、候选安装和新提交的远端CI尚未执行，不将模拟网络测试等同实机在线安装。当前为本地源码改动，未提交、推送或发布。
+
+本机完整验证：`PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0，Swift Core 220项、AppKit 181项通过，安装/启动夹具、Windows Core行为和安装事务检查通过，Windows应用、安装器及UI测试项目跨编译通过。原生Windows UI本次未在Mac执行。下一步可基于准确源码构建候选，实际验证GitHub在线续传及安装后重试；远端Windows CI的Git Bash解析问题仍独立待修复。
+
+### 2026-11-10 续传测试版发布准备
+
+用户授权发布测试版进行实机测试。范围包含Windows工作目录保护与断点续传、macOS断点续传和缓存复用，按仓库规则通过Release Please生成beta版本，不覆盖历史资产。发布前需同一源码提交的两端实机结果与候选摘要，以及准确tag的双平台CI；此前Windows实机结果和macOS本地测试不等同于新整合提交的双端验收。
+
+已定位f808161的Windows CI失败：原生Python调用bash时找到System32的WSL bash。Windows CI快速校验步骤将Git Bash的/usr/bin置于PATH前端，校验脚本显式解析shell完整路径以避免Windows进程搜索顺序命中系统目录，保留全部检查；此调整仍需远端Windows CI验证。当前准备提交、构建候选与验证，尚未发布。
+
+提交准备：加入CI路径调整后，在macOS重新执行 `PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出0。下一步生成准确源码提交并同步开发分支，以获取双平台CI候选；正式发布前还需分别记录同提交的两端实机结果。
+
+开发分支bcfb447已推送并创建草稿PR #80，macOS候选candidate-20261110-200403按该提交干净构建、签名和隔离启动通过，DMG SHA256为1d64af374cbaa738d99432fa1b32cb3767cf68898646fdb8ec206d6830643ac3。该候选尚未安装；后续CI修正会使其源码提交落后，不能作为后续提交的实机证据。远端Windows CI42812562691通过了原先失败的仓库校验，但下一组发布标签测试失败；原测试未输出子进程错误，怀疑仍与直接调用bash有关。现已将同步和发布测试的shell调用也改为显式解析并输出失败详情，待重新验证。
+
+新提交b667c0f已推送，完整本机治理与推送检查通过。macOS候选candidate-20261110-200851来自干净b667c0f25aa264e5fd453a767d4bb70ec4c6ea0b，DMG SHA256为7c47670650a178af87d13234221d3d08c236306498cdd929ce341dfb11f0bc77；签名及隔离启动通过，已事务安装至本机并保留旧版备份，安装可执行文件摘要与候选一致，进程90582处于ready、has_quota=true。此证据仅证明本机安装和额度读取，真实GitHub中断续传及安装重试仍待实测。远端CI42813305315在记录时Windows快速检查和Core测试通过，原生UI及完整打包仍运行；同提交Windows实机尚未验收，测试版尚未发布。
+
+macOS真实网络组件补充：使用当前QuotaCore的UpdateHTTPTransport读取官方beta.5元数据和来源文件，验证来源后保留128字节前缀重新请求，确认经GitHub重定向后从该偏移续传并恢复927字节完整内容，SHA256为3bdfea9903453120a00b3364ca8538f537eddccfde792097347691769a273b7d。此为来源文件的真实Range链路验证，并非完整DMG断网或安装失败后重试验收。
+
+远端CI42813305315的macOS通过；Windows原生UI、候选载荷验证、启动退出与安装升级回退卸载通过，但应用内更新原生夹具在happy模式等待ready.json时超时，作业失败且候选未上传。日志显示助手当时仍在运行，未保留助手日志，不能确定是准备耗时还是卡住。夹具等待20秒，而应用内助手就绪预算为120秒；另一轮同提交CI仍在执行，不能将已有运行视为通过。正在进一步核查，尚未发布。
+
+另一轮同提交CI42813312447最终双平台通过。Windows原生应用内更新覆盖receipt-failure、cancel、happy、rollback、corrupt、expired及三种beta授权情况，候选包已上传至该运行的quotabar-windows-candidate产物；Actions外层产物ZIP SHA256为65064341d8fc1557c4442c01f735755a710df937a2edb159547aa3fbf75c7a44，内层候选ZIP摘要以产物内SHA256SUMS为准。前一轮超时记录保留，未确认其根因。macOS候选已安装并读取额度；同提交Windows候选仍待用户设备验收，准确标签的CI及测试版发布尚未执行。
+
+用户随后明确指示直接发布测试版，再由其手动进行Windows实机测试；本次测试版依用户最新指示将Windows用户设备验收调整为发布后，不能标记为发布前通过。仍执行双平台CI、Release Please和准确标签门槛；Windows助手20秒超时的首次失败记录保留，正在复跑该失败作业。
+
+复跑完成：CI42813305315第2次尝试的Windows完整作业通过，与另一轮CI42813312447均为双平台成功；首次等待超时的根因仍未确认。功能PR #80以精确head b667c0f合并至beta分支，合并提交9f1bcde9da745688e782b1d7389097fd71c6cbd4。Release Please及该合并提交CI正在执行；尚未生成准确版本标签或发布候选。
+
+2026-11-13续接：功能合并提交的双平台CI42817401903与治理42817401709通过。Release Please生成PR #81，版本与manifest均为1.7.0-beta.6、更新日志对应PR #80；自动创建的PR检查为action_required且无作业。已对PR准确head 6860dda82dae6c8d047eaa9b5899972b5a1af277手动触发CI43348431079与治理43348431796，等待完成；尚未合并版本PR或发布。
+
+版本PR治理43348431796通过。CI43348431079的macOS完整governance检查中签名DMG装载测试通过，但打包脚本第二次执行同一测试时返回commandFailed；具体外部命令的stderr未保留，原因未确认。Windows作业仍运行，待完成后复跑失败的macOS作业；保留原失败证据，不以其他提交结果代替版本PR检查。
+
+版本head的CI43348431079第2次尝试双平台通过，治理43348431796通过；第一次macOS DMG命令失败记录保留、原因未确认。GitHub未将手动workflow_dispatch检查关联到版本PR的必需PR事件状态，因此以用户身份关闭并立即重新打开同一个PR #81，head/base均未变化，触发PR事件CI43351062993及治理43351062876；等待这些必需检查后按精确head合并。
+
+PR事件CI43351062993和治理43351062876均通过；版本PR #81以head 6860dda精确守卫合并，合并提交dc7e9a5eea00d1c3414d721983769598e657c23e。Release Please已生成v1.7.0-beta.6草稿及准确tag，tag指向该提交，暂无发行资产。准确提交的双平台CI43352745294正在执行，必须通过后才能按平台构建和发布；Windows用户设备验收按用户要求在测试版发布后执行。
+
+准确tag的双平台CI43352745294及治理43352745286通过。Windows发布作业43354185136通过，beta.6已公开为prerelease且Windows平台可用，ZIP的官方摘要为4a7d38cfd87887e5710524754fb8852caddc997c3a6b0c4480c1bfdd56c73c76；公网SHA256SUMS与发布API一致，公网ZIP的Range首字节GET返回206，发布验证记录指向准确提交并包含Windows原生启动退出和安装生命周期证明。未重新完整下载247MB ZIP，本次Windows用户设备仍待验收。macOS发布作业43354669719进行中。
+
+2026-11-13发布完成：macOS发布作业43354669719通过，beta.6公开页两端均为available；macOS DMG官方SHA256为ba6ef86c4c0418aea1510008c7fc9f9436f27ff5140d28e6634b109474cf3bc0。两平台公开SHA256SUMS与GitHub资产摘要一致，包地址的Range首字节GET均返回206；Windows验证文件和macOS来源文件实际下载后摘要与API一致，记录准确tag及源码dc7e9a5，分别含原生安装生命周期与macOS启动退出证明。未在本机重新完整下载Windows ZIP或macOS DMG，不将远程构建与首字节响应表述为完整公网包复核。
+
+Pages更新作业43355065796通过，公网updates.json的beta通道两平台均为1.7.0-beta.6且链接正确，stable两平台及GitHub latest保持1.6.0。此前macOS本机安装并读取额度的是b667c0f开发候选，不等同已发布beta.6正式资产的安装验收；Windows beta.6用户设备测试按用户指示在发布后手动进行，结果待反馈。下一步由用户实际测试更新下载中断恢复、安装失败重试及正常启动/额度读取；需要时根据反馈排查。
+
+### 2026-11-14 拟物按钮改造进行中
+
+用户要求使用 kubai-skeuomorphic-buttons，明确跳过效果图并严格按技能规范实现。基于 beta.6 的 dc7e9a5 创建 codex/feat/tactile-buttons，保留原有未提交的发布记录。macOS 共享设置按钮已初步调整为 40pt、中性石板色和按压/悬停绘制，并同步消息中心及 Bark 布局；现有尺寸和颜色回归先失败后通过，设置、消息中心和多语言主题聚焦测试 29 项通过。截图检查发现禁用文字对比不足，已修正。此阶段仅为部分实现；五种层级、精确材质及动画、Windows 对等实现、完整检查和实机验证仍待完成，未安装、提交、推送或发布。
+
+后续进展：macOS 共享按钮新增五种层级、md/lg 缩放、按压和悬停插值、减弱动态效果处理，并将设置链接改为文字层级；补充按压反向渐变和尺寸回归。Windows 的共享设置按钮已加入五种模板入口、尺寸缩放、石板色以及悬停/按压/键盘焦点基础状态，保留高对比度分支；应用与原生测试项目在 macOS 上交叉编译成功，XAML 仅作 XML 语法检查，未在 Windows 运行。Windows 模板尚未完整达到技能规定的 120/140/160ms 动画及按压内阴影等材质细节，不能标记为严格实现完成。
+
+最终源码状态执行 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出 0；其中 macOS AppKit 186 项通过，包含核心、安装夹具及 Windows Core/安装事务检查，Windows 应用、安装器和原生测试项目跨编译通过。macOS 设置和消息中心多语言、深浅主题截图已检查；未在 Windows 设备执行原生 UI、模板加载及截图测试，也未构建安装候选或发布。下一步补齐 Windows 动画和按压材质，在 Windows 实机运行原生测试和视觉验收后再判断完成。
+
+### 2026-11-14 拟物按钮补齐 Windows 动效
+
+用户要求继续补齐先前未完成的 Windows 细节。WPF 共享模板改用原生视觉状态：位移 120ms、阴影 140ms、颜色 160ms；实体按钮按下时反转渐变、显示沿内圆角的 2 单位深度阴影及浅色底线，接触阴影收起，独立 lift 蒙版在静止和悬停时分别收缩 3、5 单位，尺寸通过 md/lg 整体缩放。ghost 按下显示凹陷，text 悬停移动箭头；系统关闭动画时使用即时状态。更新操作实际使用 text、secondary 和 tertiary 层级，窄窗口可换行；文字模板保留自定义内容与访问键，消息中心在系统偏好变化后刷新按钮，高对比度回退焦点跟随文字色。
+
+新增可跨平台执行的实际模板生成测试，覆盖五层状态、时间、阴影参数及减弱动态效果，并纳入 macOS/Windows 本机治理检查；新增 Windows 原生回归，覆盖视觉状态、缩放、访问键、自定义模板、最小宽度更新操作和消息中心样式刷新，但本机无法运行该原生测试。独立静态审阅及复核未发现确认的阻断问题。开始续接时 doctor 因前一轮进度记录含本机绝对路径而失败，已将该记录改为环境变量写法并重跑通过；增加治理测试后同步脚本的固定命令断言曾失败，已更新断言并重跑通过；负扩散回归在实现前按预期失败，期间一轮完整检查也因此失败，修复后重新执行。
+
+最终代码执行 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer PATH="$HOME/.local/share/quotabar-dotnet:$PATH" ./governance check all` 退出 0：macOS AppKit 186 项通过，新模板生成测试通过，Windows 应用、安装器及原生测试项目跨编译通过。Windows 实际 XAML 解析、动画视觉、键鼠/高对比度和原生测试尚未在 Windows 设备执行，不能标为 Windows 实机通过；未提交、推送、安装或发布。下一步在 Windows 设备运行 `./governance check local`，检查五种状态、多语言及缩放，记录实际设备结果。
+
+### 2026-11-14 macOS 按钮候选实机测试
+
+用户授权在本机 macOS 构建、安装和实测。首个开发候选基于 dc7e9a5 的未提交源码，源码快照 144 项与工作区一致，DMG SHA256 为 2819b9465ebb84b1ed830ec3925c5da65ace8366f5d7d4e2a52f6e0ffa6dea7a；完整 Swift 测试、签名、隔离启动退出及 DMG 校验通过。通过可恢复安装器安装后，应用进入 ready 并读取真实额度，安装二进制/源码快照与候选一致；旧版本备份存在，账户和关键偏好指纹一致。实机打开设置、消息中心、已读详情并通过“查看更新”返回设置成功，页面显示开发候选标识。
+
+深色外观的禁用文字链接实测过暗：按钮在绘制中对已禁用文字再次施加全局半透明。新增暗色像素回归在旧实现上测得最亮红色分量约 0.216 而失败；调整为仅对材质减透明、文字使用系统次级标签色后聚焦测试通过。该修复尚未构建并安装；下一步重建候选并复核实际页面。Windows 设备测试仍未执行。
+
+最终修复候选 candidate-20261114-190029 已构建、签名并通过隔离启动退出及 DMG 校验，基线提交 dc7e9a5、工作区含未提交源码，144 项源码快照与构建时工作区一致；快照 SHA256 为 0a6f704d4660ad494b6fa83f8bf73d2f21a62af63ab451e711852a81378502c6，DMG SHA256 为 d7f3bb5091a55680a82c0fcd875ee5b8ae3491b27ba30ba1b1a9d2435af6ad27。构建过程 Swift AppKit 187 项通过，含暗色禁用文字像素回归。通过可恢复安装器重新安装后，签名有效，安装二进制和源码快照与候选一致；账户文件、通知策略及更新通道指纹与安装前一致，前一候选备份存在。安装后进程 31615 状态为 ready、has_quota=true、floating_visible=true；实际打开关于页确认开发候选标识及暗色禁用链接已可辨识。首个候选上实际验证消息中心、已读详情与返回设置，最终候选上复验启动、额度与修复后的页面；未对最终候选重复所有消息中心交互。当前为本地开发候选，未提交、推送或公开发布；Windows 原生实机验证仍待进行。
+
+### 2026-11-14 全项目按钮协调调整
+
+用户再次要求统一整个项目的按钮颜色及样式，并沿用跳过效果图的决定。macOS 设置侧栏、提醒矩阵、阈值操作、消息气泡、悬浮关闭及详情固定/设置/外链接入共享触觉样式；深色次级和三级采用中性深灰，浅色保留技能规定的白色及灰色材质，保留系统控件和无障碍语义。Windows 同步设置侧栏、提醒气泡、详情和悬浮关闭的层级与深浅配色；更新操作仍可换行。Bark 密钥显示按钮采用低强调样式。详情外链、固定和 Bark 聚焦测试 23 项通过；完整检查与本机候选构建安装正在进行。Windows 原生设备与 UI 验收尚未运行。
+
+续接完成本机检查：`./governance check all` 退出 0，macOS AppKit 192 项通过，Windows 触觉模板生成测试及应用、安装器、原生测试项目跨编译通过。候选 candidate-20261114-234205 基于 dc7e9a5 和未提交源码，144 项源码快照均与工作区一致，快照 SHA256 为 cf3d0237d78117a2aed232306e8ba1e6ae6f97735fc81319f800b2001d2d8e6c；DMG SHA256 为 436753d001dacf63200a897b335d2bcd61cce2d02e48f00be2f5c989738c4814。签名、隔离启动退出和 DMG 校验通过；可恢复安装器安装后，安装二进制与候选 SHA256 一致，进程 66713 为 ready、has_quota=true、floating_visible=true。实机打开提醒和关于页面，确认深色侧栏、紧凑按钮、主要/次级按钮和文字链接可见，页面切换正常；气泡预览因详情面板打开而未触发，尚未完成最终候选气泡交互实测。Windows 原生 UI、动画与设备验收仍未执行；未提交、推送或发布。构建脚本初次直接执行因无可执行权限失败，改用 bash 后成功；安装器首次误传候选目录而非 app 路径失败，修正后安装成功。
+
+补充实机验证：关闭额度详情后再次触发预览，示例气泡实际显示主次按钮，点击“知道了”成功关闭。初次预览受详情面板打开影响的记录保留。Windows 原生设备验收仍待进行。
+
+### 2026-11-15 拟物按钮测试版发布准备
+
+用户授权推送并发布测试版。以 codex/prerelease/beta 的 dc7e9a5 为基线，先提交按钮改造和测试，通过功能 PR 与准确提交的双平台 CI 后再按 Release Please 生成版本。既有 macOS 实机结果对应未提交工作区快照，Windows 用户设备尚未运行本次代码；两端物理设备证据与 CI 分开记录。禁止覆盖已发布资产。
+
+### 2026-11-16 Windows 提醒矩阵控件显示
+
+基于 beta.7（2abd377）在 codex/fix/reminder-controls 调整 Windows 提醒页：列全选及阈值增删按钮改为紧凑尺寸，输入框与单位和操作按钮垂直对齐；保留原有操作、无障碍名称、主题及键盘焦点。项目进度工具和 .project-board/board.md 在本环境不可用。governance doctor 通过；构建首次尝试因本机默认仅有 .NET 8/9、项目需要 .NET 10 失败。尚未完成原生 UI 截图验收、CI、候选打包或发布；下一步安装独立 .NET 10 SDK 后运行 Windows 测试及检查不同窗口宽度。
+
+用户授权本地安装用于实机测试。独立安装的 .NET SDK 10.0.404 经微软发布元数据 SHA-512 校验；Windows 应用构建零错误，Core 套件通过。Windows 原生套件首轮运行经过提醒矩阵和设置截图，最终在 Quit 子进程浮窗鼠标命中断言失败；复跑在浮窗拖动断言失败，均保留为未通过的实机自动化结果。检查原生测试生成的浅色提醒页截图，紧凑按钮和阈值输入对齐。
+
+官方 beta.7 更新包 SHA-256 6a6089a8f52a86021604f00af7783f0b055e617eb62c194366cb421c20162312 及包清单逐文件核验通过；官方 Codex 运行时下载超时，故以该官方包为基础仅替换本地重建的 QuotaBar.dll，生成带明确 construction 说明的 local-development-candidate。候选 ZIP SHA-256 dd93ee3ec42dbbdaa4f443b46a0d8a11399109293feba4f1436fb12fc6d96086，包内容、来源、PE 和 ZIP 检查通过。事务安装器 install 退出 0，备份 backup-11e4dd9f-b62b-46f0-9679-95013c636434；安装后 791 项文件摘要与候选一致，preferences、notification-policy、update-channel 摘要未变。实际进程 PID 6464、phase=Ready、has_quota=True、floating_visible=True。当前为本机候选，待用户对实际提醒页测试；未提交、推送、公开发布，未完成全部原生 UI 回归。
+
+### 2026-11-16 Windows 按钮手形光标
+
+用户要求应用按钮悬停时使用手形指针。核对 Windows 应用的 Button 创建均经 Ui.Button，统一将其光标改为 Cursors.Hand；原有详情按钮手形、浮窗拖动 SizeAll 和调整大小 SizeNS 保持。基于上一轮同一分支及未提交的提醒页改动继续，未修改 macOS。治理 doctor、Windows Release 构建（0 错误）、共享按钮的手形光标及应用设置样式后点击行为聚焦检查、候选包完整性检查通过；上一轮完整 Windows 原生套件的浮窗鼠标命中/拖动失败记录仍有效，本轮未重跑完整套件。
+
+沿用用户本机测试授权，将基于已核验官方 beta.7 包并替换本地构建 QuotaBar.dll 的开发候选安装到本机；候选 ZIP SHA-256 a5e9fe26aeed7beae24be96e66512d02f843c599b1fac131e78ab15cba77842c。事务安装成功，旧包备份 backup-dc0d6d23-11fc-4502-809b-d0bdbf7cd703；安装后 791 项文件摘要匹配，preferences、notification-policy、update-channel 摘要未变；PID 37384，Ready，has_quota=True，floating_visible=True。尚未完成人工逐页悬停验收或双平台 CI；未提交、推送或发布。
+
+### 2026-11-16 macOS 按钮手形光标
+
+用户要求同步 macOS。SettingsAccentButton 统一注册 pointingHand 光标区域，覆盖设置、消息、提醒气泡及相关操作；悬浮按钮关闭区由 arrow 改为 pointingHand，悬浮主体 openHand/closedHand 拖动和详情面板 resizeUpDown 保持。既有详情链接已设 pointingHand；系统复选框及系统标题栏沿用原生行为。Windows 工作区执行治理 doctor、.governance/project/check-fast 和 diff 检查通过；本机无 macOS/AppKit 或 Swift 工具链，尚未编译、执行 AppKit 测试、实机验证或安装 macOS 候选。需要在 macOS 原生设备验证光标切换和拖动；尚未提交、推送或发布。进度跟踪工具及看板文件仍不可用。
+
+### 2026-11-16 草稿同步准备
+
+用户授权将本次提醒页紧凑布局和双端按钮手形光标提交远端草稿，目标基线为 beta.7 2abd377。同步前治理 doctor、快速检查、Core 测试、Windows 触觉按钮便携测试以及 Windows 应用和安装器构建通过；Windows 原生套件在退出清理子进程的全透明浮窗命中区断言失败，外层退出清理断言随之失败，故本机完整检查未通过，按草稿同步记录并等待 CI。macOS 编译、AppKit 测试与实机验收待有 macOS 设备执行。此前本地 Windows 候选来源为带未提交工作区的 beta.7 源码快照，不等同于草稿提交的精确构建。项目进度工具和看板不可用。
+
+### 2026-11-16 Windows Actions 候选实机验收
+
+按用户要求验收 GitHub Actions 运行 43802030965 的 quotabar-windows-candidate，来源提交 47c4637f2f63968086316a64f221be77d6dcccb3；该运行的 Windows 和 macOS CI 作业均成功，不能代替物理设备结果。Actions 制品 ZIP SHA-256 e224f596ee7487d9d8651055e4fab5ed4e9b54a9aa722f5904ff460e469b52bc 与 GitHub 记录一致，内层候选 ZIP SHA-256 bfac5ecafce85ddeb2d0d6df4cde576bddb536ddb7e3dce04daf95380833da84；128 项源码按 Git 提交字节核对一致，包完整性、PE、运行时和 ZIP 验证通过。初次按 Windows 工作区文件直接核验因 CRLF 换行差异失败，改用提交对象原始字节后通过，保留这一记录。
+
+Windows 11 build 26200 上事务安装精确候选成功，旧安装备份 backup-fb88aedb-b9d5-4980-9602-64f403833095；791 项安装文件匹配，安装后 preferences、notification-policy、update-channel 摘要与安装前一致。进程 PID 25348 处于 Ready、has_quota=True、floating_visible=True。实际设置页确认紧凑按钮和阈值布局，额度偏低及 Bank 添加按钮均打开空白输入；低额度输入 Escape 取消，Bank 空输入失焦后取消，原有 Bank 72/24 小时保留。点击气泡列全选时，界面显示“提醒设置读取或保存失败。句柄无效。”，勾选仍保持，策略文件摘要与安装前一致；此前页面还显示“无法保存提醒状态，本次未发提醒”。因此提醒设置保存相关验收未通过，不推断故障根因或是否由本次改动引入。未发送真实通知，未实机验证手形光标及全部窗口宽度；CI 通过不能覆盖上述本机失败。当前安装保留该 Actions 开发候选，后续应调查本机无效句柄并重验设置保存。进度工具和看板不可用。
+
+### 2026-11-16 Windows 提醒状态无效句柄修复与实机验证
+
+用户要求排查并实机验证。Windows 11 build 26200 的真实 QuotaBar 数据目录使用独立测试文件复现：File.Move 覆盖和无目标重命名均返回 0x80070006，File.Replace 返回 0x80070497；File.Copy 可用。原通知策略、体验状态、额度告警和 Bark 回执保存均使用 File.Move，因此本机不能保存提醒策略及提醒状态。定位为该设备文件系统操作行为与应用缺少兼容路径的组合；未归因到具体驱动或系统组件。测试文件均独立创建并清理。
+
+新增共享 ReminderFileCommit，仅 ERROR_INVALID_HANDLE 时采用备份后复制；写入失败恢复原文件，恢复失败保留备份并阻止后续覆盖，已有备份时检查当前内容有效性。通知策略、体验、告警及 Bark 去重回执使用此路径，正常情况下保留原有重命名语义。注入错误回归覆盖策略及阈值重载、非目标错误、写入中断回滚、恢复失败后跨重启保护、体验与告警状态及 Bark 去重/失败保护。真实数据目录的独立文件验证四类存储保存、重载及 Bark 去重通过；完整 Core 套件、Windows 原生 UI 套件（包括此前失败的透明浮窗和退出流程）通过。
+
+以已核验 Actions 43802030965 候选为基础，仅替换本地重建的应用和 setup QuotaBar.Core.dll，构造 local-development-candidate，sourceCommit 47c4637、workingTreeDirty=true，ZIP SHA-256 1693c696fd47b287d169fe2a566498305d942a6f166cbcdebd5e183616865864；来源快照、791 项文件、PE 和 ZIP 校验通过。安装前在 .dist/reminder-persistence-fix/pretest-data 保存并核对现有偏好与状态文件，事务安装备份 backup-d0f0c24b-3ee2-4af1-8db4-ae3fff4b4365。安装后 PID 43244，Ready、has_quota=True、floating_visible=True。
+
+实机设置页气泡列全选切换成功，取消后重启仍保持取消，再恢复全选并再次重启保持；新增 10% 阈值成功并删除。测试导致隐藏 lowRemainingThreshold 标量由40变10，已通过 UI 添加40再删除恢复至40；最终规则、渠道、阈值、暂停及 Bank 72/24 渠道与测试前语义一致。preferences、update-channel、Bark 回执摘要未变，页面未再显示无效句柄或提醒状态保存失败。未发送真实通知，未对有配置的手机通道进行端到端推送；未在 macOS 或 CI 运行此工作区改动。修复与验收记录尚未提交或推送，安装为本机开发候选。
+
+### 2026-11-16 提醒修复草稿同步准备
+
+用户授权推送本工作区全部改动，继续使用现有草稿 PR #84 和 codex/fix/reminder-controls。推送前再次执行 QUOTABAR_DRAFT_SYNC=1 governance check sync：快速检查、Core 与提醒存储回归、Windows 应用及安装器构建、原生 UI 套件（含透明浮窗与退出）通过。已安装的本地候选仍为 47c4637 加未提交源码快照，实机验证不冒充精确提交构建；完整手机推送及 macOS 实机仍待验证。项目进度工具和看板文件不可用，现有路线图记录继续保留。
+
+### 2026-11-16 PR #84 本地整合与测试版准备
+
+用户授权将 PR #84 整合并推送内测版。已在独立工作区的 `codex/fix/integrate-reminder-controls` 将 beta.7 基线快进至 47c4637f2f63968086316a64f221be77d6dcccb3；原工作区未提交的 beta.7 发布记录予以保留。GitHub Actions 43802030965（push）及 43802061622（PR）的 macOS、Windows CI 和治理均通过；本机 `./governance check all` 退出 0，macOS Swift 192 项通过，Windows 应用、安装器及原生测试项目跨编译通过。本机并非 Windows 原生测试环境。
+
+macOS 基于干净提交 47c4637 构建开发候选，DMG SHA-256 `5dad6f88448b6372a4964d258e761c8e8b8b66eeedae61f9e7580fb34dd02592`；签名、DMG 校验、隔离启动与退出通过。候选已通过可恢复安装器安装，签名及已安装可执行文件与候选一致，设置窗口可打开；尚未验证实际悬停光标和完整交互。用户确认 Windows 前候选 `a5e9fe26aeed7beae24be96e66512d02f843c599b1fac131e78ab15cba77842c` 的提醒页布局和悬停正常；该候选来自 beta.7 加未提交工作区，不是精确提交 47c4637，Windows 原生测试此前发生透明浮窗命中区失败，未将其标记通过。PR 构建候选来源为 GitHub 合成合并提交 d11b0e2b46f116dcce846a28a03715d5ea706058，ZIP SHA-256 `d235ab0fa2ed7ae39e331a3a5c6938cda715e3a901ffb45371fb9b41f6f10c4b`；不能直接称为精确提交候选。push CI 的精确提交候选正在下载核验。PR 仍为草稿，未合并远端、未生成新版本或发布。下一步完成精确提交两端设备验收，记录同一源码提交及两候选摘要，再按 Release Please 和精确标签双平台 CI 流程发布 beta。
+
+补充：GitHub PR 合成合并提交 d11b0e2 与 47c4637 的 Git 文件树一致。push CI 43802030965 产物的来源记录为干净的 47c4637，Windows 候选 ZIP SHA-256 `bfac5ecafce85ddeb2d0d6df4cde576bddb536ddb7e3dce04daf95380833da84`，已完整下载，清单摘要及 ZIP 完整性验证通过；尚未在 Windows 设备安装验收。macOS 已安装候选二进制 SHA-256 `f758ee06b1b8f17260a47984278b9fa2f7e49b40c825db1410f2605b094739e1` 与构建结果一致，设置窗口已打开；实际鼠标悬停及拖动待用户确认。
+
+### 2026-11-16 PR #84 最新提交发布准备
+
+用户再次授权合并并发布测试版，PR 最新提交为 50837446e3fcb274d8c55aba99ef0479b203249f，已在本地快进；原未提交的项目记录经 stash 后完整恢复。用户确认 Windows 已验收精确提交 5083744 的候选，候选 SHA-256 待用户提供；PR 原记录中 1693c696 包为提交前工作区快照，保留原有区分。用户报告不自动等同于测试日志或包摘要，不能据此虚构包散列或原生测试细节。
+
+macOS 从干净的 5083744 构建候选，DMG SHA-256 `0ed8f03528c4c790e9d5acad95fe3b971698a01eb30976bb498a83ad13b767e4`；隔离启动退出、DMG 校验和严格签名验证通过。安装器完成可恢复安装，已安装二进制 SHA-256 `44be00d6bd11909c5522ac5b4de62367c1228166466f24b90e663b930b328574` 与候选一致，进程运行，设置提醒页可打开；鼠标手形与拖动尚未实测。`./governance check all` 对该提交退出 0，Swift 192 项及跨平台核心和 Windows 交叉编译通过。GitHub 双平台 CI 正在运行；未合并、未发布。下一步获得 Windows 精确候选摘要并记录设备结果，等待最新 PR CI，通过后合并，使用 Release Please 与准确标签 CI 发布 beta。
+
+最新提交 5083744 的 GitHub push CI 43822552849 和 PR CI 43822558870 的 macOS、Windows 全部通过；治理运行 43822552636、43822558838 均通过。已在草稿 PR 中记录 macOS 候选摘要、设备结果及用户报告的 Windows 精确提交验收；Windows 候选 SHA-256 仍待用户提供，不能将前一个提交前工作区候选的摘要冒充为新候选。仍未合并或发布。
+
+用户提供 Windows 精确提交 5083744 的实机验收候选 SHA-256 `6b7b1bbfc664e1bbcdb0304e4ad3b904736597bdac7ecb2807bcbed932362171`，已按用户报告与 macOS 同提交候选、实际设备结果一并记录于草稿 PR #84。用户报告的 Windows 验收细节未额外推断；macOS 指针和拖动、Windows 手机推送端到端仍未验收。
+
+PR #84 已以 squash 合并到 beta 分支，合并提交 `afd8eccb52d7a029e18432f864b6a4c7551e01e5` 与已验收的 5083744 文件树完全一致。Release Please 生成版本 PR #85，准确 head `a2bab2e3f48386eacd19727b61ce57d7b6dde079`；核对版本、manifest 均为 1.7.0-beta.8，变更日志包含本次修复。机器人 PR 自动检查显示 action_required 且无作业，按既有流程手动对该版本 PR 分支触发完整 CI 43824672003 与治理 43824661786；等待结果，未合并版本 PR 或发布。
+
+版本 PR 85 的手动 CI 43824672003 与治理 43824661786 在准确 head a2bab2e 双平台通过；GitHub 未将 workflow_dispatch 的检查关联到 PR，直接合并被分支策略拒绝。未使用 admin 或绕过策略。按项目既有做法关闭并重新打开同一 PR，前后 head a2bab2e 与 base afd8ecc 不变，触发 PR 事件 CI 43826115892 和治理 43826115789；旧自动机器人运行未执行作业，当前显示失败，保留记录，等待新的必需检查。
+
+版本 PR #85 的 PR 事件 CI 43826115892（macOS 与 Windows）及治理 43826115789 全部通过；以精确 head a2bab2e squash 合并为 `c164acb057f98ad3acca851c1a99818d0d640c30`。首次合并请求因 GitHub API EOF 返回失败，经核实 PR 仍开放后重试成功。Release Please 工作流 43827796396 正在生成 beta.8 草稿和标签；准确标签双平台 CI 与发布尚未完成。
+
+准确标签 `v1.7.0-beta.8` 指向 c164acb。准确提交 CI 43827796481 首次运行 macOS 通过，Windows 在 native in-app update 测试中已通过 beta-happy，但后续卸载清理的目录移动返回 IOException「Access ... is denied」并失败，根因未确认；此前版本 PR 的两次双平台 CI 已通过，不替代准确标签检查。已启动该准确提交完整 CI 的第 2 次尝试，保留失败证据并等待双平台结果；治理 43827796342 通过，资产尚未发布。
+
+准确标签 CI 43827796481 第二次完整运行在 c164acb 上 macOS 和 Windows 均通过；首次 Windows 卸载 Access denied 失败保留，原因未确认。确认 beta.8 发行页为预发布草稿、无现有资产后，启动 Windows 平台发布作业 43831383094；macOS 待 Windows 发布结束后再启动，避免并发修改发行说明。
+
+Windows 发布作业 43831383094 通过，beta.8 预发布页 Windows 为 available；ZIP 官方 SHA-256 `408095d5b4d4ef90307c5947efb79e47663efeae57af61ebfa95f27d9654b2f2`，macOS 仍 pending。已启动 macOS 发布作业 43831896732；两端资产和更新源尚待最终复核。
+
+beta.8 发布完成：准确标签 v1.7.0-beta.8 指向 `c164acb057f98ad3acca851c1a99818d0d640c30`。准确标签 CI 43827796481 第 2 次运行 macOS 与 Windows 均通过；第 1 次 Windows 在 beta-happy 后卸载目录移动时访问被拒绝，原因未确认，保留失败记录。Windows 平台发布 43831383094 和 macOS 平台发布 43831896732 均成功，发行页为公开 prerelease，两端 available。Windows ZIP 官方 SHA-256 `408095d5b4d4ef90307c5947efb79e47663efeae57af61ebfa95f27d9654b2f2`，macOS DMG 官方 SHA-256 `4211150f4a95468b0deb02ee9ff30d4abca335ff640f7476e4f1758d0a288481`；两端公网校验单和来源文件下载后摘要与发行 API 一致，来源提交均为准确标签提交；两端下载地址重试后首字节 Range 返回 206。未重新完整下载 Windows ZIP 或 macOS DMG。更新源作业 43833590487 通过，公网 beta 两端均为 1.7.0-beta.8，stable 两端及 GitHub latest 保持 1.6.0。Windows 实机精确候选验收和摘要由用户提供；macOS 设备安装并打开设置页，光标/拖动及 Windows 手机通道端到端仍未验收。发布版本资产未在本机实际安装测试。
+
+### 2026-11-16 v1.7.0 正式版推广准备
+
+用户明确授权将 v1.7.0-beta.8 的双平台功能发布为 1.7.0 正式版。main 当前 626b600、产品版本 1.6.0，beta.8 的准确标签为 c164acb；main 独有提交为早期 beta 功能的 squash 合并，后续 beta 包含追加修复。计划基于最新 main 创建功能分支，将 beta.8 产品源码与测试快照推广到 main，保留 main 的版本文件与正式变更日志以便由 Release Please PR #70 生成版本；保留本地既有未提交进度。功能 PR 记录 5083744 双设备候选 SHA 和实际验收范围，功能与版本 PR 均等待双平台 CI、治理；仅以准确正式标签通过 CI 后发布双平台。既有 macOS 光标拖动、Windows 手机推送实机未验收，以及 beta.8 首次标签 Windows CI 清理失败、第二次通过，均如实记录。
+
+正式版推广分支基于 main 626b600 构建：暂存快照除正式版本源、正式 CHANGELOG 和追加进度外，所有文件与 beta.8 c164acb 一致；版本仍为 1.6.0，预留 Release Please 生成 1.7.0。独立审查确认 main 的 beta.1 发布记录保留，发现 README 双语页面尚指向 1.6.0，且旧版实际 macOS 安装位置为用户 Applications；正式资产发布后需更新下载入口与全局安装说明。本机全量治理检查进行中，尚未推送或发布。
+
+推广快照本机 `./governance check all` 退出 0：macOS Swift 测试及安装夹具、跨平台核心检查和 Windows 应用、安装器、原生测试项目交叉编译通过；更新进度后的 `.governance/project/check-fast` 亦通过。独立审查未发现快照遗漏，README 固定下载版本和安装路径问题安排在正式资产发布后修正。尚未提交或推送。

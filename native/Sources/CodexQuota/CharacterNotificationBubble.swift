@@ -30,30 +30,10 @@ private final class BubbleSurfaceView: NSView {
 private final class BubbleArtworkView: NSImageView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
-private final class BubbleActionButton: NSButton {
+private final class BubbleActionButton: SettingsAccentButton {
     var messageID = ""
     var token: String?
-    var primary = false
-    var dark = false
-    override func becomeFirstResponder() -> Bool { let accepted = super.becomeFirstResponder(); needsDisplay = true; return accepted }
-    override func resignFirstResponder() -> Bool { let accepted = super.resignFirstResponder(); needsDisplay = true; return accepted }
-    override func draw(_ dirtyRect: NSRect) {
-        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 11, yRadius: 11)
-        if primary {
-            NSGradient(starting: NSColor(calibratedRed: 0.22, green: 0.28, blue: 0.35, alpha: 1), ending: NSColor(calibratedRed: 0.13, green: 0.18, blue: 0.25, alpha: 1))?.draw(in: path, angle: 90)
-        } else {
-            (dark ? NSColor(calibratedWhite: 0.23, alpha: 1) : NSColor(calibratedRed: 0.96, green: 0.97, blue: 0.99, alpha: 1)).setFill(); path.fill()
-            (dark ? NSColor(calibratedWhite: 0.35, alpha: 1) : NSColor(calibratedRed: 0.88, green: 0.90, blue: 0.94, alpha: 1)).setStroke(); path.lineWidth = 1; path.stroke()
-        }
-        if isHighlighted { NSColor.black.withAlphaComponent(0.12).setFill(); path.fill() }
-        if window?.firstResponder === self {
-            NSColor.keyboardFocusIndicatorColor.setStroke()
-            let focus = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 9, yRadius: 9)
-            focus.lineWidth = 2; focus.stroke()
-        }
-        let size = attributedTitle.size()
-        attributedTitle.draw(at: CGPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2))
-    }
+    var primary = false { didSet { usesAccentFill = primary } }
 }
 enum NotificationCharacterArtwork: String { case attention, recovery, bank, neutral }
 @MainActor final class CharacterNotificationBubble: NSObject {
@@ -146,8 +126,8 @@ enum NotificationCharacterArtwork: String { case attention, recovery, bank, neut
         let primaryWidth = floor(available * 1.2 / 2.2)
         func button(_ title: String, primary: Bool, x: CGFloat, width: CGFloat, action: Selector, identifier: String) {
             let button = BubbleActionButton(title: title, target: self, action: action)
-            button.messageID = message.id; button.token = message.deliveryToken; button.primary = primary; button.dark = dark; button.isBordered = false
-            button.frame = CGRect(x: x, y: actionsY, width: width, height: 32); button.font = .systemFont(ofSize: 13, weight: primary ? .semibold : .medium)
+            button.messageID = message.id; button.token = message.deliveryToken; button.primary = primary; button.buttonSize = .compact; button.isBordered = false
+            button.frame = CGRect(x: x, y: actionsY, width: width, height: 32); button.font = .systemFont(ofSize: 11.2, weight: .semibold)
             button.attributedTitle = NSAttributedString(string: title, attributes: [.font: button.font!, .foregroundColor: primary ? NSColor.white : (dark ? NSColor.white : NSColor(calibratedRed: 0.35, green: 0.41, blue: 0.53, alpha: 1))])
             button.identifier = .init(identifier); card.addSubview(button)
         }

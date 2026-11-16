@@ -4,6 +4,20 @@ import XCTest
 @testable import CodexQuota
 
 @MainActor final class SettingsPolishTests: XCTestCase {
+    func testNavigationButtonsShareNeutralTactileStates() throws {
+        let defaults = UserDefaults(suiteName: "Navigation.\(UUID())")!
+        let coordinator = StandaloneCoordinator(defaults: defaults, root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let window = coordinator.makeSettingsWindow(); defer { window.close() }
+        let shell = try XCTUnwrap(window.contentView as? QuotaSettingsShellView)
+        shell.selectPage(0)
+        let first = try XCTUnwrap(tree(shell).compactMap { $0 as? SettingsAccentButton }.first { $0.identifier?.rawValue == "settings.nav.0" })
+        let second = try XCTUnwrap(tree(shell).compactMap { $0 as? SettingsAccentButton }.first { $0.identifier?.rawValue == "settings.nav.1" })
+        XCTAssertEqual(first.variant, .tertiary)
+        XCTAssertEqual(second.variant, .ghost)
+        shell.selectPage(1)
+        XCTAssertEqual(first.variant, .ghost)
+        XCTAssertEqual(second.variant, .tertiary)
+    }
     func testPreferencesHaveOneOwningPageAndOnePreview() throws {
         let suite = "SettingsPolish.\(UUID())", defaults = UserDefaults(suiteName: "SettingsPolish.temporary")!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)

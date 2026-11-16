@@ -46,7 +46,11 @@ internal static class MessageCenterNativeTests {
    Click(s.Window,"messages.back");Check(Find<FrameworkElement>(s.Window,"messages.listPane").Visibility==Visibility.Visible,"back restores list");
    list.Focus();list.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(s.Window)!,0,Key.Enter) { RoutedEvent=Keyboard.KeyDownEvent });Pump();
    Check(Find<ScrollViewer>(s.Window,"messages.detailScroll").Visibility==Visibility.Visible,"keyboard can reopen selected detail without selection change");
-   s.Window.Width=920;Pump();var selected=s.Window.SelectedKey;s.Router.CurrentMessageEpoch="another";Pump();
+   s.Window.Width=920;Pump();var selected=s.Window.SelectedKey;
+   var refreshButton=Find<Button>(s.Window,"messages.allRead"); var originalTemplate=refreshButton.Template; refreshButton.Template=null;
+   s.Window.RefreshSystemButtonStyles(); Pump();
+   Check(ReferenceEquals(refreshButton.Template,originalTemplate)&&s.Window.SelectedKey==selected,"system style refresh restores buttons without changing selection");
+   s.Router.CurrentMessageEpoch="another";Pump();
    Check(Tree(s.Window).OfType<TextBlock>().Any(t=>t.Text.Contains("历史会话")),"earlier epoch is a historical snapshot");
    var p=NotificationPolicyPreferences.AllSelected() with { EnabledChannels=[NotificationChannel.Bubble] };s.Router.ConfigurePolicy(p);s.Router.Enqueue(new("arrived",ExperienceNotificationKind.Recovery,"another","新消息","snapshot",DateTimeOffset.UtcNow,Category:NotificationCategory.QuotaRecovered));Pump();
    Check(s.Window.SelectedKey==selected,"new arrival retains selected detail");

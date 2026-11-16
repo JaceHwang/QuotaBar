@@ -260,6 +260,24 @@ doctor() {
   return "$status"
 }
 
+check_sync() {
+  draft_sync=${QUOTABAR_DRAFT_SYNC:-0}
+  case "$draft_sync" in 0|1) ;; *) die 'QUOTABAR_DRAFT_SYNC must be 0 or 1' ;; esac
+  check_branch "$(current_branch)"
+  if [ "$draft_sync" = 1 ]; then
+    case "${CI:-false}" in
+      ''|false|0) ;;
+      *) die 'draft sync is only available on development devices' ;;
+    esac
+    printf '%s\n' "$(current_branch)" | grep -Eq "$BRANCH_PATTERN" ||
+      die 'draft sync requires a feature or fix development branch'
+  fi
+  run_adapter "$FAST_CHECK_ADAPTER"
+  if run_adapter "$LOCAL_CHECK_ADAPTER"; then return 0; else local_status=$?; fi
+  [ "$draft_sync" = 1 ] || return "$local_status"
+  printf 'governance: draft sync allowed with local check failure (%s); record it in the draft PR. Dual-platform CI remains required for merge and release.\n' "$local_status" >&2
+}
+
 command=${1:-help}
 case "$command" in
   bootstrap)
@@ -283,8 +301,10 @@ case "$command" in
         ;;
       staged) check_staged ;;
       commits) [ "$#" -eq 4 ] || die 'usage: governance check commits <base> <head>'; check_commit_range "$3" "$4" ;;
+      local) run_adapter "$FAST_CHECK_ADAPTER"; run_adapter "$LOCAL_CHECK_ADAPTER" ;;
+      sync) check_sync ;;
       all) run_adapter "$FAST_CHECK_ADAPTER"; run_adapter "$FULL_CHECK_ADAPTER" ;;
-      *) die 'usage: governance check branch|message|title|staged|commits|all' ;;
+      *) die 'usage: governance check branch|message|title|staged|commits|local|sync|all' ;;
     esac
     ;;
   version)

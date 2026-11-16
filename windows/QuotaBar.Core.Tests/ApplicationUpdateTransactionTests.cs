@@ -19,6 +19,11 @@ internal static class ApplicationUpdateTransactionTests {
             Refused(()=>job.Validate(root,job.Target,DateTimeOffset.UtcNow.AddMinutes(11)));
             job.Validate(root,job.Target,DateTimeOffset.UtcNow);
             var receipt=Path.Combine(root,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(receipt); job.Write(receipt); job.Receipt("succeeded",receipt);
+            job.RecordFailure("installation",new IOException("directory replacement failed",unchecked((int)0x80070006)),receipt);
+            using(var failure=System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(receipt,"failure.json")))) {
+                var details=failure.RootElement;
+                if(details.GetProperty("stage").GetString()!="installation" || !details.GetProperty("error").GetString()!.Contains("directory replacement failed") || details.GetProperty("hResult").GetInt32()!=unchecked((int)0x80070006)) throw new Exception("Update failure lost its stage or underlying error");
+            }
             if(UpdateInstallJob.ConsumeResult(root,job.Target)!=ApplicationUpdatePhase.Succeeded || UpdateInstallJob.ConsumeResult(root,job.Target)!=null) throw new Exception("Result replayed or lost");
             File.WriteAllText(Path.Combine(root,"consumed"),""); Refused(()=>job.Validate(root,job.Target,DateTimeOffset.UtcNow));
             Console.WriteLine("PASS update job target, expiry and replay validation");

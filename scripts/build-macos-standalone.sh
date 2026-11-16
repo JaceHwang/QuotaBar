@@ -38,7 +38,7 @@ if not match or any(int(n)>65534 for n in match.groups()[:3]) or (match.group(4)
  raise ValueError('Invalid product version')
 numeric='.'.join(match.groups()[:3])
 with (app/'Contents/Info.plist').open('wb') as f:
- plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'QuotaBar','CFBundleDisplayName':'QuotaBar','CFBundleIconFile':'AppIcon','CFBundleExecutable':'CodexQuota','CFBundlePackageType':'APPL','CFBundleShortVersionString':numeric,'CUSFullVersion':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True},f)
+ plistlib.dump({'CFBundleIdentifier':'com.jace.codex-quota','CFBundleName':'QuotaBar','CFBundleDisplayName':'QuotaBar','CFBundleIconFile':'AppIcon','CFBundleExecutable':'CodexQuota','CFBundlePackageType':'APPL','CFBundleShortVersionString':numeric,'CUSFullVersion':sys.argv[2],'CFBundleVersion':'1','LSMinimumSystemVersion':'14.0','LSUIElement':True,'CUSStandalone':True,'CUSInstallLocation':'/Applications/QuotaBar.app'},f)
 import os
 release_tag=os.environ.get('CUS_RELEASE_TAG')
 provenance={'kind':'release' if release_tag else 'local-development-candidate','sourceCommit':subprocess.check_output(['git','-C',sys.argv[4],'rev-parse','HEAD'],text=True).strip(),'workingTreeDirty':bool(subprocess.check_output(['git','-C',sys.argv[4],'status','--porcelain','--untracked-files=no'],text=True).strip()),'version':sys.argv[2],'runtimeVersion':sys.argv[3],'runtimeSource':'https://github.com/openai/codex/releases/tag/rust-v0.144.1','runtimeUnsignedSha256':hashlib.sha256((app/'Contents/Helpers/codex').read_bytes()).hexdigest(),'releaseTag':release_tag}

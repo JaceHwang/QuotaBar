@@ -22,6 +22,13 @@ final class QuotaFooterGitHubButtonTests: XCTestCase {
         XCTAssertEqual(opened, destination)
     }
 
+    func testFooterLinkUsesUnderlinedTactileText() throws {
+        let button = QuotaFooterLinkButton(frame: CGRect(x: 0, y: 0, width: 88, height: 30), destination: URL(string: "https://github.com/JaceHwang/QuotaBar")!, onActivate: { _ in })
+        let base: NSButton = button
+        XCTAssertTrue(base is SettingsAccentButton)
+        let label = try XCTUnwrap(button.subviews.compactMap { $0 as? NSTextField }.first)
+        XCTAssertEqual(label.attributedStringValue.attribute(.underlineStyle, at: 0, effectiveRange: nil) as? Int, NSUnderlineStyle.single.rawValue)
+    }
     func testUsesCompactBorderlessRoundedSurface() {
         let button = QuotaFooterLinkButton(
             frame: CGRect(x: 0, y: 0, width: 88, height: 30),

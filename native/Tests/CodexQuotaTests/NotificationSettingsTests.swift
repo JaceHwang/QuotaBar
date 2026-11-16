@@ -47,6 +47,17 @@ import QuotaCore
         master.state = .on; NSApp.sendAction(master.action!, to: master.target, from: master)
         XCTAssertTrue(low.isEnabled); XCTAssertEqual(low.state, .on); XCTAssertTrue(select.isEnabled)
     }
+    func testMatrixActionsUseSharedCompactButtonMaterial() throws {
+        let router = AppNotificationRouter(defaults: UserDefaults(suiteName: "MatrixButtons.\(UUID())")!); defer { router.stop() }
+        XCTAssertTrue(router.configurePolicy(NotificationPolicyPreferences()))
+        let view = NotificationSettingsView(router: router, language: .english, floatingVisible: true, preview: {}, showUnread: {}, enableFloating: {})
+        let actions = tree(view).compactMap { $0 as? NSButton }.filter {
+            let id = $0.identifier?.rawValue ?? ""
+            return id.hasPrefix("notification.selectAll.") || id.hasPrefix("notification.threshold.")
+        }
+        XCTAssertGreaterThanOrEqual(actions.count, 5)
+        XCTAssertTrue(actions.allSatisfy { $0 is SettingsAccentButton }, "Matrix action buttons must use shared tactile material")
+    }
     func testExampleUsesChannelMastersInsteadOfLegacyModeOrCategoryRules() {
         let defaults = UserDefaults(suiteName: "MatrixTestRoute.\(UUID())")!
         let router = AppNotificationRouter(defaults: defaults); defer { router.stop() }
