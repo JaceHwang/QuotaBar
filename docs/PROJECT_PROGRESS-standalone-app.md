@@ -1375,3 +1375,17 @@ beta.8 发布完成：准确标签 v1.7.0-beta.8 指向 `c164acb057f98ad3acca851
 正式版推广分支基于 main 626b600 构建：暂存快照除正式版本源、正式 CHANGELOG 和追加进度外，所有文件与 beta.8 c164acb 一致；版本仍为 1.6.0，预留 Release Please 生成 1.7.0。独立审查确认 main 的 beta.1 发布记录保留，发现 README 双语页面尚指向 1.6.0，且旧版实际 macOS 安装位置为用户 Applications；正式资产发布后需更新下载入口与全局安装说明。本机全量治理检查进行中，尚未推送或发布。
 
 推广快照本机 `./governance check all` 退出 0：macOS Swift 测试及安装夹具、跨平台核心检查和 Windows 应用、安装器、原生测试项目交叉编译通过；更新进度后的 `.governance/project/check-fast` 亦通过。独立审查未发现快照遗漏，README 固定下载版本和安装路径问题安排在正式资产发布后修正。尚未提交或推送。
+
+推广源码已本地提交 e49cfdc，完整检查通过；两次常规 Git 推送在本机钩子成功后遇 GitHub TLS 中断。通过 GitHub API 创建远端提交 d97ecd4052f2fffd8ffca7d4b8b8252f32be8e9f，其 Git tree `713f0a979adaf925fa9a945c047c4fb03ba4ae87` 与本地 e49cfdc 精确一致、父提交为 main 626b600。PR #86 已创建，记录同一来源的两端候选摘要、实测边界和首次 beta 标签 CI 失败；双平台 CI 与治理正在执行。下一步等 PR 检查通过后合并，再核查 Release Please 的 1.7.0 版本 PR。
+
+推广 PR #86 已以 d97ecd4 的准确 head 合并为 main 提交 `2b037c70cc4c1b32d43dd189497bac1f34ee42b1`；PR CI 43867959961、push CI 43867915237 双平台及对应治理均通过。Release Please 更新正式版 PR #70，head `28b71de810d51da3cf435b324935554a47e201b4`，manifest 与 version.txt 为 1.7.0，CHANGELOG 含既有统一消息及 beta.8 推广。机器人自动 PR 检查未启动；按项目既有流程重开同一 PR，触发准确 head 的 PR CI 43870192055 和治理 43870192071，等待结果。正式标签及资产尚未生成。
+
+正式版 Release Please PR #70 的准确 head `28b71de810d51da3cf435b324935554a47e201b4` 经 PR 事件 CI 43870192055（macOS、Windows）和治理 43870192071 全部通过；已 squash 合并为 main 提交 `34fb313b9c948f482f1d8dc66304b0fac7801371`。Release Please 作业 43872427776、该准确提交 CI 43872427718 及治理 43872428125 正在运行；需核验正式 tag 指向该提交，等待双平台 CI 成功后分平台发布。旧机器人 PR 检查未执行作业并在重开后显示失败，保留历史；未绕过合并保护。
+
+v1.7.0 标签确认指向 `34fb313b9c948f482f1d8dc66304b0fac7801371`；准确提交 CI 43872427718 与治理 43872428125 全部通过，Release Please 创建无资产正式草稿。初次 Windows 工作流请求遇 GitHub 网络 EOF，核实没有作业启动后以标准 API 重试成功，Windows 平台发布作业 43875514523 正在执行；macOS 待其完成后顺序发布。
+
+Windows 正式发布作业 43875514523 通过，v1.7.0 公开正式发行页标记 Windows available、macOS pending；Windows ZIP 官方 SHA-256 `fb6210c2d23549b7573471e118cb0ce7f6f24838315312282fea470da109a78b`。macOS 首次调度因 GitHub EOF 失败，经核实未创建作业后重试成功，发布作业 43876178875 正在运行。两端资产、更新源和 README 最终复核尚未完成。
+
+v1.7.0 正式发布：标签精确指向 `34fb313b9c948f482f1d8dc66304b0fac7801371`；正式标签 CI 43872427718 双平台及治理 43872428125 通过。Windows 发布作业 43875514523、macOS 发布作业 43876178875 均通过，发行页两平台 available、非草稿且非 prerelease。Windows ZIP 发行 API SHA-256 `fb6210c2d23549b7573471e118cb0ce7f6f24838315312282fea470da109a78b`；macOS DMG 为 `6e5220729ec1533831b8485062eaf36a0527cde4c051443f8c0cff4d08769f44`。发布后的更新源工作流 43876929944 成功；本机直连 GitHub Pages 与发行资产时 TLS 断连/超时，尚未核对公网更新 JSON、下载校验单或完整安装包，不能将工作流成功表述为本机公开下载验证。macOS 光标与拖动、Windows 手机推送端到端及正式发布包实装仍未验收；此前 beta.8 准确标签首次 Windows CI 卸载访问被拒绝、复跑通过且原因未确认，保留历史。双语 README 的 1.7.0 下载入口和安装位置说明正在更新。
+
+正式发布后的双语 README 已更新为 1.7.0 发行页和准确平台包名，说明 1.7.0 包含可选内测通道，并将应用内更新要求改为各平台标准安装位置；链接名称与发行 API 的已发布资产一致。该文档变更基于正式标签提交，本机 `./governance check all` 通过；尚待提交并通过 PR 同步到 main。
