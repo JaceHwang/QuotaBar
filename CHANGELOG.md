@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0-beta.8](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.7...v1.7.0-beta.8) (2026-11-16)
+
+
+### Bug Fixes
+
+* preserve reminder settings and refine controls ([afd8ecc](https://github.com/JaceHwang/QuotaBar/commit/afd8eccb52d7a029e18432f864b6a4c7551e01e5))
+
 ## [1.7.0-beta.7](https://github.com/JaceHwang/QuotaBar/compare/v1.7.0-beta.6...v1.7.0-beta.7) (2026-11-14)
 
 
