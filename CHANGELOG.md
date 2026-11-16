@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/JaceHwang/QuotaBar/compare/v1.6.0...v1.7.0) (2026-11-16)
+
+
+### Features
+
+* add opt-in beta updates and unified message list ([626b600](https://github.com/JaceHwang/QuotaBar/commit/626b6002bc45ff82e10e56cfdcc3f393bb736eb2))
+* promote beta.8 to stable release ([2b037c7](https://github.com/JaceHwang/QuotaBar/commit/2b037c70cc4c1b32d43dd189497bac1f34ee42b1))
+
 ## [1.6.0](https://github.com/JaceHwang/QuotaBar/compare/v1.5.0...v1.6.0) (2026-11-02)
 
 
